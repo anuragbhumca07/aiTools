@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎬 Quiz Video Generator</title>
+  <style>
+    :root {
+      --cyan:   #05bfdb;
+      --purple: #7c3aed;
+      --pink:   #e94560;
+      --gold:   #f5a623;
+      --green:  #00c853;
+      --bg:     #06061a;
+      --card:   rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.1);
+      --text:   #e8e8f0;
+      --muted:  #8888aa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── Stars ── */
+    #stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .star {
+      position: absolute; border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--d,3s) ease-in-out infinite;
+      animation-delay: var(--delay,0s);
+    }
+    @keyframes twinkle {
+      0%,100% { opacity:.15; transform:scale(1); }
+      50%      { opacity:.9;  transform:scale(1.6); }
+    }
+
+    /* ── Layout ── */
+    .page { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 48px; }
+    header .badge {
+      display: inline-block; background: linear-gradient(135deg,var(--purple),var(--cyan));
+      color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 2px;
+      padding: 5px 16px; border-radius: 20px; margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+    header h1 {
+      font-size: clamp(2rem,5vw,3.4rem); font-weight: 900; line-height: 1.15;
+      background: linear-gradient(135deg, #fff 0%, var(--cyan) 50%, var(--purple) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 12px;
+    }
+    header p { color: var(--muted); font-size: 1.1rem; }
+
+    /* ── Grid ── */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media(max-width:760px){ .grid { grid-template-columns: 1fr; } }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 32px;
+      backdrop-filter: blur(12px);
+      transition: transform .25s, box-shadow .25s;
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ''; position: absolute; inset: 0; border-radius: 24px;
+      background: radial-gradient(ellipse at top left, rgba(5,191,219,.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 20px 60px rgba(5,191,219,.12); }
+
+    .card-icon { font-size: 3rem; margin-bottom: 14px; }
+    .card h2 { font-size: 1.45rem; font-weight: 800; margin-bottom: 8px; }
+    .card > p  { color: var(--muted); font-size: .95rem; margin-bottom: 24px; line-height: 1.6; }
+
+    /* ── Tabs ── */
+    .tab-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .tab-btn {
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: .82rem; font-weight: 600; font-family: inherit;
+      padding: 7px 14px; cursor: pointer;
+      transition: background .2s, color .2s, border-color .2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { background: rgba(5,191,219,.1); color: var(--cyan); border-color: rgba(5,191,219,.3); }
+    .tab-btn.selected {
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(5,191,219,.25));
+      color: #fff; border-color: var(--cyan);
+    }
+
+    .subtab-row {
+      display: none; flex-wrap: wrap; gap: 7px;
+      margin-bottom: 20px;
+    }
+    .subtab-row.visible { display: flex; }
+
+    /* ── Tab divider ── */
+    .tab-divider {
+      display: none;
+      border: none; border-top: 1px solid var(--border);
+      margin: 4px 0 10px;
+    }
+    .tab-divider.visible { display: block; }
+
+    /* ── Format toggle ── */
+    .format-toggle {
+      display: flex; gap: 8px; margin-bottom: 20px; align-items: center;
+    }
+    .format-toggle label {
+      font-size: .82rem; font-weight: 600; color: var(--muted);
+      margin: 0; letter-spacing: .5px; white-space: nowrap;
+    }
+    .fmt-btn {
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: .82rem; font-weight: 600; font-family: inherit;
+      padding: 7px 14px; cursor: pointer;
+      transition: background .2s, color .2s, border-color .2s;
+      white-space: nowrap;
+    }
+    .fmt-btn:hover { background: rgba(5,191,219,.1); color: var(--cyan); border-color: rgba(5,191,219,.3); }
+    .fmt-btn.selected {
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(5,191,219,.25));
+      color: #fff; border-color: var(--cyan);
+    }
+
+    /* ── Inputs ── */
+    label { display: block; font-size: .85rem; font-weight: 600; color: var(--cyan); margin-bottom: 6px; letter-spacing: .5px; }
+    input[type=text], select, textarea {
+      width: 100%; background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); font-size: .95rem; padding: 12px 16px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+      font-family: inherit;
+    }
+    input[type=text]:focus, select:focus, textarea:focus {
+      border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(5,191,219,.15);
+    }
+    select { cursor: pointer; }
+    select option { background: #1a1a3e; }
+    .form-group { margin-bottom: 18px; }
+
+    textarea {
+      resize: vertical;
+      line-height: 1.6;
+      min-height: 220px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 15px 28px;
+      border: none; border-radius: 14px; cursor: pointer;
+      font-size: 1rem; font-weight: 700; font-family: inherit;
+      transition: transform .2s, box-shadow .2s, opacity .2s;
+      letter-spacing: .5px;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; transform: none !important; }
+
+    .btn-random {
+      background: linear-gradient(135deg, #7c3aed, #05bfdb);
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(124,58,237,.35);
+    }
+    .btn-random:hover:not(:disabled) { box-shadow: 0 8px 32px rgba(124,58,237,.5); transform: translateY(-2px); }
+
+    .btn-custom {
+      background: linear-gradient(135deg, #e94560, #f5a623);
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(233,69,96,.35);
+    }
+    .btn-custom:hover:not(:disabled) { box-shadow: 0 8px 32px rgba(233,69,96,.5); transform: translateY(-2px); }
+
+    .btn-play {
+      background: linear-gradient(135deg, #7c3aed, #05bfdb);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(124,58,237,.3);
+    }
+    .btn-play:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(124,58,237,.5); transform: translateY(-2px); }
+
+    .btn-download {
+      background: linear-gradient(135deg, #00c853, #05bfdb);
+      color: #fff; text-decoration: none;
+      box-shadow: 0 4px 16px rgba(0,200,83,.3);
+    }
+    .btn-download:hover { box-shadow: 0 6px 24px rgba(0,200,83,.5); transform: translateY(-2px); }
+
+    /* ── Loading overlay ── */
+    .loading-overlay {
+      display: none; position: absolute; inset: 0; border-radius: 24px;
+      background: rgba(6,6,26,.88); backdrop-filter: blur(6px);
+      flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      z-index: 10;
+    }
+    .loading-overlay.active { display: flex; }
+
+    .spinner {
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 4px solid rgba(255,255,255,.1);
+      border-top-color: var(--cyan);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-steps { text-align: center; }
+    .loading-steps .step { font-size: .95rem; color: var(--muted); margin-bottom: 6px; transition: color .3s; }
+    .loading-steps .step.active { color: var(--cyan); font-weight: 700; }
+    .loading-steps .step.done   { color: var(--green); }
+
+    .loading-progress {
+      font-size: .85rem; color: var(--muted); margin-top: 8px; text-align: center;
+    }
+
+    /* ── Gallery ── */
+    #gallery { margin-top: 48px; }
+    #gallery-title {
+      display: none;
+      text-align: center; font-size: 1.3rem; font-weight: 800;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    #gallery-title.visible { display: block; }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+    }
+
+    .result-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      backdrop-filter: blur(12px);
+      animation: slideUp .45s cubic-bezier(.22,.9,.36,1) both;
+    }
+    @keyframes slideUp {
+      from { opacity:0; transform: translateY(30px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+
+    .result-card .question-display {
+      background: rgba(5,191,219,.08); border: 1px solid rgba(5,191,219,.2);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
+    }
+    .result-card .question-display strong {
+      display: block; color: #fff; font-size: 1rem; margin-bottom: 10px; line-height: 1.4;
+    }
+    .result-card .opts {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 7px;
+    }
+    .result-card .opt {
+      background: rgba(255,255,255,.05); border-radius: 8px; padding: 6px 10px;
+      font-size: .85rem; color: var(--text);
+    }
+    .result-card .opt.correct { background: rgba(0,200,83,.15); color: var(--green); font-weight: 700; }
+
+    .result-card video {
+      width: 100%; border-radius: 12px; margin-bottom: 14px;
+      box-shadow: 0 6px 30px rgba(0,0,0,.5);
+      background: #000;
+      display: none;
+    }
+    .result-card video.revealed { display: block; }
+
+    .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .result-actions .btn { width: auto; flex: 1; min-width: 120px; padding: 12px 18px; font-size: .9rem; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #1a1a3e; border: 1px solid var(--pink); color: var(--pink);
+      padding: 12px 24px; border-radius: 12px; font-size: .9rem; font-weight: 600;
+      z-index: 999; transition: transform .35s cubic-bezier(.22,.9,.36,1);
+      pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<div class="page">
+
+  <header>
+    <div class="badge">✨ AI-Powered Quiz Videos</div>
+    <h1>Quiz Video Generator 🎬</h1>
+    <p>Create engaging quiz videos with voice, timer &amp; animation — in seconds</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- Card 1: Random -->
+    <div class="card" id="card-random">
+      <div class="loading-overlay" id="loading-random">
+        <div class="spinner"></div>
+        <div class="loading-steps" id="steps-random">
+          <div class="step" data-step="0">⏳ Starting generation...</div>
+          <div class="step" data-step="1">🎙️ Generating voice...</div>
+          <div class="step" data-step="2">🎬 Rendering video...</div>
+          <div class="step" data-step="3">✅ Finalising...</div>
+        </div>
+      </div>
+
+      <div class="card-icon">🎲</div>
+      <h2>Random Quiz Question</h2>
+      <p>Pick a category and sub-topic, then generate a surprise quiz question with voice, countdown timer &amp; animated answer reveal.</p>
+
+      <!-- Category tabs -->
+      <div class="tab-row" id="cat-tabs">
+        <button class="tab-btn" data-cat="Maths" onclick="selectCategory('Maths', this)">📐 Maths</button>
+        <button class="tab-btn" data-cat="Science" onclick="selectCategory('Science', this)">🔬 Science</button>
+        <button class="tab-btn" data-cat="Sports" onclick="selectCategory('Sports', this)">⚽ Sports</button>
+        <button class="tab-btn" data-cat="General Knowledge" onclick="selectCategory('General Knowledge', this)">🌍 General Knowledge</button>
+        <button class="tab-btn" data-cat="History" onclick="selectCategory('History', this)">📜 History</button>
+      </div>
+
+      <!-- Divider between category and subcategory tabs -->
+      <hr class="tab-divider" id="tab-divider" />
+
+      <!-- Subcategory tabs (populated dynamically) -->
+      <div class="subtab-row" id="subcat-tabs"></div>
+
+      <!-- Format toggle -->
+      <div class="format-toggle">
+        <label>Format:</label>
+        <button class="fmt-btn selected" id="rfmt-169" onclick="selectFormat('random','16:9',this)">📺 16:9 Landscape</button>
+        <button class="fmt-btn" id="rfmt-916" onclick="selectFormat('random','9:16',this)">📱 9:16 Portrait</button>
+      </div>
+
+      <button class="btn btn-random" id="btn-random" onclick="generateRandom()" disabled>
+        🎲 Generate Random Video
+      </button>
+    </div>
+
+    <!-- Card 2: Custom -->
+    <div class="card" id="card-custom">
+      <div class="loading-overlay" id="loading-custom">
+        <div class="spinner"></div>
+        <div class="loading-steps" id="steps-custom">
+          <div class="step" data-step="0">⏳ Starting generation...</div>
+          <div class="step" data-step="1">🎙️ Generating voice...</div>
+          <div class="step" data-step="2">🎬 Rendering video...</div>
+          <div class="step" data-step="3">✅ Finalising...</div>
+        </div>
+        <div class="loading-progress" id="custom-progress"></div>
+      </div>
+
+      <div class="card-icon">✏️</div>
+      <h2>Custom Quiz Questions</h2>
+      <p>Paste one or more questions below. Each block separated by a blank line becomes its own video.</p>
+
+      <!-- Format toggle -->
+      <div class="format-toggle">
+        <label>Format:</label>
+        <button class="fmt-btn selected" id="cfmt-169" onclick="selectFormat('custom','16:9',this)">📺 16:9 Landscape</button>
+        <button class="fmt-btn" id="cfmt-916" onclick="selectFormat('custom','9:16',this)">📱 9:16 Portrait</button>
+      </div>
+
+      <div class="form-group">
+        <label>Questions (one block per video)</label>
+        <textarea id="c-textarea" rows="12" spellcheck="false">Q: What is the capital of France?
+A: London
+B: Berlin
+C: Paris
+D: Madrid
+Answer: C
+
+Q: How many planets are in our solar system?
+A: 7
+B: 8
+C: 9
+D: 10
+Answer: B</textarea>
+      </div>
+
+      <button class="btn btn-custom" id="btn-custom" onclick="generateCustomBatch()">
+        🎬 Generate Videos
+      </button>
+    </div>
+
+  </div><!-- .grid -->
+
+  <!-- Gallery -->
+  <div id="gallery">
+    <div id="gallery-title">🎉 Generated Videos</div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+  </div>
+
+</div><!-- .page -->
+
+<div id="toast"></div>
+
+<script>
+  // ── Category / subcategory data ──────────────────────────────────
+  const SUBCATS = {
+    "Maths": ["Primary", "Middle School", "High School", "College"],
+    "Science": ["Physics", "Chemistry", "Biology", "General Science"],
+    "Sports": ["Cricket", "Football", "Olympics", "General Sports"],
+    "General Knowledge": ["World Geography", "Famous People", "Technology", "Nature & Animals"],
+    "History": ["Ancient History", "Medieval", "Modern History", "Indian History"],
+  };
+
+  let selectedCategory = null;
+  let selectedSubcategory = null;
+  let randomFormat = '16:9';
+  let customFormat = '16:9';
+
+  function selectFormat(card, fmt, btnEl) {
+    if (card === 'random') {
+      randomFormat = fmt;
+      document.getElementById('rfmt-169').classList.toggle('selected', fmt === '16:9');
+      document.getElementById('rfmt-916').classList.toggle('selected', fmt === '9:16');
+    } else {
+      customFormat = fmt;
+      document.getElementById('cfmt-169').classList.toggle('selected', fmt === '16:9');
+      document.getElementById('cfmt-916').classList.toggle('selected', fmt === '9:16');
+    }
+  }
+
+  // ── Starfield ────────────────────────────────────────────────────
+  (function() {
+    const container = document.getElementById('stars');
+    for (let i = 0; i < 120; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      const size = Math.random() < 0.2 ? 3 : Math.random() < 0.5 ? 2 : 1;
+      s.style.cssText = `
+        left:${Math.random()*100}%; top:${Math.random()*100}%;
+        width:${size}px; height:${size}px;
+        --d:${2+Math.random()*4}s; --delay:${Math.random()*4}s;
+      `;
+      container.appendChild(s);
+    }
+  })();
+
+  // ── Category selection ───────────────────────────────────────────
+  function selectCategory(cat, btnEl) {
+    selectedCategory = cat;
+    selectedSubcategory = null;
+
+    // Highlight category tab
+    document.querySelectorAll('#cat-tabs .tab-btn').forEach(b => b.classList.remove('selected'));
+    btnEl.classList.add('selected');
+
+    // Build sub-tabs
+    const subRow = document.getElementById('subcat-tabs');
+    subRow.innerHTML = '';
+    const subs = SUBCATS[cat] || [];
+    subs.forEach(sub => {
+      const b = document.createElement('button');
+      b.className = 'tab-btn';
+      b.textContent = sub;
+      b.onclick = () => selectSubcategory(sub, b);
+      subRow.appendChild(b);
+    });
+    subRow.classList.add('visible');
+    document.getElementById('tab-divider').classList.add('visible');
+
+    // Disable generate until subtab chosen
+    document.getElementById('btn-random').disabled = true;
+  }
+
+  function selectSubcategory(sub, btnEl) {
+    selectedSubcategory = sub;
+    document.querySelectorAll('#subcat-tabs .tab-btn').forEach(b => b.classList.remove('selected'));
+    btnEl.classList.add('selected');
+    document.getElementById('btn-random').disabled = false;
+  }
+
+  // ── Loading step animator ────────────────────────────────────────
+  function animateSteps(stepsEl, durationMs) {
+    const steps = stepsEl.querySelectorAll('.step');
+    steps.forEach(s => s.classList.remove('active','done'));
+    const interval = durationMs / steps.length;
+    steps[0].classList.add('active');
+    steps.forEach((step, i) => {
+      if (i === 0) return;
+      setTimeout(() => {
+        steps[i-1].classList.remove('active'); steps[i-1].classList.add('done');
+        step.classList.add('active');
+      }, i * interval);
+    });
+    return () => steps.forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  // ── Build a result card ──────────────────────────────────────────
+  function buildResultCard({ videoUrl, filename, question, options, correctIndex }) {
+    const labels = ['A', 'B', 'C', 'D'];
+    const cardId = 'rc-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const videoId = 'vid-' + cardId;
+
+    const optsHtml = options.map((o, i) =>
+      `<div class="opt${i === correctIndex ? ' correct' : ''}">${labels[i]}. ${o}${i === correctIndex ? ' ✅' : ''}</div>`
+    ).join('');
+
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.innerHTML = `
+      <div class="question-display">
+        <strong>❓ ${escHtml(question)}</strong>
+        <div class="opts">${optsHtml}</div>
+      </div>
+      <video id="${videoId}" controls></video>
+      <div class="result-actions">
+        <button class="btn btn-play" onclick="playVideo('${videoId}', '${escAttr(videoUrl)}')">▶ Play</button>
+        <button class="btn btn-download" onclick="downloadVideo('${escAttr(videoUrl)}', '${escAttr(filename)}')">⬇ Download</button>
+      </div>
+    `;
+    return card;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escAttr(s) {
+    return s.replace(/'/g,"\\'");
+  }
+
+  function addToGallery(data) {
+    const grid = document.getElementById('gallery-grid');
+    const titleEl = document.getElementById('gallery-title');
+    const card = buildResultCard(data);
+    grid.appendChild(card);
+    titleEl.classList.add('visible');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function playVideo(videoId, videoUrl) {
+    const vid = document.getElementById(videoId);
+    if (!vid) return;
+    if (!vid.src || !vid.src.includes('/videos/')) {
+      vid.src = videoUrl + '?t=' + Date.now();
+    }
+    vid.classList.add('revealed');
+    vid.play();
+  }
+
+  async function downloadVideo(videoUrl, filename) {
+    try {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } }],
+        });
+        const res = await fetch(videoUrl);
+        const blob = await res.blob();
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        // Fallback: anchor download
+        const a = document.createElement('a');
+        a.href = videoUrl;
+        a.download = filename;
+        a.click();
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') showToast('Download failed: ' + err.message);
+    }
+  }
+
+  // ── Generate Random ──────────────────────────────────────────────
+  async function generateRandom() {
+    if (!selectedCategory || !selectedSubcategory) {
+      showToast('⚠️ Please select a category and sub-topic first.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-random');
+    const overlay = document.getElementById('loading-random');
+    const stepsEl = document.getElementById('steps-random');
+    btn.disabled = true;
+    overlay.classList.add('active');
+    const finish = animateSteps(stepsEl, 75000);
+
+    try {
+      const res = await fetch('/api/generate-random', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: selectedCategory, subcategory: selectedSubcategory, format: randomFormat }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      finish();
+      addToGallery(data);
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      overlay.classList.remove('active');
+      btn.disabled = false;
+    }
+  }
+
+  // ── Parse textarea into question objects ─────────────────────────
+  function parseQuestions(text) {
+    const blocks = text.trim().split(/\n\s*\n/);
+    const questions = [];
+    const errors = [];
+
+    blocks.forEach((block, idx) => {
+      const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
+      const get = (prefix) => {
+        const line = lines.find(l => l.toUpperCase().startsWith(prefix.toUpperCase() + ':'));
+        return line ? line.slice(prefix.length + 1).trim() : null;
+      };
+
+      const q = get('Q');
+      const a = get('A');
+      const b = get('B');
+      const c = get('C');
+      const d = get('D');
+      const ans = get('Answer');
+
+      if (!q || !a || !b || !c || !d || !ans) {
+        errors.push(`Block ${idx + 1}: missing required fields.`);
+        return;
+      }
+
+      const ansUpper = ans.trim().toUpperCase();
+      const ansMap = { A: 0, B: 1, C: 2, D: 3 };
+      if (!(ansUpper in ansMap)) {
+        errors.push(`Block ${idx + 1}: Answer must be A, B, C, or D.`);
+        return;
+      }
+
+      questions.push({ question: q, options: [a, b, c, d], correctIndex: ansMap[ansUpper] });
+    });
+
+    return { questions, errors };
+  }
+
+  // ── Generate Custom Batch ────────────────────────────────────────
+  async function generateCustomBatch() {
+    const rawText = document.getElementById('c-textarea').value;
+    const { questions, errors } = parseQuestions(rawText);
+
+    if (errors.length > 0) {
+      showToast('⚠️ ' + errors[0]);
+      return;
+    }
+    if (questions.length === 0) {
+      showToast('⚠️ No valid question blocks found.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-custom');
+    const overlay = document.getElementById('loading-custom');
+    const stepsEl = document.getElementById('steps-custom');
+    const progressEl = document.getElementById('custom-progress');
+    btn.disabled = true;
+    overlay.classList.add('active');
+
+    let finish = null;
+
+    try {
+      for (let i = 0; i < questions.length; i++) {
+        // Reset and restart step animation for each video
+        if (finish) finish();
+        finish = animateSteps(stepsEl, 75000);
+        progressEl.textContent = `Generating video ${i + 1} of ${questions.length}…`;
+
+        const q = questions[i];
+        const res = await fetch('/api/generate-custom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q.question, options: q.options, correctIndex: q.correctIndex, format: customFormat }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(`Video ${i + 1}: ${data.error}`);
+        if (finish) finish();
+        addToGallery(data);
+      }
+      progressEl.textContent = '';
+      showToast(`✅ ${questions.length} video${questions.length > 1 ? 's' : ''} generated!`);
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      overlay.classList.remove('active');
+      btn.disabled = false;
+      progressEl.textContent = '';
+    }
+  }
+</script>
+</body>
+</html>

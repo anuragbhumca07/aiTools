@@ -3,7 +3,28 @@
     "allow": [
       "Bash(rm -rf .git)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npm search:*)",
+      "Bash(npm info:*)",
+      "Bash(npm list:*)",
+      "Bash(npx remotion:*)",
+      "Bash(powershell.exe -Command \"\nAdd-Type -AssemblyName System.Speech\n\\\\$s = New-Object System.Speech.Synthesis.SpeechSynthesizer\n\\\\$s.Rate = 0\n\\\\$s.Volume = 100\n\n\\\\$s.SetOutputToWaveFile\\('C:\\\\\\\\Users\\\\\\\\anura\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\aiTools\\\\\\\\my-video\\\\\\\\public\\\\\\\\voice\\\\\\\\question.wav'\\)\n\\\\$s.Speak\\('What is the largest planet in our solar system?'\\)\n\n\\\\$s.SetOutputToWaveFile\\('C:\\\\\\\\Users\\\\\\\\anura\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\aiTools\\\\\\\\my-video\\\\\\\\public\\\\\\\\voice\\\\\\\\options.wav'\\)\n\\\\$s.Speak\\('Your choices are. A: Earth. B: Saturn. C: Jupiter. D: Mars.'\\)\n\n\\\\$s.SetOutputToWaveFile\\('C:\\\\\\\\Users\\\\\\\\anura\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\aiTools\\\\\\\\my-video\\\\\\\\public\\\\\\\\voice\\\\\\\\answer.wav'\\)\n\\\\$s.Speak\\('You are correct! Yeah! Amazing job! The answer is Jupiter! You are a superstar!'\\)\n\n\\\\$s.Dispose\\(\\)\nWrite-Host 'Done'\n\")",
+      "Bash(powershell.exe -Command \"\nAdd-Type -AssemblyName System.Speech\n\\\\$s = New-Object System.Speech.Synthesis.SpeechSynthesizer\n\\\\$s.GetInstalledVoices\\(\\) | ForEach-Object { \\\\$_.VoiceInfo | Select-Object Name, Gender, Culture, Age }\n\\\\$s.Dispose\\(\\)\n\")",
+      "Bash(pip install:*)",
+      "Bash(python -m edge_tts --list-voices)",
+      "Bash(VOICE=\"en-IN-NeerjaExpressiveNeural\")",
+      "Bash(BASE=\"/c/Users/anura/OneDrive/Desktop/aiTools/my-video/public/voice\")",
+      "Bash(__NEW_LINE_edd5c617e4c375b1__ python:*)",
+      "Bash(python -m edge_tts --voice \"$VOICE\" --text \"A: Earth.  B: Saturn.  C: Jupiter.  D: Mars.\" --write-media \"$BASE/options.mp3\")",
+      "Bash(python -m edge_tts --voice \"$VOICE\" --text \"You are correct! Yeah! Amazing! The answer is Jupiter! You are a superstar!\" --write-media \"$BASE/answer.mp3\")",
+      "Bash(__NEW_LINE_7a7f92f54c1ebbd9__ python:*)",
+      "Bash(python -m edge_tts --voice \"$VOICE\" --text \"You are correct! Yeah! Jupiter is the answer!\" --write-media \"$BASE/answer.mp3\")",
+      "Bash(__NEW_LINE_7a7f92f54c1ebbd9__ python -c \":*)",
+      "Bash(python -m edge_tts --voice \"$VOICE\" --text \"You are correct! Amazing! The answer is Jupiter. You are a superstar!\" --write-media \"$BASE/answer.mp3\")",
+      "Bash(node:*)",
+      "Bash(powershell.exe -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { \\(Get-NetTCPConnection -OwningProcess \\\\$_.Id -ErrorAction SilentlyContinue | Where-Object LocalPort -eq 3001\\) } | Stop-Process -Force; Write-Host 'killed'\")",
+      "Bash(curl -s http://localhost:3001/api/categories)",
+      "Bash(python -m json.tool)"
     ]
   }
 }
