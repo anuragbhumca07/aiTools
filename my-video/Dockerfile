@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 # ── Python packages for TTS ────────────────────────────────────────
 RUN pip3 install edge-tts mutagen --break-system-packages
 
+# ── Alias python3 → python (server.js calls `python`) ─────────────
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 # ── Remotion: point to system Chromium, skip Puppeteer download ────
 ENV REMOTION_CHROME_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
