@@ -1,0 +1,7 @@
+# Proxy API and video requests to Railway backend
+# Replace RAILWAY_BACKEND_URL with your actual Railway domain after first deploy
+# Example: https://my-video-production.up.railway.app
+
+/api/*     RAILWAY_BACKEND_URL/api/:splat     200
+/videos/*  RAILWAY_BACKEND_URL/videos/:splat  200
+/public/*  RAILWAY_BACKEND_URL/public/:splat  200
