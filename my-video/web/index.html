@@ -416,6 +416,11 @@ Answer: B</textarea>
 <div id="toast"></div>
 
 <script>
+  // ── Backend URL (Railway) ─────────────────────────────────────────
+  const API_BASE = window.location.hostname.includes('railway.app')
+    ? ''
+    : 'https://quiz-video-generator-production.up.railway.app';
+
   // ── Category / subcategory data ──────────────────────────────────
   const SUBCATS = {
     "Maths": ["Primary", "Middle School", "High School", "College"],
@@ -606,7 +611,7 @@ Answer: B</textarea>
     const finish = animateSteps(stepsEl, 75000);
 
     try {
-      const res = await fetch('/api/generate-random', {
+      const res = await fetch(`${API_BASE}/api/generate-random`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: selectedCategory, subcategory: selectedSubcategory, format: randomFormat }),
@@ -692,7 +697,7 @@ Answer: B</textarea>
         progressEl.textContent = `Generating video ${i + 1} of ${questions.length}…`;
 
         const q = questions[i];
-        const res = await fetch('/api/generate-custom', {
+        const res = await fetch(`${API_BASE}/api/generate-custom`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: q.question, options: q.options, correctIndex: q.correctIndex, format: customFormat }),

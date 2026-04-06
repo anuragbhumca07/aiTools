@@ -268,7 +268,8 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   }
 
   console.log(`[${ts}] Done → out/${videoName}`);
-  return { videoUrl: `/videos/${videoName}`, filename: videoName, question, options, correctIndex };
+  const base = process.env.BACKEND_URL || '';
+  return { videoUrl: `${base}/videos/${videoName}`, filename: videoName, question, options, correctIndex };
 }
 
 // ─── Helper: flatten all questions ────────────────────────────────
