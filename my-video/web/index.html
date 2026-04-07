@@ -206,6 +206,14 @@
     }
     .btn-download:hover { box-shadow: 0 6px 24px rgba(0,200,83,.5); transform: translateY(-2px); }
 
+    .btn-social {
+      background: linear-gradient(135deg, #6c63ff, #a78bfa);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(108,99,255,.3);
+      text-decoration: none;
+    }
+    .btn-social:hover { box-shadow: 0 6px 24px rgba(108,99,255,.5); transform: translateY(-2px); }
+
     /* ── Loading overlay ── */
     .loading-overlay {
       display: none; position: absolute; inset: 0; border-radius: 24px;
@@ -541,6 +549,7 @@ Answer: B</textarea>
       <div class="result-actions">
         <button class="btn btn-play" onclick="playVideo('${videoId}', '${escAttr(videoUrl)}')">▶ Play</button>
         <button class="btn btn-download" onclick="downloadVideo('${escAttr(videoUrl)}', '${escAttr(filename)}')">⬇ Download</button>
+        <a class="btn btn-social" href="${buildSocialUrl(videoUrl, question)}" target="_blank">🚀 Share on Social Media</a>
       </div>
     `;
     return card;
@@ -551,6 +560,12 @@ Answer: B</textarea>
   }
   function escAttr(s) {
     return s.replace(/'/g,"\\'");
+  }
+
+  const SOCIAL_UPLOADER_URL = 'https://aitools-social.pages.dev';
+  function buildSocialUrl(videoUrl, topic) {
+    const base = SOCIAL_UPLOADER_URL;
+    return `${base}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
   }
 
   function addToGallery(data) {

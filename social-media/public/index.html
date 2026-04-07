@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Social Media Uploader</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo"><span class="logo-icon">▶</span><span class="logo-text">SocialUploader</span></div>
+      <p class="header-sub">Drop a video. AI writes everything. Upload everywhere.</p>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ── STEP 1: Video ──────────────────────────────────────── -->
+    <section class="card" id="step-video">
+      <div class="step-label"><span class="step-num">1</span> Drop Your Video</div>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🎬</div>
+        <p class="drop-text">Drag & drop your MP4 here</p>
+        <p class="drop-sub">or</p>
+        <label class="btn btn-outline" for="fileInput">Browse File</label>
+        <input type="file" id="fileInput" accept="video/*" hidden/>
+      </div>
+
+      <div class="file-info" id="fileInfo" style="display:none">
+        <span class="file-icon">🎬</span>
+        <div class="file-details">
+          <span id="fileName" class="file-name"></span>
+          <span id="fileSize" class="file-size"></span>
+        </div>
+        <button class="btn-icon" id="removeFile" title="Remove">✕</button>
+      </div>
+
+      <div class="niche-row">
+        <label class="field-label">Niche / Category <span class="hint">(helps AI write better content)</span></label>
+        <div class="niche-chips" id="nicheChips">
+          <button class="chip active" data-niche="General">General</button>
+          <button class="chip" data-niche="Tech & Gadgets">Tech</button>
+          <button class="chip" data-niche="Finance & Business">Finance</button>
+          <button class="chip" data-niche="Lifestyle & Wellness">Lifestyle</button>
+          <button class="chip" data-niche="Entertainment & Comedy">Comedy</button>
+          <button class="chip" data-niche="Education & Tutorial">Education</button>
+          <button class="chip" data-niche="Gaming">Gaming</button>
+          <button class="chip" data-niche="Sports & Fitness">Sports</button>
+          <button class="chip" data-niche="Food & Cooking">Food</button>
+          <button class="chip" data-niche="Travel & Adventure">Travel</button>
+          <button class="chip" data-niche="DIY & Crafts">DIY</button>
+          <button class="chip" data-niche="Music & Arts">Music</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 2: AI ─────────────────────────────────────────── -->
+    <section class="card" id="step-ai">
+      <div class="step-label"><span class="step-num">2</span> AI Content (Auto-generated)</div>
+      <p class="card-hint">Select a free AI provider and paste your API key. Content generates automatically when you drop a video.</p>
+
+      <div class="ai-grid">
+        <label class="provider-card active-provider" data-p="groq">
+          <input type="radio" name="ai" value="groq" checked/>
+          <div class="plogo" style="background:linear-gradient(135deg,#f97316,#fb923c)">G</div>
+          <span class="pname">Groq</span>
+          <span class="pbadge free">Free</span>
+        </label>
+        <label class="provider-card" data-p="gemini">
+          <input type="radio" name="ai" value="gemini"/>
+          <div class="plogo" style="background:linear-gradient(135deg,#4285f4,#34a853)">◆</div>
+          <span class="pname">Gemini</span>
+          <span class="pbadge free">Free</span>
+        </label>
+        <label class="provider-card" data-p="hf">
+          <input type="radio" name="ai" value="hf"/>
+          <div class="plogo" style="background:linear-gradient(135deg,#ff6b35,#ffa500)">HF</div>
+          <span class="pname">HuggingFace</span>
+          <span class="pbadge free">Free</span>
+        </label>
+        <label class="provider-card" data-p="ollama">
+          <input type="radio" name="ai" value="ollama"/>
+          <div class="plogo" style="background:linear-gradient(135deg,#22c55e,#10b981)">●</div>
+          <span class="pname">Ollama</span>
+          <span class="pbadge local">Local</span>
+        </label>
+      </div>
+
+      <div id="aiKeyRow" class="field-row">
+        <label class="field-label" id="aiKeyLabel">Groq API Key — <a class="key-link" id="aiKeyLink" href="https://console.groq.com" target="_blank">Get free key ↗</a></label>
+        <input class="field-input" id="aiApiKey" type="password" placeholder="Paste API key…"/>
+      </div>
+      <div id="ollamaRow" class="field-row" style="display:none">
+        <label class="field-label">Ollama URL</label>
+        <input class="field-input" id="ollamaUrl" type="text" value="http://localhost:11434"/>
+      </div>
+
+      <!-- Generating state -->
+      <div id="genStatus" class="gen-status" style="display:none">
+        <span class="gen-spinner">⟳</span> <span id="genStatusText">Generating content…</span>
+      </div>
+
+      <!-- Generated content (editable) -->
+      <div class="generated-box" id="generatedBox" style="display:none">
+        <div class="gen-header">
+          <span class="gen-badge">✨ AI Generated — edit as needed</span>
+          <button class="btn btn-sm" id="regenBtn">↺ Regenerate</button>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">Title</label>
+          <input class="field-input" id="genTitle" type="text"/>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">Description</label>
+          <textarea class="field-textarea" id="genDescription" rows="6"></textarea>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">Hashtags</label>
+          <textarea class="field-textarea" id="genHashtags" rows="3"></textarea>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">YouTube Tags</label>
+          <input class="field-input" id="genTags" type="text"/>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">Tweet (X / Twitter)</label>
+          <input class="field-input" id="genTweet" type="text" maxlength="280"/>
+        </div>
+        <div class="gen-field">
+          <label class="gen-label">LinkedIn Post Intro</label>
+          <textarea class="field-textarea" id="genLinkedin" rows="3"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 3: Platforms ──────────────────────────────────── -->
+    <section class="card" id="step-platforms">
+      <div class="step-label"><span class="step-num">3</span> Select Platforms & Credentials</div>
+      <p class="card-hint">Enable the platforms you want. Credentials are saved in your browser.</p>
+
+      <!-- YouTube -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('yt')">
+          <div class="pf-logo" style="color:#ff0000;background:rgba(255,0,0,.12)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/></svg>
+          </div>
+          <span class="pf-name">YouTube</span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="ytEnabled" onchange="onPlatformToggle('yt')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="ytFields" style="display:none">
+          <div class="field-row"><label class="field-label">Client ID</label><input class="field-input" id="ytClientId" placeholder="xxxx.apps.googleusercontent.com"/></div>
+          <div class="field-row"><label class="field-label">Client Secret</label><input class="field-input" id="ytClientSecret" type="password" placeholder="GOCSPX-xxxx"/></div>
+          <div class="field-row"><label class="field-label">Refresh Token</label><input class="field-input" id="ytRefreshToken" type="password" placeholder="Paste refresh token…"/></div>
+          <button class="auth-btn yt-btn" onclick="openAuth('youtube')">🔒 Get Refresh Token via Google OAuth ↗</button>
+          <div class="field-row"><label class="field-label">Privacy</label><select class="field-input" id="ytPrivacy"><option value="public">Public</option><option value="unlisted">Unlisted</option><option value="private">Private</option></select></div>
+        </div>
+      </div>
+
+      <!-- Instagram -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('ig')">
+          <div class="pf-logo" style="color:#e1306c;background:rgba(225,48,108,.12)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+          </div>
+          <span class="pf-name">Instagram <span class="pf-sub">Reels</span></span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="igEnabled" onchange="onPlatformToggle('ig')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="igFields" style="display:none">
+          <div class="field-row"><label class="field-label">Page Access Token</label><input class="field-input" id="igToken" type="password" placeholder="Facebook Page Access Token with Instagram permissions"/></div>
+          <div class="field-row"><label class="field-label">Instagram Business Account ID</label><input class="field-input" id="igUserId" placeholder="e.g. 17841400000000000"/></div>
+          <p class="field-hint">Get from <a href="https://developers.facebook.com/tools/explorer" target="_blank">Graph Explorer</a> → select your IG Business Account → generate token with instagram_basic, instagram_content_publish</p>
+        </div>
+      </div>
+
+      <!-- Facebook -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('fb')">
+          <div class="pf-logo" style="color:#1877f2;background:rgba(24,119,242,.12)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+          </div>
+          <span class="pf-name">Facebook</span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="fbEnabled" onchange="onPlatformToggle('fb')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="fbFields" style="display:none">
+          <div class="field-row"><label class="field-label">Page Access Token</label><input class="field-input" id="fbToken" type="password" placeholder="Paste Page Access Token…"/></div>
+          <div class="field-row"><label class="field-label">Page ID</label><input class="field-input" id="fbPageId" placeholder="e.g. 123456789012345"/></div>
+          <p class="field-hint">Get from <a href="https://developers.facebook.com/tools/explorer" target="_blank">Facebook Graph Explorer ↗</a></p>
+        </div>
+      </div>
+
+      <!-- TikTok -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('tt')">
+          <div class="pf-logo" style="color:#69c9d0;background:rgba(105,201,208,.12)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.01a8.16 8.16 0 0 0 4.77 1.52V7.08a4.85 4.85 0 0 1-1-.39z"/></svg>
+          </div>
+          <span class="pf-name">TikTok</span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="ttEnabled" onchange="onPlatformToggle('tt')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="ttFields" style="display:none">
+          <div class="field-row"><label class="field-label">Access Token</label><input class="field-input" id="ttToken" type="password" placeholder="Paste TikTok Access Token…"/></div>
+          <div class="field-row"><label class="field-label">Open ID</label><input class="field-input" id="ttOpenId" placeholder="Paste Open ID…"/></div>
+          <div class="field-row"><label class="field-label">Client Key (for OAuth)</label><input class="field-input" id="ttClientKey" placeholder="Your TikTok Client Key"/></div>
+          <div class="field-row"><label class="field-label">Client Secret (for OAuth)</label><input class="field-input" id="ttClientSecret" type="password" placeholder="Your TikTok Client Secret"/></div>
+          <button class="auth-btn tt-btn" onclick="openAuth('tiktok')">🔒 Get Token via TikTok OAuth ↗</button>
+          <div class="field-row"><label class="field-label">Privacy</label><select class="field-input" id="ttPrivacy"><option value="PUBLIC_TO_EVERYONE">Public</option><option value="MUTUAL_FOLLOW_FRIENDS">Friends</option><option value="SELF_ONLY">Private</option></select></div>
+        </div>
+      </div>
+
+      <!-- Twitter / X -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('tw')">
+          <div class="pf-logo" style="color:#e7e9ea;background:rgba(231,233,234,.1)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </div>
+          <span class="pf-name">X / Twitter</span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="twEnabled" onchange="onPlatformToggle('tw')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="twFields" style="display:none">
+          <div class="field-row"><label class="field-label">API Key (Consumer Key)</label><input class="field-input" id="twApiKey" placeholder="From X Developer Portal"/></div>
+          <div class="field-row"><label class="field-label">API Secret</label><input class="field-input" id="twApiSecret" type="password"/></div>
+          <div class="field-row"><label class="field-label">Access Token</label><input class="field-input" id="twToken" type="password"/></div>
+          <div class="field-row"><label class="field-label">Access Token Secret</label><input class="field-input" id="twTokenSecret" type="password"/></div>
+          <p class="field-hint">Get all 4 from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank">X Developer Portal ↗</a> → Your App → Keys and Tokens (needs Read+Write access)</p>
+        </div>
+      </div>
+
+      <!-- LinkedIn -->
+      <div class="platform-block">
+        <div class="platform-header" onclick="togglePlatform('li')">
+          <div class="pf-logo" style="color:#0a66c2;background:rgba(10,102,194,.12)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </div>
+          <span class="pf-name">LinkedIn</span>
+          <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="liEnabled" onchange="onPlatformToggle('li')"/><span class="ts"></span></label>
+        </div>
+        <div class="platform-fields" id="liFields" style="display:none">
+          <div class="field-row"><label class="field-label">Access Token</label><input class="field-input" id="liToken" type="password" placeholder="Paste LinkedIn Access Token…"/></div>
+          <div class="field-row"><label class="field-label">Person URN</label><input class="field-input" id="liUrn" placeholder="urn:li:person:xxxxxxxx"/></div>
+          <div class="field-row"><label class="field-label">Client ID (for OAuth)</label><input class="field-input" id="liClientId" placeholder="LinkedIn App Client ID"/></div>
+          <div class="field-row"><label class="field-label">Client Secret (for OAuth)</label><input class="field-input" id="liClientSecret" type="password"/></div>
+          <button class="auth-btn li-btn" onclick="openAuth('linkedin')">🔒 Get Token via LinkedIn OAuth ↗</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── STEP 4: Upload ──────────────────────────────────────── -->
+    <section class="card" id="step-upload">
+      <div class="step-label"><span class="step-num">4</span> Upload</div>
+      <div class="upload-actions">
+        <button class="btn btn-upload" id="uploadAllBtn">🚀 Upload to All Enabled Platforms</button>
+      </div>
+      <div class="results-list" id="resultsList"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">Platforms: YouTube · Instagram · Facebook · TikTok · X/Twitter · LinkedIn &nbsp;|&nbsp; AI: Groq · Gemini · HuggingFace · Ollama</footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

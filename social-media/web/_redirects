@@ -1,0 +1,4 @@
+/api/*      https://SOCIAL_RAILWAY_URL/api/:splat      200
+/auth/*     https://SOCIAL_RAILWAY_URL/auth/:splat     200
+/uploads/*  https://SOCIAL_RAILWAY_URL/uploads/:splat  200
+/health     https://SOCIAL_RAILWAY_URL/health           200
