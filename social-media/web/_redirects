@@ -1,4 +1,4 @@
-/api/*      https://SOCIAL_RAILWAY_URL/api/:splat      200
-/auth/*     https://SOCIAL_RAILWAY_URL/auth/:splat     200
-/uploads/*  https://SOCIAL_RAILWAY_URL/uploads/:splat  200
-/health     https://SOCIAL_RAILWAY_URL/health           200
+/api/*      https://social-media-uploader-production.up.railway.app/api/:splat      200
+/auth/*     https://social-media-uploader-production.up.railway.app/auth/:splat     200
+/uploads/*  https://social-media-uploader-production.up.railway.app/uploads/:splat  200
+/health     https://social-media-uploader-production.up.railway.app/health           200
