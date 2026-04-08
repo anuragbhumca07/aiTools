@@ -260,11 +260,12 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   const portrait = format === '9:16';
   const vidW = portrait ? 720 : 1280;
   const vidH = portrait ? 1280 : 720;
+  const totalFrames = (props.questionSeconds + props.optionsSeconds + props.timerSeconds + props.answerSeconds) * 30;
 
-  console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH})`);
+  console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH}, frames: ${totalFrames})`);
   try {
     await execAsync(
-      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --image-format=jpeg --jpeg-quality=85 --concurrency=2`,
+      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --frames=0-${totalFrames - 1}`,
       { cwd: __dirname, timeout: 600000 }
     );
   } finally {

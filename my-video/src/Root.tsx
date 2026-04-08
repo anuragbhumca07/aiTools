@@ -11,7 +11,8 @@ export const RemotionRoot: React.FC = () => {
   const OPTIONS_SECONDS = 9;   // Phase 2: options voice (audio: 8.62s)
   const TIMER_SECONDS = 5;     // Phase 3: countdown
   const ANSWER_SECONDS = 7;    // Phase 4: reveal (audio: 6.14s)
-  const totalFrames = (QUESTION_SECONDS + OPTIONS_SECONDS + TIMER_SECONDS + ANSWER_SECONDS) * FPS;
+  // Large buffer so --frames=0-N never fails validation regardless of voice length
+  const totalFrames = 120 * FPS; // 120 seconds max
 
   return (
     <>
@@ -59,16 +60,9 @@ export const RemotionRoot: React.FC = () => {
         }}
         calculateMetadata={async ({ props }: { props: QuizProps }) => {
           const portrait = (props.format ?? "16:9") === "9:16";
-          const durationInFrames = (
-            (props.questionSeconds ?? QUESTION_SECONDS) +
-            (props.optionsSeconds  ?? OPTIONS_SECONDS)  +
-            (props.timerSeconds    ?? TIMER_SECONDS)    +
-            (props.answerSeconds   ?? ANSWER_SECONDS)
-          ) * FPS;
           return {
             width: portrait ? 720 : 1280,
             height: portrait ? 1280 : 720,
-            durationInFrames,
           };
         }}
       />
