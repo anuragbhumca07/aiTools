@@ -127,7 +127,7 @@ def ai_solve(problem: str, api_key: str = ""):
         raise ValueError("Groq API key is required")
 
     payload = {
-        "model": "llama3-70b-8192",
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "user", "content": SOLVE_PROMPT.format(problem=problem)}
         ],
@@ -143,7 +143,12 @@ def ai_solve(problem: str, api_key: str = ""):
         },
         timeout=30,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            detail = resp.json().get("error", {}).get("message", resp.text[:300])
+        except Exception:
+            detail = resp.text[:300]
+        raise requests.HTTPError(f"{resp.status_code}: {detail}", response=resp)
 
     raw = resp.json()["choices"][0]["message"]["content"].strip()
 
