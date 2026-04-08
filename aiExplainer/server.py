@@ -29,6 +29,11 @@ os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 TTS_VOICE = "en-US-AriaNeural"
 
+# Manim scene timing constants — must stay in sync with SCENE_TEMPLATE below
+_TITLE_DUR  = 1.2 + 0.5 + 0.8 + 1.0   # Write + Create + wait + scale = 3.5 s
+_FADE_DUR   = 0.45                       # FadeOut between steps
+_BADGE_DUR  = 0.45                       # GrowFromCenter badge
+
 # ---------------------------------------------------------------------------
 # TTS helpers
 # ---------------------------------------------------------------------------
@@ -38,9 +43,11 @@ async def _tts_async(text: str, path: str) -> None:
     await communicate.save(path)
 
 
-def generate_tts(text: str, path: str) -> float:
-    """Render text → MP3 at `path`. Returns duration in seconds."""
+def _tts_to_mp3(text: str, path: str) -> None:
     asyncio.run(_tts_async(text, path))
+
+
+def _audio_duration(path: str) -> float:
     r = subprocess.run(
         ["ffprobe", "-v", "quiet",
          "-show_entries", "format=duration",
@@ -53,9 +60,115 @@ def generate_tts(text: str, path: str) -> float:
         return 3.0
 
 
+def _mp3_to_wav(mp3: str, wav: str) -> None:
+    """Convert MP3 → PCM WAV (44 100 Hz stereo) for reliable concat."""
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", mp3,
+         "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", wav],
+        capture_output=True, check=True,
+    )
+
+
+def _silence_wav(duration_s: float, wav: str) -> None:
+    """Generate a silent PCM WAV of the given duration."""
+    subprocess.run(
+        ["ffmpeg", "-y",
+         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+         "-t", str(max(0.01, duration_s)),
+         "-c:a", "pcm_s16le", wav],
+        capture_output=True, check=True,
+    )
+
+
+def build_audio_track(
+    step_mp3s: list,          # per-step MP3 paths (None if TTS failed)
+    step_durations: list,     # per-step audio durations in seconds
+    write_times: list,        # per-step write animation durations
+    title_mp3: str | None,
+    tmp: str,
+) -> str | None:
+    """
+    Assemble a single WAV audio track that matches the Manim video timeline:
+
+      [title audio (padded to _TITLE_DUR)] [step0] [_FADE_DUR gap] [step1] … [end silence]
+
+    The audio for step i begins exactly when the step's badge animation starts
+    in the Manim scene.  Each step holds for audio_duration seconds, then
+    fades out in _FADE_DUR seconds, after which the next step begins.
+
+    Returns path to the combined WAV file, or None on failure.
+    """
+    wavs: list[str] = []
+
+    def sil(name: str, dur: float) -> str:
+        p = os.path.join(tmp, f"{name}.wav")
+        _silence_wav(dur, p)
+        return p
+
+    def to_wav(mp3: str, name: str) -> str:
+        p = os.path.join(tmp, f"{name}.wav")
+        _mp3_to_wav(mp3, p)
+        return p
+
+    # ── Title segment ────────────────────────────────────────────────────────
+    if title_mp3 and os.path.exists(title_mp3):
+        title_dur = _audio_duration(title_mp3)
+        wavs.append(to_wav(title_mp3, "title"))
+        pad = _TITLE_DUR - title_dur
+        if pad > 0.02:
+            wavs.append(sil("sil_title_pad", pad))
+    else:
+        wavs.append(sil("sil_intro", _TITLE_DUR))
+
+    # ── Step segments ────────────────────────────────────────────────────────
+    for i, (mp3, dur) in enumerate(zip(step_mp3s, step_durations)):
+        if mp3 and os.path.exists(mp3):
+            wavs.append(to_wav(mp3, f"step_{i}"))
+        else:
+            # replace missing audio with silence of the same length
+            wavs.append(sil(f"sil_step_{i}", dur))
+
+        # Gap = fade-out time (step stays visible while fading; no overlap)
+        if i < len(step_mp3s) - 1:
+            wavs.append(sil(f"sil_fade_{i}", _FADE_DUR))
+
+    # ── End-card silence ─────────────────────────────────────────────────────
+    wavs.append(sil("sil_end", 4.0))
+
+    # ── Concatenate with ffmpeg concat demuxer ───────────────────────────────
+    list_file = os.path.join(tmp, "concat_list.txt")
+    with open(list_file, "w") as f:
+        for w in wavs:
+            f.write(f"file '{w}'\n")
+
+    out_wav = os.path.join(tmp, "audio_track.wav")
+    r = subprocess.run(
+        ["ffmpeg", "-y", "-f", "concat", "-safe", "0",
+         "-i", list_file,
+         "-c:a", "pcm_s16le", out_wav],
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        return None
+    return out_wav
+
+
+def mux_audio_video(video: str, audio: str, out: str) -> bool:
+    """Mux a silent video with an audio track into `out`. Returns success."""
+    r = subprocess.run(
+        ["ffmpeg", "-y",
+         "-i", video, "-i", audio,
+         "-c:v", "copy",
+         "-c:a", "aac", "-b:a", "128k",
+         "-map", "0:v:0", "-map", "1:a:0",
+         "-shortest", out],
+        capture_output=True, text=True,
+    )
+    return r.returncode == 0
+
+
 # ---------------------------------------------------------------------------
-# Manim scene template  (SILENT — audio added via ffmpeg post-process)
-# Audio durations are passed in so wait times match the speech length.
+# Manim scene template  (purely visual — no add_sound calls)
 # ---------------------------------------------------------------------------
 SCENE_TEMPLATE = """\
 from manim import *
@@ -69,9 +182,9 @@ class ExplainerScene(Scene):
     def construct(self):
         self.camera.background_color = "#0f0f23"
 
-        # ── Title ──────────────────────────────────────────────────────────
+        # ── Title (3.5 s total to match audio track gap) ───────────────────
         title = Text(TOPIC, font_size=44, weight=BOLD, color=WHITE)
-        line  = Line(LEFT*3.5, RIGHT*3.5, color="#05bfdb", stroke_width=3)
+        line  = Line(LEFT * 3.5, RIGHT * 3.5, color="#05bfdb", stroke_width=3)
         line.next_to(title, DOWN, buff=0.18)
         title_grp = VGroup(title, line)
         self.play(Write(title), run_time=1.2)
@@ -89,17 +202,17 @@ class ExplainerScene(Scene):
 
             badge_bg  = Circle(radius=0.4, color=c, fill_color=c,
                                fill_opacity=0.15, stroke_width=2.5)
-            badge_num = Text(str(i+1), font_size=22, color=c, weight=BOLD)
+            badge_num = Text(str(i + 1), font_size=22, color=c, weight=BOLD)
             badge     = VGroup(badge_bg, badge_num)
 
             wrapped = "\\n".join(textwrap.wrap(step, 50))
             txt     = Text(wrapped, font_size=28, line_spacing=1.4, color=WHITE)
             txt.next_to(badge, RIGHT, buff=0.5)
-            group = VGroup(badge, txt).move_to(ORIGIN + UP*0.1)
+            group = VGroup(badge, txt).move_to(ORIGIN + UP * 0.1)
 
             bar_bg = Rectangle(width=6.5, height=0.08,
                                fill_color=GREY_D, fill_opacity=0.4, stroke_opacity=0)
-            bar    = Rectangle(width=max(0.1, 6.5*(i+1)/n), height=0.08,
+            bar    = Rectangle(width=max(0.1, 6.5 * (i + 1) / n), height=0.08,
                                fill_color=c, fill_opacity=0.7, stroke_opacity=0)
             bar_bg.to_edge(DOWN, buff=0.6)
             bar.align_to(bar_bg, LEFT).move_to(bar_bg.get_center()).align_to(bar_bg, LEFT)
@@ -108,12 +221,15 @@ class ExplainerScene(Scene):
             write_t   = max(0.8, min(1.8, len(step) * 0.03))
             audio_dur = AUDIO_DURS[i] if (AUDIO_DURS and i < len(AUDIO_DURS)) else 2.5
 
+            # badge appear
             self.play(GrowFromCenter(badge_bg), FadeIn(badge_num, scale=0.5),
                       run_time=0.45)
+            # text + progress bar write
             self.play(Write(txt), FadeIn(bar_bg), FadeIn(bar), run_time=write_t)
-
-            # hold long enough for the voice-over to finish
-            self.wait(max(0.4, audio_dur))
+            # hold until the voice-over finishes
+            # (audio started at the top of this step; anim already consumed 0.45+write_t)
+            hold = max(0.3, audio_dur - 0.45 - write_t)
+            self.wait(hold)
 
             self.play(FadeOut(group), FadeOut(prog),
                       run_time=0.45 if i < n - 1 else 0.6)
@@ -126,8 +242,8 @@ class ExplainerScene(Scene):
         echo.next_to(done, DOWN, buff=0.22)
         VGroup(check, done, echo).move_to(ORIGIN)
         self.play(GrowFromCenter(check), run_time=0.6)
-        self.play(FadeIn(done, shift=UP*0.25), run_time=0.5)
-        self.play(FadeIn(echo, shift=UP*0.2), run_time=0.45)
+        self.play(FadeIn(done, shift=UP * 0.25), run_time=0.5)
+        self.play(FadeIn(echo, shift=UP * 0.2), run_time=0.45)
         self.wait(2.5)
 """
 
@@ -167,14 +283,16 @@ def ai_solve(problem: str, api_key: str = ""):
 
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": SOLVE_PROMPT.format(problem=problem)}],
+        "messages": [{"role": "user",
+                       "content": SOLVE_PROMPT.format(problem=problem)}],
         "temperature": 0.3,
         "max_tokens": 1024,
     }
     resp = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         json=payload,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"},
         timeout=30,
     )
     if not resp.ok:
@@ -200,155 +318,87 @@ def ai_solve(problem: str, api_key: str = ""):
 
 
 # ---------------------------------------------------------------------------
-# Render video  (Manim silent → ffmpeg mixes TTS in at correct timestamps)
+# Main render pipeline
 # ---------------------------------------------------------------------------
 
-# These constants must match the Manim scene timings exactly.
-_TITLE_ANIM_DURATION = 1.2 + 0.5 + 0.8 + 1.0   # Write + Create + wait + scale = 3.5 s
-
-
-def _step_start_times(steps: list, audio_durations: list) -> list:
-    """
-    Compute the timestamp (in seconds) at which each step's voice-over
-    should begin in the final video, matching the Manim scene timing.
-    """
-    t = _TITLE_ANIM_DURATION
-    starts = []
-    for i, step in enumerate(steps):
-        starts.append(t)
-        write_t   = max(0.8, min(1.8, len(step) * 0.03))
-        anim_t    = 0.45 + write_t
-        audio_dur = audio_durations[i] if i < len(audio_durations) else 2.5
-        wait_t    = max(0.4, audio_dur)
-        fade_t    = 0.45 if i < len(steps) - 1 else 0.6
-        t += anim_t + wait_t + fade_t
-    return starts
-
-
-def _mux_audio(silent_mp4: str, audio_clips: list, start_times: list,
-               title_mp3: str | None, out_path: str) -> bool:
-    """
-    Mix `audio_clips` (each starting at the corresponding `start_times`) and
-    optionally a `title_mp3` at t=0, then mux into `out_path`.
-    Returns True on success.
-    """
-    # collect valid clips only
-    clips = []   # list of (path, delay_ms)
-    if title_mp3 and os.path.exists(title_mp3):
-        clips.append((title_mp3, 0))
-    for path, t in zip(audio_clips, start_times):
-        if path and os.path.exists(path):
-            clips.append((path, int(t * 1000)))
-
-    if not clips:
-        return False
-
-    # build ffmpeg command
-    cmd = ["ffmpeg", "-i", silent_mp4]
-    for path, _ in clips:
-        cmd += ["-i", path]
-
-    filter_parts = []
-    mix_labels   = []
-    for idx, (_, delay_ms) in enumerate(clips):
-        label = f"a{idx}"
-        filter_parts.append(
-            f"[{idx + 1}:a]adelay={delay_ms}|{delay_ms}[{label}]"
-        )
-        mix_labels.append(f"[{label}]")
-
-    n = len(mix_labels)
-    filter_parts.append(
-        f"{''.join(mix_labels)}amix=inputs={n}:duration=longest:normalize=0[aout]"
-    )
-
-    cmd += [
-        "-filter_complex", ";".join(filter_parts),
-        "-map", "0:v",
-        "-map", "[aout]",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-y", out_path,
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    return result.returncode == 0
-
-
 def render_video(topic: str, steps: list) -> str:
-    tmp_dir = tempfile.mkdtemp(prefix="manim_")
+    tmp = tempfile.mkdtemp(prefix="manim_")
     try:
-        # ── 1. Generate TTS ─────────────────────────────────────────────────
-        audio_files: list      = []
-        audio_durations: list  = []
-        title_mp3: str | None  = None
+        # ── Step 1: Generate TTS ─────────────────────────────────────────────
+        step_mp3s: list       = []
+        step_durations: list  = []
+        title_mp3: str | None = None
 
         if TTS_AVAILABLE:
             for i, step in enumerate(steps):
-                mp3 = os.path.join(tmp_dir, f"step_{i}.mp3")
+                mp3 = os.path.join(tmp, f"step_{i}.mp3")
                 try:
-                    dur = generate_tts(step, mp3)
-                    audio_files.append(mp3)
-                    audio_durations.append(dur)
+                    _tts_to_mp3(step, mp3)
+                    dur = _audio_duration(mp3)
+                    step_mp3s.append(mp3)
+                    step_durations.append(dur)
                 except Exception:
-                    audio_files.append(None)
-                    audio_durations.append(2.5)
+                    step_mp3s.append(None)
+                    step_durations.append(2.5)
 
-            t_mp3 = os.path.join(tmp_dir, "title.mp3")
+            t_mp3 = os.path.join(tmp, "title.mp3")
             try:
-                generate_tts(topic, t_mp3)
+                _tts_to_mp3(topic, t_mp3)
                 title_mp3 = t_mp3
             except Exception:
                 title_mp3 = None
         else:
-            audio_durations = [2.5] * len(steps)
+            step_durations = [2.5] * len(steps)
 
-        # ── 2. Render silent Manim video ────────────────────────────────────
-        scene_source = SCENE_TEMPLATE.format(
+        # ── Step 2: Render silent Manim video ────────────────────────────────
+        write_times = [max(0.8, min(1.8, len(s) * 0.03)) for s in steps]
+
+        scene_src = SCENE_TEMPLATE.format(
             topic_repr=repr(topic),
             steps_repr=repr(steps),
-            audio_durations_repr=repr(audio_durations),
+            audio_durations_repr=repr(step_durations),
         )
-        scene_file = os.path.join(tmp_dir, "scene.py")
+        scene_file = os.path.join(tmp, "scene.py")
         with open(scene_file, "w", encoding="utf-8") as f:
-            f.write(scene_source)
+            f.write(scene_src)
 
         result = subprocess.run(
             ["manim", "render", scene_file, "ExplainerScene",
-             "--media_dir", tmp_dir, "-ql", "--disable_caching"],
+             "--media_dir", tmp, "-ql", "--disable_caching"],
             capture_output=True, text=True, timeout=300,
         )
         if result.returncode != 0:
-            stderr = result.stderr[-2000:] if result.stderr else ""
-            stdout = result.stdout[-1000:] if result.stdout else ""
-            raise RuntimeError(f"Manim render failed: {stderr or stdout}")
+            err = result.stderr[-2000:] if result.stderr else result.stdout[-1000:]
+            raise RuntimeError(f"Manim render failed: {err}")
 
-        mp4_files = glob.glob(os.path.join(tmp_dir, "**", "*.mp4"), recursive=True)
-        if not mp4_files:
+        mp4s = glob.glob(os.path.join(tmp, "**", "*.mp4"), recursive=True)
+        if not mp4s:
             raise RuntimeError("Rendered video not found")
+        silent_mp4 = mp4s[0]
 
-        silent_mp4 = mp4_files[0]
+        # ── Step 3: Build audio track ────────────────────────────────────────
+        video_id = str(uuid.uuid4())
+        dst      = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
 
-        # ── 3. Mix TTS into video via ffmpeg ────────────────────────────────
-        video_id  = str(uuid.uuid4())
-        dst_path  = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
-
-        if TTS_AVAILABLE and (any(audio_files) or title_mp3):
-            start_times = _step_start_times(steps, audio_durations)
-            final_mp4   = os.path.join(tmp_dir, "final.mp4")
-            ok = _mux_audio(silent_mp4, audio_files, start_times, title_mp3, final_mp4)
-            src = final_mp4 if ok else silent_mp4
+        if TTS_AVAILABLE:
+            audio_track = build_audio_track(
+                step_mp3s, step_durations, write_times, title_mp3, tmp
+            )
+            if audio_track:
+                final_mp4 = os.path.join(tmp, "final.mp4")
+                ok = mux_audio_video(silent_mp4, audio_track, final_mp4)
+                shutil.move(final_mp4 if ok else silent_mp4, dst)
+            else:
+                shutil.move(silent_mp4, dst)
         else:
-            src = silent_mp4
+            shutil.move(silent_mp4, dst)
 
-        shutil.move(src, dst_path)
         return video_id
 
     except subprocess.TimeoutExpired:
         raise RuntimeError("Render timed out (300 s limit)")
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +431,8 @@ def solve():
     except requests.HTTPError as e:
         return jsonify({"success": False, "error": f"AI API error: {e}"}), 502
     except (json.JSONDecodeError, KeyError):
-        return jsonify({"success": False, "error": "AI returned malformed response. Try again."}), 502
+        return jsonify({"success": False,
+                        "error": "AI returned malformed response. Try again."}), 502
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -409,13 +460,16 @@ def explain():
     if not topic:
         return jsonify({"success": False, "error": "topic is required"}), 400
     if not isinstance(steps, list) or len(steps) == 0:
-        return jsonify({"success": False, "error": "steps must be a non-empty list"}), 400
+        return jsonify({"success": False,
+                        "error": "steps must be a non-empty list"}), 400
 
     steps = [str(s).strip() for s in steps if str(s).strip()]
     if not steps:
-        return jsonify({"success": False, "error": "steps must contain at least one non-empty step"}), 400
+        return jsonify({"success": False,
+                        "error": "steps must contain at least one non-empty step"}), 400
     if len(steps) > 10:
-        return jsonify({"success": False, "error": "maximum 10 steps allowed"}), 400
+        return jsonify({"success": False,
+                        "error": "maximum 10 steps allowed"}), 400
 
     try:
         video_id = render_video(topic, steps)
