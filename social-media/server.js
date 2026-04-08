@@ -92,50 +92,33 @@ async function generateWithOllama(prompt, baseUrl) {
   return r.data.response;
 }
 
-// Robust JSON extractor: handles AI responses with unescaped quotes/apostrophes
+// Robust JSON extractor: handles markdown fences, literal newlines inside strings
 function extractJSON(raw) {
   // 1. Strip markdown code fences
-  let s = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  let s = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
 
-  // 2. Find the outermost { ... }
+  // 2. Find outermost { ... }
   const start = s.indexOf('{');
   const end   = s.lastIndexOf('}');
-  if (start === -1 || end === -1) return null;
+  if (start === -1 || end === -1 || end <= start) return null;
   s = s.slice(start, end + 1);
 
-  // 3. Try direct parse
+  // 3. Try direct parse — handles well-formed JSON immediately
   try { return JSON.parse(s); } catch {}
 
-  // 4. Replace "smart" quotes with plain quotes and retry
-  s = s.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-  try { return JSON.parse(s); } catch {}
-
-  // 5. Sanitize unescaped double-quotes inside string values.
-  //    Strategy: walk char-by-char tracking whether we're inside a JSON string.
-  let out = '', inStr = false, prev = '';
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === '"' && prev !== '\\') {
-      if (!inStr) {
-        inStr = true; out += ch;
-      } else {
-        // Peek ahead: if followed by whitespace then :,}] it's a closing quote
-        let j = i + 1;
-        while (j < s.length && s[j] === ' ') j++;
-        const next = s[j];
-        if (next === ':' || next === ',' || next === '}' || next === ']' || next === '\n' || next === '\r') {
-          inStr = false; out += ch;
-        } else {
-          // unescaped quote inside string — escape it
-          out += '\\"';
-        }
-      }
-    } else {
-      out += ch;
-    }
-    prev = ch === '\\' && prev === '\\' ? '' : ch;
+  // 4. Fix literal control characters inside string values
+  //    (LLMs often emit real \n/\r/\t inside JSON strings instead of \\n/\\r/\\t)
+  let fixed = '', inStr = false, esc = false;
+  for (const ch of s) {
+    if (esc)          { fixed += ch; esc = false; continue; }
+    if (ch === '\\')  { fixed += ch; esc = true;  continue; }
+    if (ch === '"')   { fixed += ch; inStr = !inStr; continue; }
+    if (inStr && ch === '\n') { fixed += '\\n'; continue; }
+    if (inStr && ch === '\r') { fixed += '\\r'; continue; }
+    if (inStr && ch === '\t') { fixed += '\\t'; continue; }
+    fixed += ch;
   }
-  try { return JSON.parse(out); } catch {}
+  try { return JSON.parse(fixed); } catch {}
 
   return null;
 }
@@ -144,36 +127,31 @@ app.post('/api/generate', async (req, res) => {
   const { videoTitle, niche, provider, apiKey, ollamaUrl } = req.body;
   if (!videoTitle) return res.status(400).json({ error: 'videoTitle required' });
 
-  // Shorter content = less chance of JSON-breaking special characters from LLM
-  const prompt = `You are a social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, write platform-specific content.
+  const prompt = `You are a viral social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, generate platform-specific content optimized for each platform's algorithm and audience.
 
-CRITICAL RULES:
-- Return ONLY raw JSON, no markdown, no code fences, no text before or after
-- Never use double-quote characters inside any string value — rephrase instead
-- Keep all text values concise
+IMPORTANT: Return ONLY a valid JSON object — no markdown, no code fences, no text outside the JSON. Do not use double-quote characters inside any string value (rephrase to avoid them).
 
-Return this exact JSON structure:
 {
   "youtube": {
-    "title": "catchy SEO title under 90 chars",
-    "description": "3 short paragraphs, each 2-3 sentences, with a call-to-action at the end",
+    "title": "catchy SEO title max 100 chars",
+    "description": "engaging description 150-200 words with keywords naturally placed, include call-to-action",
     "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]
   },
   "instagram": {
-    "caption": "2-3 sentence hook, then 15-20 hashtags each on its own line starting with #"
+    "caption": "engaging hook first line, then value, then call-to-action. 100-150 words. End with 20 relevant hashtags each starting with #"
   },
   "facebook": {
-    "title": "engaging title under 80 chars",
-    "description": "2-3 conversational sentences ending with a question"
+    "title": "attention-grabbing title max 80 chars",
+    "description": "conversational engaging post 80-120 words, ask a question, encourage shares"
   },
   "tiktok": {
-    "title": "punchy viral hook under 100 chars"
+    "title": "viral hook title max 100 chars, use trending language"
   },
   "twitter": {
-    "tweet": "one punchy sentence under 240 chars with 2 hashtags"
+    "tweet": "punchy engaging tweet max 250 chars with 2-3 relevant hashtags and a hook"
   },
   "linkedin": {
-    "post": "3 short paragraphs: insight, value, question. End with 4 hashtags."
+    "post": "professional insightful post 150-200 words. Start with a bold statement, share value, end with question. Include 4 relevant hashtags at end."
   }
 }`;
 
