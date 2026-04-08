@@ -269,10 +269,27 @@
       border-radius: 12px; cursor: pointer;
       color: var(--muted); font-size: .9rem; font-weight: 700; font-family: inherit;
       transition: background .2s, color .2s, border-color .2s;
+      text-decoration: none;
     }
     .btn-new:hover {
       background: rgba(255,255,255,.1);
       color: var(--text); border-color: rgba(255,255,255,.25);
+    }
+
+    .btn-upload {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px;
+      background: linear-gradient(135deg, rgba(124,58,237,.25), rgba(108,99,255,.2));
+      border: 1px solid rgba(124,58,237,.4);
+      border-radius: 12px; cursor: pointer;
+      color: #b8a5f0; font-size: .9rem; font-weight: 700; font-family: inherit;
+      text-decoration: none;
+      transition: background .2s, box-shadow .2s, transform .2s;
+    }
+    .btn-upload:hover {
+      background: linear-gradient(135deg, rgba(124,58,237,.4), rgba(108,99,255,.35));
+      box-shadow: 0 4px 16px rgba(124,58,237,.35);
+      transform: translateY(-1px);
     }
 
     /* Steps list */
@@ -385,7 +402,9 @@ Examples:
     </div>
 
     <div class="result-actions">
-      <a class="btn-download" id="downloadBtn" download>⬇ Download Video</a>
+      <button class="btn-download" id="playBtn" onclick="playVideo()">▶ Play</button>
+      <a class="btn-download" id="downloadBtn" download>⬇ Download</a>
+      <a class="btn-upload" id="uploadBtn" href="#" target="_blank">⬆ Upload to Social Media</a>
       <button class="btn-new" onclick="resetForm()">＋ New Problem</button>
     </div>
 
@@ -521,16 +540,36 @@ Examples:
     }
   }
 
+  const SOCIAL_URL = 'https://social-media-uploader-production.up.railway.app';
+
+  function buildSocialUrl(videoUrl, topic) {
+    return `${SOCIAL_URL}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
+  }
+
+  function playVideo() {
+    const player = document.getElementById('videoPlayer');
+    if (player.paused) {
+      player.play();
+      document.getElementById('playBtn').textContent = '⏸ Pause';
+    } else {
+      player.pause();
+      document.getElementById('playBtn').textContent = '▶ Play';
+    }
+  }
+
   function renderResult({ videoUrl, topic, steps }) {
     document.getElementById('resultTopic').textContent = topic;
 
     const player = document.getElementById('videoPlayer');
     player.src = videoUrl;
     player.load();
+    player.onended = () => { document.getElementById('playBtn').textContent = '▶ Play'; };
 
     const dlBtn = document.getElementById('downloadBtn');
     dlBtn.href = videoUrl;
     dlBtn.download = `${topic.replace(/[^a-z0-9]+/gi, '_')}.mp4`;
+
+    document.getElementById('uploadBtn').href = buildSocialUrl(videoUrl, topic);
 
     const list = document.getElementById('stepsList');
     list.innerHTML = '';
@@ -554,6 +593,10 @@ Examples:
   function resetForm() {
     document.getElementById('resultCard').classList.remove('visible');
     document.getElementById('problemInput').value = '';
+    document.getElementById('playBtn').textContent = '▶ Play';
+    const player = document.getElementById('videoPlayer');
+    player.pause();
+    player.src = '';
     clearError();
     document.getElementById('inputCard').scrollIntoView({ behavior: 'smooth' });
     setTimeout(() => document.getElementById('problemInput').focus(), 400);

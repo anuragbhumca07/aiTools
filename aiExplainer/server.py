@@ -48,16 +48,21 @@ def _tts_to_mp3(text: str, path: str) -> None:
 
 
 def _audio_duration(path: str) -> float:
-    r = subprocess.run(
-        ["ffprobe", "-v", "quiet",
-         "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", path],
-        capture_output=True, text=True,
-    )
-    try:
-        return float(r.stdout.strip())
-    except ValueError:
-        return 3.0
+    """
+    Get audio duration by parsing ffmpeg -i stderr output.
+    More reliable than ffprobe which may not be in PATH in some images.
+    """
+    r = subprocess.run(["ffmpeg", "-i", path],
+                       capture_output=True, text=True)
+    for line in r.stderr.split("\n"):
+        if "Duration:" in line:
+            try:
+                dur_str = line.split("Duration:")[1].split(",")[0].strip()
+                h, m, s = dur_str.split(":")
+                return float(h) * 3600 + float(m) * 60 + float(s)
+            except Exception:
+                pass
+    return 3.0
 
 
 def _mp3_to_wav(mp3: str, wav: str) -> None:
