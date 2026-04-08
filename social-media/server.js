@@ -96,17 +96,32 @@ app.post('/api/generate', async (req, res) => {
   const { videoTitle, niche, provider, apiKey, ollamaUrl } = req.body;
   if (!videoTitle) return res.status(400).json({ error: 'videoTitle required' });
 
-  const prompt = `You are a viral social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, generate:
-1. A catchy, SEO-optimized title (max 100 chars, no quotes)
-2. An engaging description (200-350 words) with natural keywords
-3. 20 relevant hashtags (mix popular + niche, no spaces in each)
-4. 5 short YouTube tags (comma separated)
-5. A compelling tweet text (max 260 chars, include 2-3 hashtags)
-6. A professional LinkedIn post intro (2-3 sentences, engaging)
+  const prompt = `You are a viral social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, generate platform-specific content optimized for each platform's algorithm and audience.
 
-Return ONLY a valid JSON object with these exact keys:
-{ "title": "", "description": "", "hashtags": [], "tags": [], "tweet": "", "linkedin": "" }
-No markdown, no explanation outside the JSON.`;
+Return ONLY a valid JSON object with this exact structure (no markdown, no text outside JSON):
+{
+  "youtube": {
+    "title": "catchy SEO title max 100 chars",
+    "description": "engaging description 300-400 words with keywords naturally placed, include call-to-action and timestamps if relevant",
+    "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]
+  },
+  "instagram": {
+    "caption": "engaging hook first line, then value, then call-to-action. 150-300 words. End with 25-30 relevant hashtags on new lines starting with #"
+  },
+  "facebook": {
+    "title": "attention-grabbing title max 80 chars",
+    "description": "conversational engaging post 100-200 words, ask a question, encourage shares"
+  },
+  "tiktok": {
+    "title": "viral hook title max 100 chars, use trending language"
+  },
+  "twitter": {
+    "tweet": "punchy engaging tweet max 250 chars with 2-3 relevant hashtags and a hook"
+  },
+  "linkedin": {
+    "post": "professional insightful post 200-300 words. Start with a bold statement, share value/learnings, end with question to drive comments. Include 5 relevant hashtags at end."
+  }
+}`;
 
   try {
     let raw;
