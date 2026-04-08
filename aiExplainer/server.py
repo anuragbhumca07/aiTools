@@ -27,7 +27,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "videos")
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
-TTS_VOICE = "en-US-AriaNeural"   # free Microsoft neural voice via edge-tts
+TTS_VOICE = "en-US-AriaNeural"
 
 # ---------------------------------------------------------------------------
 # TTS helpers
@@ -39,45 +39,31 @@ async def _tts_async(text: str, path: str) -> None:
 
 
 def generate_tts(text: str, path: str) -> float:
-    """
-    Render `text` to `path` (MP3) using edge-tts.
-    Returns audio duration in seconds.
-    """
+    """Render text → MP3 at `path`. Returns duration in seconds."""
     asyncio.run(_tts_async(text, path))
-
-    # get duration via ffprobe (ffprobe ships with every Manim Docker image)
     r = subprocess.run(
-        [
-            "ffprobe", "-v", "quiet",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            path,
-        ],
+        ["ffprobe", "-v", "quiet",
+         "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", path],
         capture_output=True, text=True,
     )
     try:
         return float(r.stdout.strip())
     except ValueError:
-        return 3.0   # safe fallback
+        return 3.0
 
 
 # ---------------------------------------------------------------------------
-# Manim scene template
-# ---------------------------------------------------------------------------
-# Placeholders filled via .format():
-#   {topic_repr}          repr() of topic string
-#   {steps_repr}          repr() of list[str]
-#   {audio_files_repr}    repr() of list[str|None]  (paths or empty list)
-#   {audio_durations_repr} repr() of list[float]
+# Manim scene template  (SILENT — audio added via ffmpeg post-process)
+# Audio durations are passed in so wait times match the speech length.
 # ---------------------------------------------------------------------------
 SCENE_TEMPLATE = """\
 from manim import *
 import textwrap
 
-TOPIC        = {topic_repr}
-STEPS        = {steps_repr}
-AUDIO_FILES  = {audio_files_repr}
-AUDIO_DURS   = {audio_durations_repr}
+TOPIC      = {topic_repr}
+STEPS      = {steps_repr}
+AUDIO_DURS = {audio_durations_repr}
 
 class ExplainerScene(Scene):
     def construct(self):
@@ -88,11 +74,6 @@ class ExplainerScene(Scene):
         line  = Line(LEFT*3.5, RIGHT*3.5, color="#05bfdb", stroke_width=3)
         line.next_to(title, DOWN, buff=0.18)
         title_grp = VGroup(title, line)
-
-        # narrate topic while title animates
-        if AUDIO_FILES and len(AUDIO_FILES) > len(STEPS) and AUDIO_FILES[-1]:
-            self.add_sound(AUDIO_FILES[-1])          # last slot = title audio
-
         self.play(Write(title), run_time=1.2)
         self.play(Create(line), run_time=0.5)
         self.wait(0.8)
@@ -124,24 +105,18 @@ class ExplainerScene(Scene):
             bar.align_to(bar_bg, LEFT).move_to(bar_bg.get_center()).align_to(bar_bg, LEFT)
             prog = VGroup(bar_bg, bar)
 
-            # start audio for this step
-            if AUDIO_FILES and i < len(AUDIO_FILES) and AUDIO_FILES[i]:
-                self.add_sound(AUDIO_FILES[i])
-
-            write_t = max(0.8, min(1.8, len(step) * 0.03))
-            anim_t  = 0.45 + write_t          # badge_grow + write_text
+            write_t   = max(0.8, min(1.8, len(step) * 0.03))
+            audio_dur = AUDIO_DURS[i] if (AUDIO_DURS and i < len(AUDIO_DURS)) else 2.5
 
             self.play(GrowFromCenter(badge_bg), FadeIn(badge_num, scale=0.5),
                       run_time=0.45)
             self.play(Write(txt), FadeIn(bar_bg), FadeIn(bar), run_time=write_t)
 
-            # wait until speech finishes
-            audio_dur = AUDIO_DURS[i] if (AUDIO_DURS and i < len(AUDIO_DURS)) else 2.5
-            wait_t    = max(0.4, audio_dur - anim_t)
-            self.wait(wait_t)
+            # hold long enough for the voice-over to finish
+            self.wait(max(0.4, audio_dur))
 
             self.play(FadeOut(group), FadeOut(prog),
-                      run_time=0.45 if i < n-1 else 0.6)
+                      run_time=0.45 if i < n - 1 else 0.6)
 
         # ── End card ───────────────────────────────────────────────────────
         check = Text("\\u2713", font_size=86, color="#00c853", weight=BOLD)
@@ -157,7 +132,7 @@ class ExplainerScene(Scene):
 """
 
 # ---------------------------------------------------------------------------
-# AI solver prompt
+# AI solver
 # ---------------------------------------------------------------------------
 SOLVE_PROMPT = """\
 You are an expert tutor who solves problems and explains them clearly.
@@ -225,56 +200,123 @@ def ai_solve(problem: str, api_key: str = ""):
 
 
 # ---------------------------------------------------------------------------
-# Render (with optional TTS)
+# Render video  (Manim silent → ffmpeg mixes TTS in at correct timestamps)
 # ---------------------------------------------------------------------------
 
-def render_video(topic: str, steps: list) -> str:
-    """Render Manim video with TTS narration. Returns video_id."""
+# These constants must match the Manim scene timings exactly.
+_TITLE_ANIM_DURATION = 1.2 + 0.5 + 0.8 + 1.0   # Write + Create + wait + scale = 3.5 s
 
+
+def _step_start_times(steps: list, audio_durations: list) -> list:
+    """
+    Compute the timestamp (in seconds) at which each step's voice-over
+    should begin in the final video, matching the Manim scene timing.
+    """
+    t = _TITLE_ANIM_DURATION
+    starts = []
+    for i, step in enumerate(steps):
+        starts.append(t)
+        write_t   = max(0.8, min(1.8, len(step) * 0.03))
+        anim_t    = 0.45 + write_t
+        audio_dur = audio_durations[i] if i < len(audio_durations) else 2.5
+        wait_t    = max(0.4, audio_dur)
+        fade_t    = 0.45 if i < len(steps) - 1 else 0.6
+        t += anim_t + wait_t + fade_t
+    return starts
+
+
+def _mux_audio(silent_mp4: str, audio_clips: list, start_times: list,
+               title_mp3: str | None, out_path: str) -> bool:
+    """
+    Mix `audio_clips` (each starting at the corresponding `start_times`) and
+    optionally a `title_mp3` at t=0, then mux into `out_path`.
+    Returns True on success.
+    """
+    # collect valid clips only
+    clips = []   # list of (path, delay_ms)
+    if title_mp3 and os.path.exists(title_mp3):
+        clips.append((title_mp3, 0))
+    for path, t in zip(audio_clips, start_times):
+        if path and os.path.exists(path):
+            clips.append((path, int(t * 1000)))
+
+    if not clips:
+        return False
+
+    # build ffmpeg command
+    cmd = ["ffmpeg", "-i", silent_mp4]
+    for path, _ in clips:
+        cmd += ["-i", path]
+
+    filter_parts = []
+    mix_labels   = []
+    for idx, (_, delay_ms) in enumerate(clips):
+        label = f"a{idx}"
+        filter_parts.append(
+            f"[{idx + 1}:a]adelay={delay_ms}|{delay_ms}[{label}]"
+        )
+        mix_labels.append(f"[{label}]")
+
+    n = len(mix_labels)
+    filter_parts.append(
+        f"{''.join(mix_labels)}amix=inputs={n}:duration=longest:normalize=0[aout]"
+    )
+
+    cmd += [
+        "-filter_complex", ";".join(filter_parts),
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-y", out_path,
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    return result.returncode == 0
+
+
+def render_video(topic: str, steps: list) -> str:
     tmp_dir = tempfile.mkdtemp(prefix="manim_")
     try:
-        # ── Generate TTS audio ──────────────────────────────────────────────
-        audio_files: list = []
-        audio_durations: list = []
+        # ── 1. Generate TTS ─────────────────────────────────────────────────
+        audio_files: list      = []
+        audio_durations: list  = []
+        title_mp3: str | None  = None
 
         if TTS_AVAILABLE:
             for i, step in enumerate(steps):
-                mp3_path = os.path.join(tmp_dir, f"step_{i}.mp3")
+                mp3 = os.path.join(tmp_dir, f"step_{i}.mp3")
                 try:
-                    dur = generate_tts(step, mp3_path)
-                    audio_files.append(mp3_path)
+                    dur = generate_tts(step, mp3)
+                    audio_files.append(mp3)
                     audio_durations.append(dur)
                 except Exception:
                     audio_files.append(None)
                     audio_durations.append(2.5)
 
-            # title narration appended at the end of the list
-            title_mp3 = os.path.join(tmp_dir, "title.mp3")
+            t_mp3 = os.path.join(tmp_dir, "title.mp3")
             try:
-                generate_tts(topic, title_mp3)
-                audio_files.append(title_mp3)
+                generate_tts(topic, t_mp3)
+                title_mp3 = t_mp3
             except Exception:
-                audio_files.append(None)
+                title_mp3 = None
+        else:
+            audio_durations = [2.5] * len(steps)
 
-        # ── Write scene ─────────────────────────────────────────────────────
+        # ── 2. Render silent Manim video ────────────────────────────────────
         scene_source = SCENE_TEMPLATE.format(
             topic_repr=repr(topic),
             steps_repr=repr(steps),
-            audio_files_repr=repr(audio_files),
             audio_durations_repr=repr(audio_durations),
         )
         scene_file = os.path.join(tmp_dir, "scene.py")
         with open(scene_file, "w", encoding="utf-8") as f:
             f.write(scene_source)
 
-        # ── Render ──────────────────────────────────────────────────────────
         result = subprocess.run(
-            [
-                "manim", "render",
-                scene_file, "ExplainerScene",
-                "--media_dir", tmp_dir,
-                "-ql", "--disable_caching",
-            ],
+            ["manim", "render", scene_file, "ExplainerScene",
+             "--media_dir", tmp_dir, "-ql", "--disable_caching"],
             capture_output=True, text=True, timeout=300,
         )
         if result.returncode != 0:
@@ -286,9 +328,21 @@ def render_video(topic: str, steps: list) -> str:
         if not mp4_files:
             raise RuntimeError("Rendered video not found")
 
-        video_id = str(uuid.uuid4())
+        silent_mp4 = mp4_files[0]
+
+        # ── 3. Mix TTS into video via ffmpeg ────────────────────────────────
+        video_id  = str(uuid.uuid4())
         dst_path  = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
-        shutil.move(mp4_files[0], dst_path)
+
+        if TTS_AVAILABLE and (any(audio_files) or title_mp3):
+            start_times = _step_start_times(steps, audio_durations)
+            final_mp4   = os.path.join(tmp_dir, "final.mp4")
+            ok = _mux_audio(silent_mp4, audio_files, start_times, title_mp3, final_mp4)
+            src = final_mp4 if ok else silent_mp4
+        else:
+            src = silent_mp4
+
+        shutil.move(src, dst_path)
         return video_id
 
     except subprocess.TimeoutExpired:
