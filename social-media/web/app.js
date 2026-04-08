@@ -1,10 +1,12 @@
 /* ══════════════════════════════════════════════════════════════════
-   BACKEND URL — bypass Cloudflare Pages proxy for OAuth redirects
-   (Cloudflare's 200-rewrite follows Railway's 302 server-side,
-    which breaks Google/TikTok/LinkedIn OAuth dance)
+   BACKEND URL — bypass Cloudflare Pages proxy for all API + OAuth
+   Cloudflare Pages _redirects with status 200 (rewrite) is GET-only.
+   POST requests return 405. OAuth 200-rewrite follows Railway's 302
+   server-side, returning raw HTML instead of redirecting the browser.
+   Solution: call Railway directly from the browser for everything.
 ══════════════════════════════════════════════════════════════════ */
-const AUTH_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? ''   // localhost: use relative URLs
+const BACKEND = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? ''   // localhost: use relative URLs (server.js serves public/)
   : 'https://social-media-uploader-production.up.railway.app';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -203,7 +205,7 @@ function triggerGenerate() {
     document.getElementById('contentSection').style.display = 'none';
 
     try {
-      const res  = await fetch('/api/generate', {
+      const res  = await fetch(BACKEND + '/api/generate', {
         method: 'POST', headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ videoTitle:title, niche:selectedNiche, provider, apiKey, ollamaUrl }),
       });
@@ -300,7 +302,7 @@ window.openAuth = function(platform) {
   // Use Railway URL directly — Cloudflare Pages 200-rewrite follows redirects server-side
   // which breaks OAuth flows. Auth must go to Railway directly so the 302 → Google/TikTok/LinkedIn
   // redirect is followed by the browser (not by Cloudflare).
-  window.open(AUTH_BASE + path, '_blank', 'width=620,height=720');
+  window.open(BACKEND + path, '_blank', 'width=620,height=720');
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -436,7 +438,7 @@ async function uploadTo(platform) {
       endpoint = '/api/upload/linkedin';
     }
 
-    const res  = await fetch(endpoint, { method:'POST', body:form });
+    const res  = await fetch(BACKEND + endpoint, { method:'POST', body:form });
     let data;
     try { data = await res.json(); } catch { data = {}; }
     if (!res.ok) throw new Error(data.error || `Upload failed (HTTP ${res.status})`);
