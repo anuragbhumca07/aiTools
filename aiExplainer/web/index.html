@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AI Explainer</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Design tokens ── */
+    :root {
+      --cyan:   #05bfdb;
+      --purple: #7c3aed;
+      --pink:   #e94560;
+      --gold:   #f5a623;
+      --green:  #00c853;
+      --bg:     #06061a;
+      --card:   rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.1);
+      --text:   #e8e8f0;
+      --muted:  #8888aa;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── Stars ── */
+    #stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .star {
+      position: absolute; border-radius: 50%; background: #fff;
+      animation: twinkle var(--d, 3s) ease-in-out infinite;
+      animation-delay: var(--delay, 0s);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: .15; transform: scale(1); }
+      50%       { opacity: .9;  transform: scale(1.6); }
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative; z-index: 1;
+      max-width: 820px; margin: 0 auto;
+      padding: 40px 20px 100px;
+    }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 52px; }
+    .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--purple), var(--cyan));
+      color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 2.5px;
+      padding: 5px 18px; border-radius: 20px; margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; line-height: 1.15;
+      background: linear-gradient(135deg, #fff 0%, var(--cyan) 50%, var(--purple) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 14px;
+    }
+    header p { color: var(--muted); font-size: 1.05rem; line-height: 1.6; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 30px;
+      backdrop-filter: blur(12px);
+      position: relative; overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .card::before {
+      content: ''; position: absolute; inset: 0; border-radius: 24px;
+      background: radial-gradient(ellipse at top left, rgba(5,191,219,.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── Form elements ── */
+    .form-group { margin-bottom: 20px; }
+    .form-group:last-child { margin-bottom: 0; }
+    label {
+      display: block; font-size: .8rem; font-weight: 700;
+      color: var(--cyan); margin-bottom: 7px; letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+    .label-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .label-row label { margin-bottom: 0; }
+    .step-counter {
+      font-size: 11px; font-weight: 700; color: var(--cyan);
+      background: rgba(5,191,219,.12);
+      border: 1px solid rgba(5,191,219,.25);
+      padding: 3px 10px; border-radius: 20px;
+      letter-spacing: .5px;
+    }
+
+    input[type=text], textarea {
+      width: 100%;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); font-size: .97rem;
+      padding: 12px 16px; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      font-family: inherit;
+    }
+    input[type=text]:focus, textarea:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(5,191,219,.15);
+    }
+    textarea { resize: vertical; line-height: 1.65; min-height: 80px; }
+    ::placeholder { color: var(--muted); opacity: 1; }
+
+    /* ── Generate button ── */
+    .btn-generate {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 15px 28px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      border: none; border-radius: 14px; cursor: pointer;
+      color: #fff; font-size: 1.05rem; font-weight: 700; font-family: inherit;
+      letter-spacing: .3px;
+      box-shadow: 0 6px 28px rgba(5,191,219,.3);
+      transition: transform .2s, box-shadow .2s, opacity .2s;
+      margin-top: 6px;
+    }
+    .btn-generate:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 36px rgba(5,191,219,.45);
+    }
+    .btn-generate:active:not(:disabled) { transform: scale(.98); }
+    .btn-generate:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,.25);
+      border-top-color: #fff;
+      animation: spin 0.9s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Loading block ── */
+    .loading-block {
+      display: none;
+      align-items: center; gap: 14px;
+      background: rgba(5,191,219,.06);
+      border: 1px solid rgba(5,191,219,.2);
+      border-radius: 12px; padding: 16px 20px;
+      margin-top: 16px;
+      color: var(--cyan); font-size: .95rem; font-weight: 600;
+    }
+    .loading-block.visible { display: flex; }
+
+    /* ── Error toast ── */
+    .error-block {
+      display: none;
+      align-items: flex-start; gap: 12px;
+      background: rgba(233,69,96,.08);
+      border: 1px solid rgba(233,69,96,.3);
+      border-radius: 12px; padding: 14px 18px;
+      margin-top: 16px;
+      color: var(--pink); font-size: .9rem;
+    }
+    .error-block.visible { display: flex; }
+    .error-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .error-msg { line-height: 1.55; }
+
+    /* ── Result card ── */
+    #resultCard { display: none; animation: fadeSlide .4s ease; }
+    #resultCard.visible { display: block; }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-topic {
+      font-size: 1.3rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 20px;
+    }
+
+    .video-wrapper {
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    video {
+      width: 100%; display: block;
+      border-radius: 16px;
+    }
+
+    .result-actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .btn-download {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px;
+      background: rgba(0,200,83,.12);
+      border: 1px solid rgba(0,200,83,.3);
+      border-radius: 12px; cursor: pointer;
+      color: var(--green); font-size: .9rem; font-weight: 700; font-family: inherit;
+      text-decoration: none;
+      transition: background .2s, box-shadow .2s, transform .2s;
+    }
+    .btn-download:hover {
+      background: rgba(0,200,83,.22);
+      box-shadow: 0 4px 16px rgba(0,200,83,.25);
+      transform: translateY(-1px);
+    }
+
+    .btn-new {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 12px; cursor: pointer;
+      color: var(--muted); font-size: .9rem; font-weight: 700; font-family: inherit;
+      transition: background .2s, color .2s, border-color .2s;
+    }
+    .btn-new:hover {
+      background: rgba(255,255,255,.1);
+      color: var(--text); border-color: rgba(255,255,255,.25);
+    }
+
+    /* ── Steps list in result ── */
+    .steps-label {
+      font-size: .78rem; font-weight: 700; color: var(--cyan);
+      letter-spacing: .6px; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .steps-list {
+      list-style: none; display: flex; flex-direction: column; gap: 10px;
+    }
+    .steps-list li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: .9rem; line-height: 1.55;
+      animation: fadeSlide .35s ease both;
+    }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: grid; place-items: center; flex-shrink: 0;
+      font-size: 11px; font-weight: 800;
+      background: linear-gradient(135deg, var(--purple), var(--cyan));
+      color: #fff;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<div class="page">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="badge">Manim Powered</div>
+    <h1>AI Explainer 🎬</h1>
+    <p>Turn any concept into a step-by-step animated video</p>
+  </header>
+
+  <!-- ── Input Card ── -->
+  <div class="card" id="inputCard">
+
+    <div class="form-group">
+      <label for="topicInput">Topic</label>
+      <input
+        type="text"
+        id="topicInput"
+        placeholder="e.g. Pythagorean Theorem"
+        maxlength="120"
+      />
+    </div>
+
+    <div class="form-group">
+      <div class="label-row">
+        <label for="stepsInput">Steps <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:.75rem;letter-spacing:0">(one per line, max 10)</span></label>
+        <span class="step-counter" id="stepCounter">0 steps</span>
+      </div>
+      <textarea
+        id="stepsInput"
+        rows="8"
+        placeholder="Enter each step on a new line...
+e.g.
+A right triangle has one 90° angle
+The two shorter sides are called legs
+The longest side is the hypotenuse
+a² + b² = c²"
+      ></textarea>
+    </div>
+
+    <button class="btn-generate" id="generateBtn" onclick="handleGenerate()">
+      🎬 Generate Explanation Video
+    </button>
+
+    <div class="loading-block" id="loadingBlock">
+      <div class="spinner"></div>
+      <span id="loadingText">Parsing your steps…</span>
+    </div>
+
+    <div class="error-block" id="errorBlock">
+      <span class="error-icon">⚠</span>
+      <span class="error-msg" id="errorMsg"></span>
+    </div>
+
+  </div><!-- /inputCard -->
+
+  <!-- ── Result Card ── -->
+  <div class="card" id="resultCard">
+
+    <div class="result-topic" id="resultTopic"></div>
+
+    <div class="video-wrapper">
+      <video id="videoPlayer" controls preload="metadata"></video>
+    </div>
+
+    <div class="result-actions">
+      <a class="btn-download" id="downloadBtn" download>
+        ⬇ Download Video
+      </a>
+      <button class="btn-new" onclick="resetForm()">
+        ＋ New Explanation
+      </button>
+    </div>
+
+    <div class="steps-label">Steps used</div>
+    <ol class="steps-list" id="stepsList"></ol>
+
+  </div><!-- /resultCard -->
+
+</div><!-- /page -->
+
+<script>
+  // ── Stars ────────────────────────────────────────────────────────────────
+  (function buildStars() {
+    const container = document.getElementById('stars');
+    const count = 120;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      const size = Math.random() * 2.2 + 0.6;
+      s.style.cssText = [
+        `width:${size}px`,
+        `height:${size}px`,
+        `left:${Math.random() * 100}%`,
+        `top:${Math.random() * 100}%`,
+        `--d:${(Math.random() * 4 + 2).toFixed(1)}s`,
+        `--delay:${(Math.random() * 5).toFixed(2)}s`,
+      ].join(';');
+      container.appendChild(s);
+    }
+  })();
+
+  // ── API base ─────────────────────────────────────────────────────────────
+  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? ''
+    : 'https://ai-explainer-production.up.railway.app';
+
+  // ── Step counter ─────────────────────────────────────────────────────────
+  const stepsInput   = document.getElementById('stepsInput');
+  const stepCounter  = document.getElementById('stepCounter');
+
+  stepsInput.addEventListener('input', updateStepCounter);
+
+  function updateStepCounter() {
+    const lines = stepsInput.value.split('\n').filter(l => l.trim().length > 0);
+    const n = Math.min(lines.length, 99);
+    stepCounter.textContent = n === 1 ? '1 step' : `${n} steps`;
+    stepCounter.style.background = n > 10
+      ? 'rgba(233,69,96,.15)'
+      : 'rgba(5,191,219,.12)';
+    stepCounter.style.borderColor = n > 10
+      ? 'rgba(233,69,96,.35)'
+      : 'rgba(5,191,219,.25)';
+    stepCounter.style.color = n > 10
+      ? 'var(--pink)'
+      : 'var(--cyan)';
+  }
+
+  // ── Loading message cycle ─────────────────────────────────────────────────
+  const LOAD_MSGS = [
+    'Parsing your steps…',
+    'Rendering with Manim…',
+    'Encoding video…',
+    'Almost there…',
+  ];
+  let loadInterval = null;
+
+  function startLoadingCycle() {
+    const el = document.getElementById('loadingText');
+    let idx = 0;
+    el.textContent = LOAD_MSGS[0];
+    loadInterval = setInterval(() => {
+      idx = (idx + 1) % LOAD_MSGS.length;
+      el.textContent = LOAD_MSGS[idx];
+    }, 6000);
+  }
+
+  function stopLoadingCycle() {
+    if (loadInterval) { clearInterval(loadInterval); loadInterval = null; }
+  }
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+  function setLoading(on) {
+    const btn  = document.getElementById('generateBtn');
+    const blk  = document.getElementById('loadingBlock');
+    btn.disabled = on;
+    if (on) {
+      btn.innerHTML = '<div class="spinner"></div> Generating…';
+      blk.classList.add('visible');
+      startLoadingCycle();
+    } else {
+      btn.innerHTML = '🎬 Generate Explanation Video';
+      blk.classList.remove('visible');
+      stopLoadingCycle();
+    }
+  }
+
+  function showError(msg) {
+    const blk = document.getElementById('errorBlock');
+    document.getElementById('errorMsg').textContent = msg;
+    blk.classList.add('visible');
+  }
+
+  function clearError() {
+    document.getElementById('errorBlock').classList.remove('visible');
+  }
+
+  // ── Generate ──────────────────────────────────────────────────────────────
+  async function handleGenerate() {
+    clearError();
+
+    const topic = document.getElementById('topicInput').value.trim();
+    const rawSteps = stepsInput.value.split('\n').map(l => l.trim()).filter(Boolean);
+
+    if (!topic) {
+      showError('Please enter a topic.');
+      document.getElementById('topicInput').focus();
+      return;
+    }
+    if (rawSteps.length === 0) {
+      showError('Please enter at least one step.');
+      stepsInput.focus();
+      return;
+    }
+    if (rawSteps.length > 10) {
+      showError(`Too many steps (${rawSteps.length}). Maximum is 10.`);
+      return;
+    }
+
+    setLoading(true);
+    document.getElementById('resultCard').classList.remove('visible');
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, steps: rawSteps }),
+      });
+
+      const json = await resp.json();
+
+      if (!resp.ok || !json.success) {
+        throw new Error(json.error || `Server error ${resp.status}`);
+      }
+
+      renderResult(json);
+    } catch (err) {
+      showError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Render result ─────────────────────────────────────────────────────────
+  function renderResult({ videoUrl, topic, steps }) {
+    // Topic heading
+    document.getElementById('resultTopic').textContent = topic;
+
+    // Video
+    const player = document.getElementById('videoPlayer');
+    player.src = videoUrl;
+    player.load();
+
+    // Download button
+    const dlBtn = document.getElementById('downloadBtn');
+    dlBtn.href = videoUrl;
+    dlBtn.download = `${topic.replace(/[^a-z0-9]+/gi, '_')}.mp4`;
+
+    // Steps list
+    const list = document.getElementById('stepsList');
+    list.innerHTML = '';
+    const COLORS = ['#05bfdb','#7c3aed','#e94560','#f5a623','#00c853',
+                    '#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffeaa7'];
+    steps.forEach((step, i) => {
+      const li = document.createElement('li');
+      li.style.animationDelay = `${i * 0.06}s`;
+      li.innerHTML = `
+        <span class="step-num" style="background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+1)%COLORS.length]})">${i+1}</span>
+        <span>${escHtml(step)}</span>
+      `;
+      list.appendChild(li);
+    });
+
+    // Show card
+    const card = document.getElementById('resultCard');
+    card.classList.add('visible');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────────────
+  function resetForm() {
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('topicInput').value = '';
+    stepsInput.value = '';
+    updateStepCounter();
+    clearError();
+    document.getElementById('inputCard').scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => document.getElementById('topicInput').focus(), 400);
+  }
+
+  // ── Escape HTML ───────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Allow Ctrl+Enter to submit ────────────────────────────────────────────
+  stepsInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleGenerate();
+    }
+  });
+
+  // Initialise counter
+  updateStepCounter();
+</script>
+</body>
+</html>
