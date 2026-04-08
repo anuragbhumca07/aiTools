@@ -135,8 +135,8 @@ function ytOAuth(clientId, clientSecret) {
 }
 
 app.get('/auth/youtube', (req, res) => {
-  const clientId     = req.query.client_id     || process.env.YT_CLIENT_ID     || '';
-  const clientSecret = req.query.client_secret || process.env.YT_CLIENT_SECRET || '';
+  const clientId     = req.query.client_id     || '';
+  const clientSecret = req.query.client_secret || '';
   if (clientId && clientSecret) {
     const state  = Buffer.from(JSON.stringify({ clientId, clientSecret })).toString('base64url');
     const auth   = ytOAuth(clientId, clientSecret);
@@ -280,8 +280,8 @@ app.post('/api/upload/instagram', upload.single('video'), async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/auth/tiktok', (req, res) => {
-  const clientKey    = req.query.client_key    || process.env.TIKTOK_CLIENT_KEY    || '';
-  const clientSecret = req.query.client_secret || process.env.TIKTOK_CLIENT_SECRET || '';
+  const clientKey    = req.query.client_key    || '';
+  const clientSecret = req.query.client_secret || '';
   if (!clientKey || !clientSecret) {
     return res.send(authForm('TikTok', '#69c9d0', '/auth/tiktok',
       [{ name:'client_key', label:'Client Key', placeholder:'Your TikTok Client Key' },
@@ -413,8 +413,8 @@ app.post('/api/upload/twitter', upload.single('video'), async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/auth/linkedin', (req, res) => {
-  const clientId     = req.query.client_id     || process.env.LINKEDIN_CLIENT_ID     || '';
-  const clientSecret = req.query.client_secret || process.env.LINKEDIN_CLIENT_SECRET || '';
+  const clientId     = req.query.client_id     || '';
+  const clientSecret = req.query.client_secret || '';
   if (!clientId || !clientSecret) {
     return res.send(authForm('LinkedIn', '#0a66c2', '/auth/linkedin',
       [{ name:'client_id', label:'Client ID', placeholder:'Your LinkedIn App Client ID' },
