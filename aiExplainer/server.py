@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 import glob
@@ -10,40 +11,94 @@ import requests
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+try:
+    import edge_tts
+    TTS_AVAILABLE = True
+except ImportError:
+    TTS_AVAILABLE = False
+
 app = Flask(__name__)
 CORS(app)
 
-PORT     = int(os.environ.get("PORT", 3002))
-BASE_URL = os.environ.get("BASE_URL", f"http://localhost:{PORT}")
+PORT         = int(os.environ.get("PORT", 3002))
+BASE_URL     = os.environ.get("BASE_URL", f"http://localhost:{PORT}")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "videos")
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
+TTS_VOICE = "en-US-AriaNeural"   # free Microsoft neural voice via edge-tts
+
+# ---------------------------------------------------------------------------
+# TTS helpers
+# ---------------------------------------------------------------------------
+
+async def _tts_async(text: str, path: str) -> None:
+    communicate = edge_tts.Communicate(text, TTS_VOICE)
+    await communicate.save(path)
+
+
+def generate_tts(text: str, path: str) -> float:
+    """
+    Render `text` to `path` (MP3) using edge-tts.
+    Returns audio duration in seconds.
+    """
+    asyncio.run(_tts_async(text, path))
+
+    # get duration via ffprobe (ffprobe ships with every Manim Docker image)
+    r = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path,
+        ],
+        capture_output=True, text=True,
+    )
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 3.0   # safe fallback
+
+
 # ---------------------------------------------------------------------------
 # Manim scene template
+# ---------------------------------------------------------------------------
+# Placeholders filled via .format():
+#   {topic_repr}          repr() of topic string
+#   {steps_repr}          repr() of list[str]
+#   {audio_files_repr}    repr() of list[str|None]  (paths or empty list)
+#   {audio_durations_repr} repr() of list[float]
 # ---------------------------------------------------------------------------
 SCENE_TEMPLATE = """\
 from manim import *
 import textwrap
 
-TOPIC = {topic_repr}
-STEPS = {steps_repr}
+TOPIC        = {topic_repr}
+STEPS        = {steps_repr}
+AUDIO_FILES  = {audio_files_repr}
+AUDIO_DURS   = {audio_durations_repr}
 
 class ExplainerScene(Scene):
     def construct(self):
         self.camera.background_color = "#0f0f23"
 
-        # Title
+        # ── Title ──────────────────────────────────────────────────────────
         title = Text(TOPIC, font_size=44, weight=BOLD, color=WHITE)
-        line = Line(LEFT*3.5, RIGHT*3.5, color="#05bfdb", stroke_width=3)
+        line  = Line(LEFT*3.5, RIGHT*3.5, color="#05bfdb", stroke_width=3)
         line.next_to(title, DOWN, buff=0.18)
         title_grp = VGroup(title, line)
+
+        # narrate topic while title animates
+        if AUDIO_FILES and len(AUDIO_FILES) > len(STEPS):
+            self.add_sound(AUDIO_FILES[-1])          # last slot = title audio
+
         self.play(Write(title), run_time=1.2)
         self.play(Create(line), run_time=0.5)
         self.wait(0.8)
         self.play(title_grp.animate.scale(0.5).to_corner(UL, buff=0.4))
 
+        # ── Steps ──────────────────────────────────────────────────────────
         clrs = ["#05bfdb","#7c3aed","#e94560","#f5a623","#00c853",
                 "#ff6b6b","#4ecdc4","#45b7d1","#96ceb4","#ffeaa7"]
         n = len(STEPS)
@@ -51,35 +106,44 @@ class ExplainerScene(Scene):
         for i, step in enumerate(STEPS):
             c = clrs[i % len(clrs)]
 
-            badge_bg  = Circle(radius=0.4, color=c, fill_color=c, fill_opacity=0.15, stroke_width=2.5)
+            badge_bg  = Circle(radius=0.4, color=c, fill_color=c,
+                               fill_opacity=0.15, stroke_width=2.5)
             badge_num = Text(str(i+1), font_size=22, color=c, weight=BOLD)
-            badge = VGroup(badge_bg, badge_num)
+            badge     = VGroup(badge_bg, badge_num)
 
             wrapped = "\\n".join(textwrap.wrap(step, 50))
-            txt = Text(wrapped, font_size=28, line_spacing=1.4, color=WHITE)
+            txt     = Text(wrapped, font_size=28, line_spacing=1.4, color=WHITE)
             txt.next_to(badge, RIGHT, buff=0.5)
-
             group = VGroup(badge, txt).move_to(ORIGIN + UP*0.1)
 
-            bar_bg = Rectangle(width=6.5, height=0.08, fill_color=GREY_D, fill_opacity=0.4, stroke_opacity=0)
-            bar    = Rectangle(width=max(0.1, 6.5*(i+1)/n), height=0.08, fill_color=c, fill_opacity=0.7, stroke_opacity=0)
+            bar_bg = Rectangle(width=6.5, height=0.08,
+                               fill_color=GREY_D, fill_opacity=0.4, stroke_opacity=0)
+            bar    = Rectangle(width=max(0.1, 6.5*(i+1)/n), height=0.08,
+                               fill_color=c, fill_opacity=0.7, stroke_opacity=0)
             bar_bg.to_edge(DOWN, buff=0.6)
             bar.align_to(bar_bg, LEFT).move_to(bar_bg.get_center()).align_to(bar_bg, LEFT)
             prog = VGroup(bar_bg, bar)
 
-            self.play(GrowFromCenter(badge_bg), FadeIn(badge_num, scale=0.5), run_time=0.45)
-            self.play(
-                Write(txt),
-                FadeIn(bar_bg), FadeIn(bar),
-                run_time=max(0.8, min(1.8, len(step)*0.03))
-            )
-            self.wait(2.0)
-            if i < n-1:
-                self.play(FadeOut(group), FadeOut(prog), run_time=0.45)
-            else:
-                self.play(FadeOut(group), FadeOut(prog), run_time=0.6)
+            # start audio for this step
+            if AUDIO_FILES and i < len(AUDIO_FILES) and AUDIO_FILES[i]:
+                self.add_sound(AUDIO_FILES[i])
 
-        # End card
+            write_t = max(0.8, min(1.8, len(step) * 0.03))
+            anim_t  = 0.45 + write_t          # badge_grow + write_text
+
+            self.play(GrowFromCenter(badge_bg), FadeIn(badge_num, scale=0.5),
+                      run_time=0.45)
+            self.play(Write(txt), FadeIn(bar_bg), FadeIn(bar), run_time=write_t)
+
+            # wait until speech finishes
+            audio_dur = AUDIO_DURS[i] if (AUDIO_DURS and i < len(AUDIO_DURS)) else 2.5
+            wait_t    = max(0.4, audio_dur - anim_t)
+            self.wait(wait_t)
+
+            self.play(FadeOut(group), FadeOut(prog),
+                      run_time=0.45 if i < n-1 else 0.6)
+
+        # ── End card ───────────────────────────────────────────────────────
         check = Text("\\u2713", font_size=86, color="#00c853", weight=BOLD)
         done  = Text("Complete!", font_size=44, color=WHITE, weight=BOLD)
         echo  = Text(TOPIC, font_size=24, color=GREY_A)
@@ -93,7 +157,7 @@ class ExplainerScene(Scene):
 """
 
 # ---------------------------------------------------------------------------
-# AI solver — calls Groq to turn a problem into topic + explanation steps
+# AI solver prompt
 # ---------------------------------------------------------------------------
 SOLVE_PROMPT = """\
 You are an expert tutor who solves problems and explains them clearly.
@@ -120,27 +184,22 @@ Rules:
 - The final step must state the complete answer explicitly
 """
 
+
 def ai_solve(problem: str, api_key: str = ""):
-    """Call Groq to solve `problem` and return (topic, steps) or raise."""
     key = api_key or GROQ_API_KEY
     if not key:
         raise ValueError("Groq API key is required")
 
     payload = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "user", "content": SOLVE_PROMPT.format(problem=problem)}
-        ],
+        "messages": [{"role": "user", "content": SOLVE_PROMPT.format(problem=problem)}],
         "temperature": 0.3,
         "max_tokens": 1024,
     }
     resp = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         json=payload,
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         timeout=30,
     )
     if not resp.ok:
@@ -151,53 +210,73 @@ def ai_solve(problem: str, api_key: str = ""):
         raise requests.HTTPError(f"{resp.status_code}: {detail}", response=resp)
 
     raw = resp.json()["choices"][0]["message"]["content"].strip()
-
-    # Strip markdown fences if the model added them anyway
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
         raw = raw.strip()
 
-    data = json.loads(raw)
+    data  = json.loads(raw)
     topic = str(data["topic"]).strip()
     steps = [str(s).strip() for s in data["steps"] if str(s).strip()]
-
     if not topic or not steps:
         raise ValueError("AI returned empty topic or steps")
-
     return topic, steps
 
 
 # ---------------------------------------------------------------------------
-# Shared Manim rendering logic
+# Render (with optional TTS)
 # ---------------------------------------------------------------------------
-def render_video(topic: str, steps: list[str]):
-    """Render a Manim video for `topic` / `steps`. Returns video_id."""
-    scene_source = SCENE_TEMPLATE.format(
-        topic_repr=repr(topic),
-        steps_repr=repr(steps),
-    )
+
+def render_video(topic: str, steps: list) -> str:
+    """Render Manim video with TTS narration. Returns video_id."""
 
     tmp_dir = tempfile.mkdtemp(prefix="manim_")
     try:
+        # ── Generate TTS audio ──────────────────────────────────────────────
+        audio_files: list = []
+        audio_durations: list = []
+
+        if TTS_AVAILABLE:
+            for i, step in enumerate(steps):
+                mp3_path = os.path.join(tmp_dir, f"step_{i}.mp3")
+                try:
+                    dur = generate_tts(step, mp3_path)
+                    audio_files.append(mp3_path)
+                    audio_durations.append(dur)
+                except Exception:
+                    audio_files.append(None)
+                    audio_durations.append(2.5)
+
+            # title narration appended at the end of the list
+            title_mp3 = os.path.join(tmp_dir, "title.mp3")
+            try:
+                generate_tts(topic, title_mp3)
+                audio_files.append(title_mp3)
+            except Exception:
+                audio_files.append(None)
+
+        # ── Write scene ─────────────────────────────────────────────────────
+        scene_source = SCENE_TEMPLATE.format(
+            topic_repr=repr(topic),
+            steps_repr=repr(steps),
+            audio_files_repr=repr(audio_files),
+            audio_durations_repr=repr(audio_durations),
+        )
         scene_file = os.path.join(tmp_dir, "scene.py")
         with open(scene_file, "w", encoding="utf-8") as f:
             f.write(scene_source)
 
+        # ── Render ──────────────────────────────────────────────────────────
         result = subprocess.run(
             [
                 "manim", "render",
                 scene_file, "ExplainerScene",
                 "--media_dir", tmp_dir,
-                "-ql",
-                "--disable_caching",
+                "-ql", "--disable_caching",
             ],
-            capture_output=True,
-            text=True,
-            timeout=180,
+            capture_output=True, text=True, timeout=300,
         )
-
         if result.returncode != 0:
             stderr = result.stderr[-2000:] if result.stderr else ""
             stdout = result.stdout[-1000:] if result.stdout else ""
@@ -208,12 +287,12 @@ def render_video(topic: str, steps: list[str]):
             raise RuntimeError("Rendered video not found")
 
         video_id = str(uuid.uuid4())
-        dst_path = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
+        dst_path  = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
         shutil.move(mp4_files[0], dst_path)
         return video_id
 
     except subprocess.TimeoutExpired:
-        raise RuntimeError("Render timed out (180 s limit)")
+        raise RuntimeError("Render timed out (300 s limit)")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -224,7 +303,7 @@ def render_video(topic: str, steps: list[str]):
 
 @app.route("/health")
 def health():
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "tts": TTS_AVAILABLE})
 
 
 @app.route("/videos/<path:filename>")
@@ -234,18 +313,13 @@ def serve_video(filename):
 
 @app.route("/api/solve", methods=["POST"])
 def solve():
-    """
-    Accept a problem description, solve it with AI, render explanation video.
-    Body: { "problem": "..." }
-    """
-    data     = request.get_json(force=True, silent=True) or {}
-    problem  = (data.get("problem") or "").strip()
-    api_key  = (data.get("groq_api_key") or "").strip()
+    data    = request.get_json(force=True, silent=True) or {}
+    problem = (data.get("problem") or "").strip()
+    api_key = (data.get("groq_api_key") or "").strip()
 
     if not problem:
         return jsonify({"success": False, "error": "problem is required"}), 400
 
-    # Step 1 — AI solve
     try:
         topic, steps = ai_solve(problem, api_key)
     except ValueError as e:
@@ -257,7 +331,6 @@ def solve():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-    # Step 2 — Manim render
     try:
         video_id = render_video(topic, steps)
     except RuntimeError as e:
@@ -275,10 +348,6 @@ def solve():
 
 @app.route("/api/explain", methods=["POST"])
 def explain():
-    """
-    Manual mode: caller provides topic + steps directly.
-    Body: { "topic": "...", "steps": ["...", ...] }
-    """
     data  = request.get_json(force=True, silent=True) or {}
     topic = (data.get("topic") or "").strip()
     steps = data.get("steps", [])
@@ -289,7 +358,7 @@ def explain():
         return jsonify({"success": False, "error": "steps must be a non-empty list"}), 400
 
     steps = [str(s).strip() for s in steps if str(s).strip()]
-    if len(steps) == 0:
+    if not steps:
         return jsonify({"success": False, "error": "steps must contain at least one non-empty step"}), 400
     if len(steps) > 10:
         return jsonify({"success": False, "error": "maximum 10 steps allowed"}), 400
@@ -309,6 +378,5 @@ def explain():
     })
 
 
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT, debug=False)
