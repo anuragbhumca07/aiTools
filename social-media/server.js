@@ -92,34 +92,88 @@ async function generateWithOllama(prompt, baseUrl) {
   return r.data.response;
 }
 
+// Robust JSON extractor: handles AI responses with unescaped quotes/apostrophes
+function extractJSON(raw) {
+  // 1. Strip markdown code fences
+  let s = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+  // 2. Find the outermost { ... }
+  const start = s.indexOf('{');
+  const end   = s.lastIndexOf('}');
+  if (start === -1 || end === -1) return null;
+  s = s.slice(start, end + 1);
+
+  // 3. Try direct parse
+  try { return JSON.parse(s); } catch {}
+
+  // 4. Replace "smart" quotes with plain quotes and retry
+  s = s.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+  try { return JSON.parse(s); } catch {}
+
+  // 5. Sanitize unescaped double-quotes inside string values.
+  //    Strategy: walk char-by-char tracking whether we're inside a JSON string.
+  let out = '', inStr = false, prev = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"' && prev !== '\\') {
+      if (!inStr) {
+        inStr = true; out += ch;
+      } else {
+        // Peek ahead: if followed by whitespace then :,}] it's a closing quote
+        let j = i + 1;
+        while (j < s.length && s[j] === ' ') j++;
+        const next = s[j];
+        if (next === ':' || next === ',' || next === '}' || next === ']' || next === '\n' || next === '\r') {
+          inStr = false; out += ch;
+        } else {
+          // unescaped quote inside string — escape it
+          out += '\\"';
+        }
+      }
+    } else {
+      out += ch;
+    }
+    prev = ch === '\\' && prev === '\\' ? '' : ch;
+  }
+  try { return JSON.parse(out); } catch {}
+
+  return null;
+}
+
 app.post('/api/generate', async (req, res) => {
   const { videoTitle, niche, provider, apiKey, ollamaUrl } = req.body;
   if (!videoTitle) return res.status(400).json({ error: 'videoTitle required' });
 
-  const prompt = `You are a viral social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, generate platform-specific content optimized for each platform's algorithm and audience.
+  // Shorter content = less chance of JSON-breaking special characters from LLM
+  const prompt = `You are a social media expert. For a video titled "${videoTitle}" in the "${niche||'general'}" niche, write platform-specific content.
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no text outside JSON):
+CRITICAL RULES:
+- Return ONLY raw JSON, no markdown, no code fences, no text before or after
+- Never use double-quote characters inside any string value — rephrase instead
+- Keep all text values concise
+
+Return this exact JSON structure:
 {
   "youtube": {
-    "title": "catchy SEO title max 100 chars",
-    "description": "engaging description 300-400 words with keywords naturally placed, include call-to-action and timestamps if relevant",
+    "title": "catchy SEO title under 90 chars",
+    "description": "3 short paragraphs, each 2-3 sentences, with a call-to-action at the end",
     "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]
   },
   "instagram": {
-    "caption": "engaging hook first line, then value, then call-to-action. 150-300 words. End with 25-30 relevant hashtags on new lines starting with #"
+    "caption": "2-3 sentence hook, then 15-20 hashtags each on its own line starting with #"
   },
   "facebook": {
-    "title": "attention-grabbing title max 80 chars",
-    "description": "conversational engaging post 100-200 words, ask a question, encourage shares"
+    "title": "engaging title under 80 chars",
+    "description": "2-3 conversational sentences ending with a question"
   },
   "tiktok": {
-    "title": "viral hook title max 100 chars, use trending language"
+    "title": "punchy viral hook under 100 chars"
   },
   "twitter": {
-    "tweet": "punchy engaging tweet max 250 chars with 2-3 relevant hashtags and a hook"
+    "tweet": "one punchy sentence under 240 chars with 2 hashtags"
   },
   "linkedin": {
-    "post": "professional insightful post 200-300 words. Start with a bold statement, share value/learnings, end with question to drive comments. Include 5 relevant hashtags at end."
+    "post": "3 short paragraphs: insight, value, question. End with 4 hashtags."
   }
 }`;
 
@@ -132,9 +186,9 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no text 
       case 'ollama': raw = await generateWithOllama(prompt, ollamaUrl); break;
       default: return res.status(400).json({ error: 'Unknown provider' });
     }
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (!m) return res.status(500).json({ error: 'AI did not return JSON', raw });
-    res.json(JSON.parse(m[0]));
+    const parsed = extractJSON(raw);
+    if (!parsed) return res.status(500).json({ error: 'AI returned malformed JSON. Try regenerating.' });
+    res.json(parsed);
   } catch(err) {
     console.error('AI error:', err.response?.data || err.message);
     res.status(500).json({ error: err.response?.data?.error?.message || err.message });
