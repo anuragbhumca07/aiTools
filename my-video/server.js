@@ -264,8 +264,8 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH})`);
   try {
     await execAsync(
-      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH}`,
-      { cwd: __dirname, timeout: 300000 }
+      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --image-format=jpeg --jpeg-quality=85 --concurrency=2`,
+      { cwd: __dirname, timeout: 600000 }
     );
   } finally {
     try { fs.unlinkSync(propsFile); } catch {}
