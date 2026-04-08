@@ -1,4 +1,13 @@
 /* ══════════════════════════════════════════════════════════════════
+   BACKEND URL — bypass Cloudflare Pages proxy for OAuth redirects
+   (Cloudflare's 200-rewrite follows Railway's 302 server-side,
+    which breaks Google/TikTok/LinkedIn OAuth dance)
+══════════════════════════════════════════════════════════════════ */
+const AUTH_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? ''   // localhost: use relative URLs
+  : 'https://social-media-uploader-production.up.railway.app';
+
+/* ══════════════════════════════════════════════════════════════════
    STARS (identical to my-video)
 ══════════════════════════════════════════════════════════════════ */
 (function createStars() {
@@ -198,13 +207,15 @@ function triggerGenerate() {
         method: 'POST', headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({ videoTitle:title, niche:selectedNiche, provider, apiKey, ollamaUrl }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      let data;
+      try { data = await res.json(); }
+      catch { throw new Error(`Server returned an invalid response (HTTP ${res.status}). Check your API key and try again.`); }
+      if (!res.ok) throw new Error(data.error || `AI provider error (HTTP ${res.status})`);
       generatedContent = data;
       fillContent(data);
     } catch(err) {
       document.getElementById('genLoadingText').textContent = '⚠ ' + err.message;
-      setTimeout(() => { document.getElementById('genLoading').style.display='none'; }, 4000);
+      // keep error visible until user acts — don't auto-hide
     }
   }, 400);
 }
@@ -269,21 +280,27 @@ window.onToggle = function(pfx) {
    OAUTH HELPERS
 ══════════════════════════════════════════════════════════════════ */
 window.openAuth = function(platform) {
-  let url;
+  let path;
   if (platform === 'youtube') {
     const ci = document.getElementById('ytClientId').value.trim();
     const cs = document.getElementById('ytClientSecret').value.trim();
-    url = ci&&cs ? `/auth/youtube?client_id=${encodeURIComponent(ci)}&client_secret=${encodeURIComponent(cs)}` : '/auth/youtube';
+    if (!ci || !cs) { alert('Please fill in Client ID and Client Secret first.'); return; }
+    path = `/auth/youtube?client_id=${encodeURIComponent(ci)}&client_secret=${encodeURIComponent(cs)}`;
   } else if (platform === 'tiktok') {
     const ck = document.getElementById('ttClientKey').value.trim();
     const cs = document.getElementById('ttClientSecret').value.trim();
-    url = ck&&cs ? `/auth/tiktok?client_key=${encodeURIComponent(ck)}&client_secret=${encodeURIComponent(cs)}` : '/auth/tiktok';
+    if (!ck || !cs) { alert('Please fill in Client Key and Client Secret first.'); return; }
+    path = `/auth/tiktok?client_key=${encodeURIComponent(ck)}&client_secret=${encodeURIComponent(cs)}`;
   } else if (platform === 'linkedin') {
     const ci = document.getElementById('liClientId').value.trim();
     const cs = document.getElementById('liClientSecret').value.trim();
-    url = ci&&cs ? `/auth/linkedin?client_id=${encodeURIComponent(ci)}&client_secret=${encodeURIComponent(cs)}` : '/auth/linkedin';
+    if (!ci || !cs) { alert('Please fill in Client ID and Client Secret first.'); return; }
+    path = `/auth/linkedin?client_id=${encodeURIComponent(ci)}&client_secret=${encodeURIComponent(cs)}`;
   }
-  window.open(url, '_blank', 'width=620,height=720');
+  // Use Railway URL directly — Cloudflare Pages 200-rewrite follows redirects server-side
+  // which breaks OAuth flows. Auth must go to Railway directly so the 302 → Google/TikTok/LinkedIn
+  // redirect is followed by the browser (not by Cloudflare).
+  window.open(AUTH_BASE + path, '_blank', 'width=620,height=720');
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -336,6 +353,41 @@ async function uploadTo(platform) {
     form.append('video', blob, selectedFile?.name || 'video.mp4');
   } catch(e) { updateResultEl(id,'error',label(platform)+' — Video fetch failed', e.message); return; }
 
+  // ── Credential validation — skip platforms that aren't configured ──
+  const missing = [];
+  if (platform === 'youtube') {
+    const ci = document.getElementById('ytClientId').value.trim();
+    const cs = document.getElementById('ytClientSecret').value.trim();
+    const rt = document.getElementById('ytRefreshToken').value.trim();
+    if (!ci) missing.push('Client ID'); if (!cs) missing.push('Client Secret'); if (!rt) missing.push('Refresh Token');
+  }
+  if (platform === 'instagram') {
+    if (!document.getElementById('igToken').value.trim())  missing.push('Page Access Token');
+    if (!document.getElementById('igUserId').value.trim()) missing.push('IG User ID');
+  }
+  if (platform === 'facebook') {
+    if (!document.getElementById('fbToken').value.trim())  missing.push('Page Access Token');
+    if (!document.getElementById('fbPageId').value.trim()) missing.push('Page ID');
+  }
+  if (platform === 'tiktok') {
+    if (!document.getElementById('ttToken').value.trim()) missing.push('Access Token');
+  }
+  if (platform === 'twitter') {
+    if (!document.getElementById('twApiKey').value.trim())       missing.push('API Key');
+    if (!document.getElementById('twApiSecret').value.trim())    missing.push('API Secret');
+    if (!document.getElementById('twToken').value.trim())        missing.push('Access Token');
+    if (!document.getElementById('twTokenSecret').value.trim())  missing.push('Access Token Secret');
+  }
+  if (platform === 'linkedin') {
+    if (!document.getElementById('liToken').value.trim()) missing.push('Access Token');
+    if (!document.getElementById('liUrn').value.trim())   missing.push('Person URN');
+  }
+  if (missing.length) {
+    updateResultEl(id, 'error', label(platform)+' — Skipped',
+      'Missing credentials: ' + missing.join(', ') + '. Fill in Step 03 above.');
+    return;
+  }
+
   let endpoint;
   try {
     if (platform === 'youtube') {
@@ -385,8 +437,9 @@ async function uploadTo(platform) {
     }
 
     const res  = await fetch(endpoint, { method:'POST', body:form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
+    if (!res.ok) throw new Error(data.error || `Upload failed (HTTP ${res.status})`);
     updateResultEl(id, 'success', label(platform)+' — Uploaded! ✓',
       data.url ? `<a class="rlink" href="${data.url}" target="_blank">${data.url}</a>`
                : (data.publishId || data.postId || 'Published successfully'));
