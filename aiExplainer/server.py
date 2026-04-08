@@ -120,10 +120,11 @@ Rules:
 - The final step must state the complete answer explicitly
 """
 
-def ai_solve(problem: str):
+def ai_solve(problem: str, api_key: str = ""):
     """Call Groq to solve `problem` and return (topic, steps) or raise."""
-    if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY environment variable is not set")
+    key = api_key or GROQ_API_KEY
+    if not key:
+        raise ValueError("Groq API key is required")
 
     payload = {
         "model": "llama3-70b-8192",
@@ -137,7 +138,7 @@ def ai_solve(problem: str):
         "https://api.groq.com/openai/v1/chat/completions",
         json=payload,
         headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         },
         timeout=30,
@@ -232,15 +233,16 @@ def solve():
     Accept a problem description, solve it with AI, render explanation video.
     Body: { "problem": "..." }
     """
-    data    = request.get_json(force=True, silent=True) or {}
-    problem = (data.get("problem") or "").strip()
+    data     = request.get_json(force=True, silent=True) or {}
+    problem  = (data.get("problem") or "").strip()
+    api_key  = (data.get("groq_api_key") or "").strip()
 
     if not problem:
         return jsonify({"success": False, "error": "problem is required"}), 400
 
     # Step 1 — AI solve
     try:
-        topic, steps = ai_solve(problem)
+        topic, steps = ai_solve(problem, api_key)
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except requests.HTTPError as e:

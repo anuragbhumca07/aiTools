@@ -144,6 +144,44 @@
     .btn-generate:active:not(:disabled) { transform: scale(.98); }
     .btn-generate:disabled { opacity: .55; cursor: not-allowed; }
 
+    /* API key row */
+    .api-key-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 20px;
+    }
+    .api-key-row input {
+      flex: 1;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); font-size: .93rem;
+      padding: 11px 14px; outline: none;
+      font-family: 'Courier New', monospace;
+      transition: border-color .2s, box-shadow .2s;
+      letter-spacing: .04em;
+    }
+    .api-key-row input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(5,191,219,.15);
+    }
+    .api-key-row label {
+      margin: 0; white-space: nowrap;
+      font-size: .78rem;
+    }
+    .btn-eye {
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--muted); font-size: 1rem;
+      padding: 9px 13px; cursor: pointer; flex-shrink: 0;
+      transition: background .15s, color .15s;
+    }
+    .btn-eye:hover { background: rgba(255,255,255,.12); color: var(--text); }
+    .key-hint {
+      font-size: .75rem; color: var(--muted);
+      margin-top: 5px; line-height: 1.5;
+    }
+    .key-hint a { color: var(--cyan); text-decoration: none; }
+    .key-hint a:hover { text-decoration: underline; }
+
     /* Spinner */
     .spinner {
       width: 20px; height: 20px; border-radius: 50%;
@@ -283,6 +321,23 @@
   <div class="card" id="inputCard">
 
     <div class="form-group">
+      <div class="api-key-row">
+        <label for="apiKeyInput">Groq API Key</label>
+        <input
+          type="password"
+          id="apiKeyInput"
+          placeholder="gsk_..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="btn-eye" type="button" onclick="toggleKeyVisibility()" title="Show / hide key">👁</button>
+      </div>
+      <div class="key-hint">
+        Free key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> — never stored, sent only to your own backend.
+      </div>
+    </div>
+
+    <div class="form-group">
       <label for="problemInput">Your Problem</label>
       <textarea
         id="problemInput"
@@ -358,6 +413,12 @@ Examples:
     ? ''
     : 'https://ai-explainer-production.up.railway.app';
 
+  // API key toggle
+  function toggleKeyVisibility() {
+    const inp = document.getElementById('apiKeyInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
   // Example chips
   function fillExample(el) {
     document.getElementById('problemInput').value = 'Solve: ' + el.textContent;
@@ -416,8 +477,19 @@ Examples:
 
   async function handleGenerate() {
     clearError();
+    const apiKey  = document.getElementById('apiKeyInput').value.trim();
     const problem = document.getElementById('problemInput').value.trim();
 
+    if (!apiKey) {
+      showError('Please enter your Groq API key.');
+      document.getElementById('apiKeyInput').focus();
+      return;
+    }
+    if (!apiKey.startsWith('gsk_')) {
+      showError('That doesn\'t look like a Groq API key (should start with gsk_).');
+      document.getElementById('apiKeyInput').focus();
+      return;
+    }
     if (!problem) {
       showError('Please describe the problem you want solved.');
       document.getElementById('problemInput').focus();
@@ -431,7 +503,7 @@ Examples:
       const resp = await fetch(`${API_BASE}/api/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problem }),
+        body: JSON.stringify({ problem, groq_api_key: apiKey }),
       });
 
       const json = await resp.json();
