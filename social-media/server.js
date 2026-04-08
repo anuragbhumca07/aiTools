@@ -92,7 +92,7 @@ async function generateWithOllama(prompt, baseUrl) {
   return r.data.response;
 }
 
-// Robust JSON extractor: handles markdown fences, literal newlines inside strings
+// Robust JSON extractor: handles markdown fences, literal newlines, unescaped quotes
 function extractJSON(raw) {
   // 1. Strip markdown code fences
   let s = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
@@ -119,6 +119,31 @@ function extractJSON(raw) {
     fixed += ch;
   }
   try { return JSON.parse(fixed); } catch {}
+
+  // 5. Fix unescaped double-quotes inside string values.
+  //    Heuristic: a " inside an open string that is NOT followed (after optional
+  //    whitespace) by one of  : , } ]  is treated as a literal char, not a delimiter.
+  let repaired = '', inStr2 = false, esc2 = false;
+  for (let i = 0; i < fixed.length; i++) {
+    const ch = fixed[i];
+    if (esc2) { repaired += ch; esc2 = false; continue; }
+    if (ch === '\\') { repaired += ch; esc2 = true; continue; }
+    if (ch === '"') {
+      if (!inStr2) { repaired += ch; inStr2 = true; continue; }
+      // Inside a string: peek ahead past whitespace to decide if this closes it
+      let j = i + 1;
+      while (j < fixed.length && ' \n\r\t'.includes(fixed[j])) j++;
+      const after = fixed[j] ?? '';
+      if (':,}]'.includes(after) || j >= fixed.length) {
+        repaired += ch; inStr2 = false;  // legitimate closing quote
+      } else {
+        repaired += '\\"';               // unescaped quote inside value — escape it
+      }
+      continue;
+    }
+    repaired += ch;
+  }
+  try { return JSON.parse(repaired); } catch {}
 
   return null;
 }
