@@ -301,9 +301,16 @@ textarea { resize: vertical; line-height: 1.6; min-height: 80px; }
   background: rgba(5,191,219,.1); border: 1px solid rgba(5,191,219,.25);
   color: var(--cyan); font-size: .82rem; font-weight: 700;
   padding: 5px 14px; border-radius: 8px; cursor: pointer;
-  font-family: inherit; transition: background .2s;
+  font-family: inherit; transition: background .2s, opacity .2s;
 }
-.btn-regen:hover { background: rgba(5,191,219,.2); }
+.btn-regen:hover:not(:disabled) { background: rgba(5,191,219,.2); }
+.btn-regen:disabled { opacity: .5; cursor: not-allowed; }
+.btn-regen-main {
+  display: block; width: 100%; padding: 13px 20px;
+  font-size: 1rem; border-radius: 12px; margin: 4px 0 16px;
+  background: linear-gradient(135deg, rgba(124,58,237,.25), rgba(5,191,219,.2));
+  border-color: rgba(5,191,219,.4);
+}
 .btn-x { background: transparent; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 6px; border-radius: 6px; transition: color .2s; }
 .btn-x:hover { color: var(--pink); }
 

@@ -208,6 +208,10 @@ function triggerGenerate() {
       || (selectedFile ? selectedFile.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ') : null);
     if (!title) return;
 
+    const regenBtn = document.getElementById('regenBtn');
+    regenBtn.disabled = true;
+    regenBtn.textContent = '⏳ Generating…';
+
     document.getElementById('genLoading').style.display = 'flex';
     document.getElementById('genLoadingText').textContent = 'Generating platform-specific content…';
     document.getElementById('contentSection').style.display = 'none';
@@ -226,6 +230,8 @@ function triggerGenerate() {
     } catch(err) {
       document.getElementById('genLoadingText').textContent = '⚠ ' + err.message;
       // keep error visible until user acts — don't auto-hide
+      regenBtn.disabled = false;
+      regenBtn.textContent = generatedContent ? '↺ Regenerate' : '✨ Generate AI Content';
     }
   }, 400);
 }
@@ -233,6 +239,9 @@ function triggerGenerate() {
 function fillContent(d) {
   document.getElementById('genLoading').style.display = 'none';
   document.getElementById('contentSection').style.display = '';
+  const regenBtn = document.getElementById('regenBtn');
+  regenBtn.disabled = false;
+  regenBtn.textContent = '↺ Regenerate';
 
   // YouTube
   if (d.youtube) {

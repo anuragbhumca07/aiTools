@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>🚀 Social Media Uploader</title>
-  <link rel="stylesheet" href="https://social-media-uploader-production.up.railway.app/style.css"/>
+  <link rel="stylesheet" href="style.css?v=4"/>
 </head>
 <body>
 <div id="stars"></div>
@@ -101,6 +101,9 @@
       <input type="text" id="ollamaUrl" value="http://localhost:11434"/>
     </div>
 
+    <!-- Generate / Regenerate button -->
+    <button class="btn-regen btn-regen-main" id="regenBtn">✨ Generate AI Content</button>
+
     <!-- Loading indicator -->
     <div id="genLoading" class="gen-loading" style="display:none">
       <div class="spinner"></div>
@@ -111,7 +114,6 @@
     <div id="contentSection" style="display:none">
       <div class="content-header">
         <span class="content-badge">✨ AI Generated — click any platform tab to edit</span>
-        <button class="btn-regen" id="regenBtn">↺ Regenerate</button>
       </div>
       <div class="tab-row" id="contentTabs">
         <button class="tab-btn selected" data-tab="youtube" onclick="switchTab('youtube')">▶ YouTube</button>
@@ -312,6 +314,6 @@
 
 </div><!-- /page -->
 
-<script src="https://social-media-uploader-production.up.railway.app/app.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
