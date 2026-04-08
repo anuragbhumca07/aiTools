@@ -72,18 +72,26 @@ let generatedContent = null;  // stores { youtube, instagram, facebook, tiktok, 
 
 /* ══════════════════════════════════════════════════════════════════
    ?video= PARAM (from my-video integration)
+   Shows the video in Step 01's file-info area, just like a local file
 ══════════════════════════════════════════════════════════════════ */
 (function checkParams() {
   const p = new URLSearchParams(location.search);
   const videoUrl = p.get('video');
   const topic    = p.get('topic') || '';
   if (!videoUrl) return;
+
   window.__remoteVideoUrl   = decodeURIComponent(videoUrl);
-  window.__remoteVideoTitle = decodeURIComponent(topic) || window.__remoteVideoUrl.split('/').pop().replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ');
-  const banner = document.createElement('div');
-  banner.style = 'background:rgba(5,191,219,.08);border:1px solid rgba(5,191,219,.25);border-radius:14px;padding:14px 18px;margin-bottom:20px;font-size:.9rem;color:var(--cyan)';
-  banner.innerHTML = `🎬 <strong>Video from Quiz Generator received.</strong> Paste your AI key below — content generates automatically.<br><span style="font-size:.75rem;opacity:.6">${window.__remoteVideoUrl}</span>`;
-  document.querySelector('.page').insertBefore(banner, document.querySelector('.section-title'));
+  window.__remoteVideoTitle = decodeURIComponent(topic)
+    || window.__remoteVideoUrl.split('/').pop().replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+
+  // Show in Step 01 file-info area (hide drop zone, show file card)
+  const fname = window.__remoteVideoUrl.split('/').pop().split('?')[0] || 'video.mp4';
+  document.getElementById('fileName').textContent = fname;
+  document.getElementById('fileSize').textContent = '(from Quiz Generator)';
+  document.getElementById('fileInfo').style.display  = 'flex';
+  document.getElementById('dropZone').style.display  = 'none';
+
+  // Auto-generate content if API key is already saved
   const c = load();
   if (c.aiApiKey || getProvider() === 'ollama') setTimeout(triggerGenerate, 600);
 })();

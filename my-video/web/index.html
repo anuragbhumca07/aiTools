@@ -549,7 +549,7 @@ Answer: B</textarea>
       <div class="result-actions">
         <button class="btn btn-play" onclick="playVideo('${videoId}', '${escAttr(videoUrl)}')">▶ Play</button>
         <button class="btn btn-download" onclick="downloadVideo('${escAttr(videoUrl)}', '${escAttr(filename)}')">⬇ Download</button>
-        <a class="btn btn-social" href="${buildSocialUrl(videoUrl, question)}" target="_blank">🚀 Share on Social Media</a>
+        <a class="btn btn-social" href="${buildSocialUrl(videoUrl, question)}" target="_blank">⬆ Upload to Social Media</a>
       </div>
     `;
     return card;
@@ -562,7 +562,7 @@ Answer: B</textarea>
     return s.replace(/'/g,"\\'");
   }
 
-  const SOCIAL_UPLOADER_URL = 'https://aitools-social.pages.dev';
+  const SOCIAL_UPLOADER_URL = 'https://social-media-uploader-production.up.railway.app';
   function buildSocialUrl(videoUrl, topic) {
     const base = SOCIAL_UPLOADER_URL;
     return `${base}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
