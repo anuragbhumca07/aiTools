@@ -90,7 +90,7 @@ class ExplainerScene(Scene):
         title_grp = VGroup(title, line)
 
         # narrate topic while title animates
-        if AUDIO_FILES and len(AUDIO_FILES) > len(STEPS):
+        if AUDIO_FILES and len(AUDIO_FILES) > len(STEPS) and AUDIO_FILES[-1]:
             self.add_sound(AUDIO_FILES[-1])          # last slot = title audio
 
         self.play(Write(title), run_time=1.2)
