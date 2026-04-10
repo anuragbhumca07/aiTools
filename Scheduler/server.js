@@ -15,11 +15,14 @@ const FormData   = require('form-data');
 const app  = express();
 const PORT = process.env.PORT || 3003;
 
-const QUIZ_API       = process.env.QUIZ_API_URL   || 'https://quiz-video-generator-production.up.railway.app';
-const BASE_URL       = process.env.BASE_URL        || 'https://quiz-scheduler-production.up.railway.app';
-const SUPABASE_URL   = process.env.SUPABASE_URL    || 'https://dhdzftmlrkuwcsgmgihe.supabase.co';
-const SUPABASE_ANON  = process.env.SUPABASE_ANON_KEY || 'sb_publishable_9Ns_telLHzlI-qwxJ_-XbQ_u_9Sab3J';
-const TZ             = process.env.TZ_NAME         || 'Asia/Kolkata';
+const QUIZ_API            = process.env.QUIZ_API_URL       || 'https://quiz-video-generator-production.up.railway.app';
+const BASE_URL            = process.env.BASE_URL            || 'https://quiz-scheduler-production.up.railway.app';
+const SUPABASE_URL        = process.env.SUPABASE_URL        || 'https://dhdzftmlrkuwcsgmgihe.supabase.co';
+const SUPABASE_ANON       = process.env.SUPABASE_ANON_KEY   || 'sb_publishable_9Ns_telLHzlI-qwxJ_-XbQ_u_9Sab3J';
+// Get from: Supabase Dashboard → Project Settings → API → service_role (secret key)
+// Add as Railway env var: SUPABASE_SERVICE_KEY
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const TZ                  = process.env.TZ_NAME              || 'Asia/Kolkata';
 
 const DATA_DIR = '/data';
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch { /* volume not mounted, use local */ }
@@ -137,6 +140,28 @@ function nextRun(expr) {
 function getUserCreds(userId, platform) {
   const row = db.prepare('SELECT config_json FROM credentials WHERE user_id=? AND platform=?').get(userId, platform);
   return row ? JSON.parse(row.config_json) : null;
+}
+
+// Load ALL users' credentials from Supabase into SQLite (requires service role key to bypass RLS)
+async function syncCredsFromSupabase() {
+  if (!SUPABASE_SERVICE_KEY) return 0;
+  try {
+    const { data } = await axios.get(
+      `${SUPABASE_URL}/rest/v1/scheduler_credentials?select=user_id,platform,config_json`,
+      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` }, timeout: 15000 }
+    );
+    if (!data?.length) return 0;
+    const stmt = db.prepare(`INSERT OR REPLACE INTO credentials (user_id,platform,config_json,updated_at) VALUES (?,?,?,datetime('now'))`);
+    for (const row of data) {
+      const cfg = typeof row.config_json === 'string' ? row.config_json : JSON.stringify(row.config_json);
+      stmt.run(row.user_id, row.platform, cfg);
+    }
+    console.log(`[SYNC] Loaded ${data.length} credential(s) from Supabase`);
+    return data.length;
+  } catch (e) {
+    console.warn('[SYNC] Supabase credential sync failed:', e.message);
+    return 0;
+  }
 }
 
 async function downloadToTemp(url) {
@@ -257,16 +282,23 @@ async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
 async function runSchedule(scheduleId) {
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(scheduleId);
   if (!s) return;
+  const platforms = JSON.parse(s.platforms || '[]');
+  // Sync credentials from Supabase if any platform's creds are missing (handles Railway restarts)
+  if (platforms.length) {
+    const missingCreds = platforms.some(p => !getUserCreds(s.user_id, p));
+    if (missingCreds) await syncCredsFromSupabase();
+  }
   const jobId = db.prepare(`INSERT INTO jobs (schedule_id,user_id,status) VALUES (?,?,'running')`).run(s.id, s.user_id).lastInsertRowid;
   console.log(`[CRON] #${s.id} "${s.name}" → job #${jobId}`);
   try {
     const resp = await axios.post(`${QUIZ_API}/api/generate-random`, { category: s.category, subcategory: s.subcategory, format: s.format }, { timeout: 300000 });
     if (!resp.data.success) throw new Error(resp.data.error || 'Video generation failed');
-    const { videoUrl, question, options, correctIndex } = resp.data;
+    let { videoUrl, question, options, correctIndex } = resp.data;
+    // Ensure videoUrl is absolute (guard against missing BACKEND_URL in quiz-video service)
+    if (videoUrl && !videoUrl.startsWith('http')) videoUrl = `${QUIZ_API}${videoUrl}`;
     db.prepare(`UPDATE jobs SET status='done',video_url=?,question=?,options=?,correct_idx=? WHERE id=?`)
       .run(videoUrl, question, JSON.stringify(options||[]), correctIndex??0, jobId);
     db.prepare(`UPDATE schedules SET last_run=datetime('now'),next_run=?,total_runs=total_runs+1 WHERE id=?`).run(nextRun(s.cron_expr), s.id);
-    const platforms = JSON.parse(s.platforms || '[]');
     if (platforms.length) postToPlatforms(jobId, s.user_id, videoUrl, question, platforms).catch(console.error);
   } catch (e) {
     db.prepare(`UPDATE jobs SET status='error',error=? WHERE id=?`).run(e.message?.slice(0,500), jobId);
@@ -478,6 +510,10 @@ app.get('/api/jobs', authMiddleware, (req, res) => {
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-db.prepare('SELECT * FROM schedules WHERE active=1').all().forEach(startCron);
-console.log(`\n📅  Quiz Scheduler  →  http://localhost:${PORT}\n`);
-app.listen(PORT);
+app.listen(PORT, async () => {
+  console.log(`\n📅  Quiz Scheduler  →  http://localhost:${PORT}\n`);
+  // On startup: sync all credentials from Supabase so cron jobs can post even after restarts
+  await syncCredsFromSupabase();
+  // Re-register all active cron jobs
+  db.prepare('SELECT * FROM schedules WHERE active=1').all().forEach(startCron);
+});

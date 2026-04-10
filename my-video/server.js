@@ -258,8 +258,8 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   const propsPath = propsFile.replace(/\\/g, '/');
 
   const portrait = format === '9:16';
-  const vidW = portrait ? 720 : 1280;
-  const vidH = portrait ? 1280 : 720;
+  const vidW = portrait ? 540 : 1280;
+  const vidH = portrait ? 960 : 720;
   const totalFrames = (props.questionSeconds + props.optionsSeconds + props.timerSeconds + props.answerSeconds) * 30;
 
   console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH}, frames: ${totalFrames})`);
@@ -273,7 +273,7 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   }
 
   console.log(`[${ts}] Done → out/${videoName}`);
-  const base = process.env.BACKEND_URL || '';
+  const base = process.env.BACKEND_URL || 'https://quiz-video-generator-production.up.railway.app';
   return { videoUrl: `${base}/videos/${videoName}`, filename: videoName, question, options, correctIndex };
 }
 
