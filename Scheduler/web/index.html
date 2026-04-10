@@ -780,8 +780,8 @@ async function showHistory(id, name) {
   document.getElementById('hist-list').innerHTML = d.jobs.map(j => {
     const posts = (j.postings||[]).map(p => {
       if (p.status==='done'&&p.post_url) return `<a href="${p.post_url}" target="_blank" class="pp pp-done">${PI[p.platform]||''} ${p.platform} ✓</a>`;
-      if (p.status==='error') return `<span class="pp pp-err" title="${esc(p.error||'')}">⚠️ ${p.platform}</span>`;
-      if (p.status==='skipped') return `<span class="pp pp-skip" title="Add credentials in 🔑">🔒 ${p.platform}</span>`;
+      if (p.status==='error') return `<div style="display:inline-block"><span class="pp pp-err">⚠️ ${p.platform} Failed</span><div style="font-size:.65rem;color:var(--red);margin-top:2px;max-width:340px;word-break:break-word">${esc(p.error||'Unknown error')}</div></div>`;
+      if (p.status==='skipped') return `<span class="pp pp-skip">🔒 ${p.platform} — No credentials</span>`;
       return `<span class="pp pp-run"><span class="spinner"></span> ${p.platform}</span>`;
     }).join('');
     return `<div class="hi ${j.status}">

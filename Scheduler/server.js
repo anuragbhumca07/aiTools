@@ -166,7 +166,7 @@ async function syncCredsFromSupabase() {
 
 async function downloadToTemp(url) {
   const tmp = path.join(os.tmpdir(), `sched_${Date.now()}.mp4`);
-  const res = await axios({ url, method: 'GET', responseType: 'stream', timeout: 120000 });
+  const res = await axios({ url, method: 'GET', responseType: 'stream', timeout: 180000 });
   const w = fs.createWriteStream(tmp);
   res.data.pipe(w);
   await new Promise((ok, fail) => { w.on('finish', ok); w.on('error', fail); });
@@ -174,66 +174,76 @@ async function downloadToTemp(url) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── Platform Posters ──────────────────────────────────────────────────────────
-async function postYouTube(videoUrl, title, desc, c) {
-  const oauth2 = new google.auth.OAuth2(c.client_id, c.client_secret, `${BASE_URL}/auth/youtube/callback`);
-  oauth2.setCredentials({ refresh_token: c.refresh_token });
-  const yt  = google.youtube({ version: 'v3', auth: oauth2 });
+// Download video to Scheduler's own serving directory so platform APIs can fetch it reliably
+const SERVE_DIR = path.join(__dirname, 'serve');
+fs.mkdirSync(SERVE_DIR, { recursive: true });
+
+async function stageVideo(videoUrl) {
+  const fname  = `v_${Date.now()}.mp4`;
+  const fpath  = path.join(SERVE_DIR, fname);
+  const pubUrl = `${BASE_URL}/serve/${fname}`;
   const tmp = await downloadToTemp(videoUrl);
-  try {
-    const r = await yt.videos.insert({
-      part: ['snippet','status'],
-      requestBody: {
-        snippet: { title: title.slice(0,100), description: `${desc}\n\n#quiz #trivia #shorts`, tags: ['quiz','trivia','shorts'], categoryId: '27' },
-        status:  { privacyStatus: 'public', selfDeclaredMadeForKids: false },
-      },
-      media: { body: fs.createReadStream(tmp) },
-    });
-    return `https://youtube.com/shorts/${r.data.id}`;
-  } finally { try { fs.unlinkSync(tmp); } catch {} }
+  fs.renameSync(tmp, fpath);
+  // Auto-delete after 3 hours
+  setTimeout(() => { try { fs.unlinkSync(fpath); } catch {} }, 3 * 60 * 60 * 1000);
+  return { fpath, pubUrl };
 }
 
-async function postInstagram(videoUrl, title, desc, c) {
+// ── Platform Posters (all receive { fpath, pubUrl } staged video) ─────────────
+async function postYouTube(fpath, pubUrl, title, desc, c) {
+  if (!c.refresh_token) throw new Error('YouTube not authorized — click "Authorize with Google" in Credentials first');
+  const oauth2 = new google.auth.OAuth2(c.client_id, c.client_secret, `${BASE_URL}/auth/youtube/callback`);
+  oauth2.setCredentials({ refresh_token: c.refresh_token });
+  const yt = google.youtube({ version: 'v3', auth: oauth2 });
+  const r  = await yt.videos.insert({
+    part: ['snippet','status'],
+    requestBody: {
+      snippet: { title: title.slice(0,100), description: `${desc}\n\n#quiz #trivia #shorts`, tags: ['quiz','trivia','shorts'], categoryId: '27' },
+      status:  { privacyStatus: 'public', selfDeclaredMadeForKids: false },
+    },
+    media: { body: fs.createReadStream(fpath) },
+  });
+  return `https://youtube.com/shorts/${r.data.id}`;
+}
+
+async function postInstagram(fpath, pubUrl, title, desc, c) {
   const caption = `${title}\n\n${desc}\n\n#quiz #trivia #reels`;
   const con = await axios.post(`https://graph.facebook.com/v19.0/${c.instagram_account_id}/media`, null,
-    { params: { video_url: videoUrl, media_type: 'REELS', caption, access_token: c.access_token }, timeout: 30000 });
-  for (let i = 0; i < 20; i++) {
-    await sleep(8000);
+    { params: { video_url: pubUrl, media_type: 'REELS', caption, access_token: c.access_token }, timeout: 30000 });
+  for (let i = 0; i < 30; i++) {
+    await sleep(10000);
     const s = await axios.get(`https://graph.facebook.com/v19.0/${con.data.id}`,
-      { params: { fields: 'status_code', access_token: c.access_token }, timeout: 15000 });
+      { params: { fields: 'status_code,status', access_token: c.access_token }, timeout: 15000 });
     if (s.data.status_code === 'FINISHED') break;
-    if (s.data.status_code === 'ERROR') throw new Error('Instagram processing failed');
+    if (s.data.status_code === 'ERROR') throw new Error(`Instagram processing failed: ${JSON.stringify(s.data.status)}`);
   }
   const pub = await axios.post(`https://graph.facebook.com/v19.0/${c.instagram_account_id}/media_publish`, null,
     { params: { creation_id: con.data.id, access_token: c.access_token }, timeout: 30000 });
   return `https://www.instagram.com/p/${pub.data.id}/`;
 }
 
-async function postTwitter(videoUrl, title, desc, c) {
-  const client = new TwitterApi({ appKey: c.api_key, appSecret: c.api_secret, accessToken: c.access_token, accessSecret: c.access_token_secret });
-  const tmp = await downloadToTemp(videoUrl);
-  try {
-    const mediaId = await client.v1.uploadMedia(tmp, { mimeType: 'video/mp4' });
-    const tweet   = await client.v2.tweet({ text: `${title}\n\n#quiz #trivia`.slice(0,280), media: { media_ids: [mediaId] } });
-    return `https://twitter.com/i/web/status/${tweet.data.id}`;
-  } finally { try { fs.unlinkSync(tmp); } catch {} }
+async function postTwitter(fpath, pubUrl, title, desc, c) {
+  const client  = new TwitterApi({ appKey: c.api_key, appSecret: c.api_secret, accessToken: c.access_token, accessSecret: c.access_token_secret });
+  const mediaId = await client.v1.uploadMedia(fpath, { mimeType: 'video/mp4' });
+  const tweet   = await client.v2.tweet({ text: `${title}\n\n#quiz #trivia`.slice(0,280), media: { media_ids: [mediaId] } });
+  return `https://twitter.com/i/web/status/${tweet.data.id}`;
 }
 
-async function postTikTok(videoUrl, title, desc, c) {
+async function postTikTok(fpath, pubUrl, title, desc, c) {
   await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
     { post_info: { title: `${title} #quiz`.slice(0,150), privacy_level: 'PUBLIC_TO_EVERYONE', disable_comment: false, disable_duet: false, disable_stitch: false },
-      source_info: { source: 'URL', video_url: videoUrl } },
+      source_info: { source: 'URL', video_url: pubUrl } },
     { headers: { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json' }, timeout: 30000 });
   return 'https://www.tiktok.com/';
 }
 
-async function postFacebook(videoUrl, title, desc, c) {
+async function postFacebook(fpath, pubUrl, title, desc, c) {
   const r = await axios.post(`https://graph-video.facebook.com/v19.0/${c.page_id}/videos`, null,
-    { params: { file_url: videoUrl, title: title.slice(0,255), description: desc, access_token: c.page_access_token }, timeout: 60000 });
+    { params: { file_url: pubUrl, title: title.slice(0,255), description: desc, access_token: c.page_access_token }, timeout: 60000 });
   return `https://www.facebook.com/video.php?v=${r.data.id}`;
 }
 
-async function postLinkedIn(videoUrl, title, desc, c) {
+async function postLinkedIn(fpath, pubUrl, title, desc, c) {
   const h = { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' };
   const reg = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload',
     { registerUploadRequest: { owner: c.person_urn, recipes: ['urn:li:digitalmediaRecipe:feedshare-video'],
@@ -241,10 +251,7 @@ async function postLinkedIn(videoUrl, title, desc, c) {
         supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'] } }, { headers: h, timeout: 20000 });
   const uploadUrl = reg.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
   const assetId   = reg.data.value.asset;
-  const tmp = await downloadToTemp(videoUrl);
-  try {
-    await axios.put(uploadUrl, fs.readFileSync(tmp), { headers: { 'Content-Type': 'application/octet-stream' }, timeout: 120000, maxBodyLength: Infinity });
-  } finally { try { fs.unlinkSync(tmp); } catch {} }
+  await axios.put(uploadUrl, fs.readFileSync(fpath), { headers: { 'Content-Type': 'application/octet-stream' }, timeout: 120000, maxBodyLength: Infinity });
   const post = await axios.post('https://api.linkedin.com/v2/ugcPosts',
     { author: c.person_urn, lifecycleState: 'PUBLISHED',
       specificContent: { 'com.linkedin.ugc.ShareContent': {
@@ -261,24 +268,41 @@ const POSTERS = { 'YouTube Shorts': postYouTube, 'Instagram Reels': postInstagra
 // ── Core runner ───────────────────────────────────────────────────────────────
 async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
   console.log(`[POST] job#${jobId} → platforms: ${JSON.stringify(platforms)}, videoUrl: ${videoUrl}`);
-  for (const p of platforms) {
-    if (!POSTERS[p]) { console.warn(`[POST] Unknown platform: ${p}`); continue; }
-    const creds = getUserCreds(userId, p);
-    if (!creds) {
-      console.warn(`[POST] ${p} — no credentials in SQLite for user ${userId}`);
-      db.prepare(`INSERT INTO postings (job_id,platform,status,error) VALUES (?,?,'skipped','No credentials')`).run(jobId, p);
-      continue;
+  // Stage video on Scheduler server so all platform APIs can reliably fetch it
+  let staged = null;
+  try {
+    staged = await stageVideo(videoUrl);
+    console.log(`[POST] Video staged at ${staged.pubUrl}`);
+  } catch (e) {
+    console.error(`[POST] Failed to stage video: ${e.message}`);
+    // Record failure for all platforms
+    for (const p of platforms) {
+      db.prepare(`INSERT INTO postings (job_id,platform,status,error) VALUES (?,?,'error',?)`).run(jobId, p, `Video download failed: ${e.message}`.slice(0,400));
     }
-    console.log(`[POST] ${p} — credentials found, uploading…`);
-    const pid = db.prepare(`INSERT INTO postings (job_id,platform,status) VALUES (?,?,'running')`).run(jobId, p).lastInsertRowid;
-    try {
-      const url = await POSTERS[p](videoUrl, question || 'Quiz Time!', `Quiz: ${question}`, creds);
-      db.prepare(`UPDATE postings SET status='done',post_url=? WHERE id=?`).run(url, pid);
-      console.log(`[POST] ${p} ✓ ${url}`);
-    } catch (e) {
-      db.prepare(`UPDATE postings SET status='error',error=? WHERE id=?`).run(e.message?.slice(0,400), pid);
-      console.error(`[POST] ${p} ✗ ${e.message}`);
+    return;
+  }
+  try {
+    for (const p of platforms) {
+      if (!POSTERS[p]) { console.warn(`[POST] Unknown platform: ${p}`); continue; }
+      const creds = getUserCreds(userId, p);
+      if (!creds) {
+        console.warn(`[POST] ${p} — no credentials in SQLite for user ${userId}`);
+        db.prepare(`INSERT INTO postings (job_id,platform,status,error) VALUES (?,?,'skipped','No credentials')`).run(jobId, p);
+        continue;
+      }
+      console.log(`[POST] ${p} — uploading…`);
+      const pid = db.prepare(`INSERT INTO postings (job_id,platform,status) VALUES (?,?,'running')`).run(jobId, p).lastInsertRowid;
+      try {
+        const url = await POSTERS[p](staged.fpath, staged.pubUrl, question || 'Quiz Time!', `Quiz: ${question}`, creds);
+        db.prepare(`UPDATE postings SET status='done',post_url=? WHERE id=?`).run(url, pid);
+        console.log(`[POST] ${p} ✓ ${url}`);
+      } catch (e) {
+        db.prepare(`UPDATE postings SET status='error',error=? WHERE id=?`).run(e.message?.slice(0,400), pid);
+        console.error(`[POST] ${p} ✗ ${e.message}`);
+      }
     }
+  } finally {
+    // Keep the file alive for 3h (set in stageVideo), just clean up tmp if any
   }
 }
 
@@ -335,6 +359,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
+app.use('/serve', express.static(SERVE_DIR)); // staged videos for platform APIs
 
 // ── YouTube OAuth ─────────────────────────────────────────────────────────────
 app.get('/auth/youtube', (req, res) => {
