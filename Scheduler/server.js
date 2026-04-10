@@ -260,13 +260,16 @@ const POSTERS = { 'YouTube Shorts': postYouTube, 'Instagram Reels': postInstagra
 
 // ── Core runner ───────────────────────────────────────────────────────────────
 async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
+  console.log(`[POST] job#${jobId} → platforms: ${JSON.stringify(platforms)}, videoUrl: ${videoUrl}`);
   for (const p of platforms) {
-    if (!POSTERS[p]) continue;
+    if (!POSTERS[p]) { console.warn(`[POST] Unknown platform: ${p}`); continue; }
     const creds = getUserCreds(userId, p);
     if (!creds) {
+      console.warn(`[POST] ${p} — no credentials in SQLite for user ${userId}`);
       db.prepare(`INSERT INTO postings (job_id,platform,status,error) VALUES (?,?,'skipped','No credentials')`).run(jobId, p);
       continue;
     }
+    console.log(`[POST] ${p} — credentials found, uploading…`);
     const pid = db.prepare(`INSERT INTO postings (job_id,platform,status) VALUES (?,?,'running')`).run(jobId, p).lastInsertRowid;
     try {
       const url = await POSTERS[p](videoUrl, question || 'Quiz Time!', `Quiz: ${question}`, creds);
@@ -499,6 +502,39 @@ app.post('/api/schedules/:id/run', authMiddleware, (req, res) => {
   if (!s) return res.status(404).json({ success:false, error:'Not found' });
   runSchedule(s.id).catch(console.error);
   res.json({ success:true, message:'Job started' });
+});
+
+// ── Debug / Diagnostics ──────────────────────────────────────────────────────
+app.get('/api/debug/posting', authMiddleware, (req, res) => {
+  const uid = req.user.id;
+  const creds = db.prepare('SELECT platform, updated_at FROM credentials WHERE user_id=?').all(uid);
+  const jobs  = db.prepare(`SELECT j.id,j.status,j.video_url,j.created_at,j.error,s.name sname,s.platforms FROM jobs j JOIN schedules s ON s.id=j.schedule_id WHERE j.user_id=? ORDER BY j.created_at DESC LIMIT 5`).all(uid);
+  res.json({
+    service_key_set: !!SUPABASE_SERVICE_KEY,
+    credentials_in_sqlite: creds,
+    recent_jobs: jobs.map(j => ({
+      id: j.id, schedule: j.sname, status: j.status, error: j.error,
+      video_url: j.video_url, created_at: j.created_at,
+      schedule_platforms: JSON.parse(j.platforms||'[]'),
+      postings: db.prepare('SELECT platform,status,error,post_url FROM postings WHERE job_id=?').all(j.id)
+    }))
+  });
+});
+
+// Bulk credential push — called by frontend on login to ensure creds are in SQLite
+app.post('/api/push-creds', authMiddleware, (req, res) => {
+  const uid  = req.user.id;
+  const list = req.body; // [{ platform, config }]
+  if (!Array.isArray(list) || !list.length) return res.status(400).json({ success: false, error: 'Empty list' });
+  const stmt = db.prepare(`INSERT OR REPLACE INTO credentials (user_id,platform,config_json,updated_at) VALUES (?,?,?,datetime('now'))`);
+  let count = 0;
+  for (const { platform, config } of list) {
+    if (!platform || !config || !Object.keys(config).length) continue;
+    stmt.run(uid, platform, typeof config === 'string' ? config : JSON.stringify(config));
+    count++;
+  }
+  console.log(`[PUSH] ${count} credential(s) pushed for user ${uid}`);
+  res.json({ success: true, count });
 });
 
 app.get('/api/jobs', authMiddleware, (req, res) => {

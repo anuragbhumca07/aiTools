@@ -290,6 +290,7 @@ a.hl:hover{text-decoration:underline}
         <span id="sched-credits" style="font-size:.72rem;padding:2px 9px;background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.3);border-radius:20px;color:#f5a623;font-weight:700;display:none">⚡ –</span>
       </div>
       <button class="btn btn-purple btn-sm" onclick="openCredsModal()">🔑 Credentials</button>
+      <button class="btn btn-ghost btn-sm" onclick="diagnosPosting()" title="Diagnose posting issues">🔍</button>
       <button class="btn btn-primary btn-sm" onclick="openCreate()">＋ New</button>
       <button class="btn btn-ghost btn-sm" onclick="signOut()" title="Sign out">⏻</button>
     </div>
@@ -597,6 +598,16 @@ function applyLocalCreds() {
   } catch {}
 }
 
+// ── Credential server sync ────────────────────────────────────────────────────
+async function pushAllCredsToServer() {
+  const list = Object.entries(savedCredValues)
+    .filter(([, cfg]) => cfg && Object.keys(cfg).length)
+    .map(([platform, config]) => ({ platform, config }));
+  if (!list.length) return;
+  try { await api('/api/push-creds', { method:'POST', body: JSON.stringify(list) }); }
+  catch {}
+}
+
 // ── API helper (adds auth header) ─────────────────────────────────────────────
 async function api(path, opts = {}) {
   // Refresh token if needed
@@ -612,6 +623,8 @@ async function init() {
   await loadCredentials();
   await loadAll();
   setInterval(loadAll, 30000);
+  // Push credentials to server every 5 min so cron jobs always have them
+  setInterval(pushAllCredsToServer, 5 * 60 * 1000);
 }
 
 async function loadCategories() {
@@ -733,14 +746,23 @@ async function toggleSched(id, cb) {
 
 async function runNow(id) {
   toast('Starting video generation…','info');
-  // Pre-push all credentials to server so posting works even after Railway restarts
-  for (const [platform, cfg] of Object.entries(savedCredValues)) {
-    if (cfg && Object.keys(cfg).length) {
-      try { await api(`/api/credentials/${encodeURIComponent(platform)}`,{method:'POST',body:JSON.stringify(cfg)}); } catch {}
-    }
-  }
+  await pushAllCredsToServer(); // ensure server has latest creds before running
   await api(`/api/schedules/${id}/run`,{method:'POST'});
   [3000,15000,60000,180000].forEach(t=>setTimeout(loadAll,t));
+}
+
+async function diagnosPosting() {
+  try {
+    const d = await (await api('/api/debug/posting')).json();
+    const credList = d.credentials_in_sqlite.map(c=>`✅ ${c.platform}`).join('\n') || '❌ None';
+    const jobInfo  = d.recent_jobs.slice(0,3).map(j=>{
+      const posts = j.postings.length
+        ? j.postings.map(p=>`  ${p.platform}: ${p.status}${p.error?' — '+p.error:''}`).join('\n')
+        : `  ⚠️ No postings (schedule platforms: ${j.schedule_platforms.join(', ')||'NONE'})`;
+      return `Job #${j.id} [${j.status}]:\n${posts}`;
+    }).join('\n\n') || 'No jobs yet';
+    alert(`=== POSTING DIAGNOSTIC ===\n\nService key set: ${d.service_key_set}\n\nCredentials in server SQLite:\n${credList}\n\n--- Last Jobs ---\n${jobInfo}`);
+  } catch(e) { toast('Diagnostic failed: '+e.message,'err'); }
 }
 
 async function delSched(id) {
@@ -861,13 +883,8 @@ async function loadCredsFromSupabase() {
       }
     }
   } catch(e) { console.warn('Supabase credential load failed:', e.message); }
-  // Push all known creds to Railway SQLite so scheduled jobs can use them
-  for (const [platform, cfg] of Object.entries(savedCredValues)) {
-    try {
-      await api(`/api/credentials/${encodeURIComponent(platform)}`,
-        { method: 'POST', body: JSON.stringify(cfg) });
-    } catch {}
-  }
+  // Bulk-push all known creds to Railway SQLite so scheduled cron jobs can post
+  await pushAllCredsToServer();
   await loadCredentials(); // final refresh from Railway
 }
 
