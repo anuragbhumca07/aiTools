@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Scheduler — AI Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg:#08080f;--surface:#0f0f1e;--card:#13132a;--border:rgba(255,255,255,.07);
+  --text:#e8e8f0;--muted:#6b6b8a;--accent:#f59e0b;
+  --green:#10b981;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+/* ── Auth screen ── */
+#auth-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 0%, rgba(245,158,11,.12) 0%, transparent 60%), var(--bg);
+  padding:20px;
+}
+.auth-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:24px;
+  padding:36px;width:100%;max-width:420px;
+}
+.auth-logo{text-align:center;margin-bottom:28px}
+.auth-logo-icon{font-size:3.5rem;filter:drop-shadow(0 0 16px #f59e0b88)}
+.auth-logo h1{font-size:1.6rem;font-weight:800;background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:8px}
+.auth-logo p{font-size:.8rem;color:var(--muted);margin-top:4px}
+.auth-tabs{display:flex;background:rgba(255,255,255,.04);border-radius:10px;padding:3px;margin-bottom:24px}
+.auth-tab{flex:1;padding:8px;text-align:center;font-size:.83rem;font-weight:600;border-radius:8px;cursor:pointer;color:var(--muted);transition:all .2s;border:none;background:none}
+.auth-tab.active{background:var(--accent);color:#000}
+.auth-form{display:flex;flex-direction:column;gap:14px}
+.auth-field label{display:block;font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.auth-field input{
+  width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);font-size:.88rem;padding:10px 13px;outline:none;transition:border-color .2s;
+}
+.auth-field input:focus{border-color:var(--accent)}
+.auth-btn{
+  width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;font-size:.9rem;font-weight:700;
+  background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;transition:all .2s;margin-top:4px;
+}
+.auth-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px #f59e0b44}
+.auth-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.auth-error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 12px;font-size:.8rem;color:var(--red);display:none}
+.auth-error.show{display:block}
+.auth-divider{text-align:center;font-size:.73rem;color:var(--muted);margin:4px 0}
+
+/* ── App ── */
+#app-screen{display:none}
+header{
+  background:linear-gradient(135deg,#1a1040,#0d0d2e);border-bottom:1px solid var(--border);
+  padding:16px 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{font-size:1.7rem;filter:drop-shadow(0 0 10px #f59e0b88)}
+.logo h1{font-size:1.2rem;font-weight:700;background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo p{font-size:.7rem;color:var(--muted)}
+.header-right{display:flex;gap:8px;align-items:center}
+.user-chip{
+  display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);
+  border:1px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;font-size:.78rem;
+}
+.user-avatar{
+  width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#000;
+}
+
+.main{max-width:1280px;margin:0 auto;padding:22px 20px}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:22px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;inset:0;opacity:.08;background:var(--c,var(--accent))}
+.stat-num{font-size:1.8rem;font-weight:800;color:var(--c,var(--accent));line-height:1}
+.stat-label{font-size:.66rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.8px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:9px;font-size:.81rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;text-decoration:none;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px #f59e0b44}
+.btn-ghost{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.22)}
+.btn-green{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.btn-green:hover{background:rgba(16,185,129,.22)}
+.btn-blue{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.btn-blue:hover{background:rgba(59,130,246,.22)}
+.btn-purple{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
+.btn-purple:hover{background:rgba(139,92,246,.22)}
+.btn-sm{padding:5px 10px;font-size:.72rem;border-radius:7px}
+
+.section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:.95rem;font-weight:600}
+
+/* Schedule cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.sc:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.4)}
+.sc.paused{opacity:.6}
+.sc-top-bar{position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--accent))}
+.sc-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.sc-title{font-size:.92rem;font-weight:700}
+.sc-sub{font-size:.71rem;color:var(--muted);margin-top:2px}
+.toggle{position:relative;width:36px;height:19px;cursor:pointer;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:#2a2a4a;border-radius:19px;transition:.25s}
+.toggle input:checked+.toggle-track{background:var(--green)}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:15px;height:15px;background:#fff;border-radius:50%;transition:.25s}
+.toggle input:checked~.toggle-thumb{transform:translateX(17px)}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:.66rem;font-weight:600}
+.b-freq{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
+.b-fmt{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.b-pause{background:rgba(107,107,138,.1);color:var(--muted)}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.tbox{background:rgba(255,255,255,.03);border-radius:7px;padding:6px 8px}
+.tbox-l{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.tbox-v{font-size:.74rem;color:var(--text);font-weight:500}
+.pl-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.pl-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:.65rem;border:1px solid var(--border);background:rgba(255,255,255,.04)}
+.pl-chip.ok{border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.08);color:var(--green)}
+.pl-chip.nok{color:var(--red);border-color:rgba(239,68,68,.2)}
+.sc-stats{font-size:.72rem;color:var(--muted);margin-bottom:10px}
+.sc-stats strong{color:var(--text)}
+.sc-actions{display:flex;gap:5px;flex-wrap:wrap}
+
+.empty{text-align:center;padding:50px 20px;background:var(--card);border:1px dashed var(--border);border-radius:16px}
+.empty-ico{font-size:2.8rem;margin-bottom:10px;opacity:.4}
+.empty h3{color:var(--muted);margin-bottom:6px}
+.empty p{font-size:.82rem;color:var(--muted);margin-bottom:16px}
+
+.activity-section{margin-top:26px}
+.act-list{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.act-row{display:grid;grid-template-columns:8px 1fr auto auto;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:.77rem}
+.act-row:last-child{border-bottom:none}
+.adot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.adot.done{background:var(--green)}.adot.error{background:var(--red)}.adot.running{background:var(--blue)}
+.aname{font-size:.68rem;color:var(--muted)}
+.atime{font-size:.66rem;color:var(--muted);white-space:nowrap}
+
+/* Modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:18px 14px;overflow-y:auto}
+.ov.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:540px;padding:24px;position:relative;margin:auto}
+.modal-lg{max-width:700px}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.mc{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;line-height:1}
+.mc:hover{color:var(--text)}
+.fg{display:flex;flex-direction:column;gap:5px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.full{grid-column:1/-1}
+label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+input[type=text],input[type=time],input[type=password],select{
+  background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);font-size:.83rem;padding:8px 10px;outline:none;width:100%;transition:border-color .2s;
+}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:#1a1a3a}
+.hint{font-size:.66rem;color:var(--muted);margin-top:1px}
+a.hl{color:var(--blue);text-decoration:none}
+a.hl:hover{text-decoration:underline}
+.fmt-row{display:flex;gap:7px}
+.fmt-btn{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer;font-size:.79rem;font-weight:600;text-align:center;transition:all .2s}
+.fmt-btn.on{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--blue)}
+.pl-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pl-cb{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.03);cursor:pointer;font-size:.79rem;transition:all .2s}
+.pl-cb:has(input:checked){background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3)}
+.pl-cb input{width:13px;height:13px;cursor:pointer;accent-color:var(--accent)}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+
+/* Credentials */
+.cred-sec{border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.cred-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(255,255,255,.02);user-select:none}
+.cred-head:hover{background:rgba(255,255,255,.04)}
+.cred-plat{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.86rem}
+.cb-badge{font-size:.66rem;padding:2px 8px;border-radius:20px;font-weight:600}
+.cb-ok{background:rgba(16,185,129,.15);color:var(--green)}
+.cb-no{background:rgba(107,107,138,.1);color:var(--muted)}
+.cred-body{padding:13px 14px;border-top:1px solid var(--border);display:none}
+.cred-body.open{display:block}
+.cred-instructions{font-size:.7rem;color:var(--muted);background:rgba(255,255,255,.03);border-radius:7px;padding:8px 10px;margin-bottom:10px;line-height:1.65}
+.cred-fields{display:flex;flex-direction:column;gap:9px;margin-bottom:11px}
+.cred-actions{display:flex;gap:7px;flex-wrap:wrap}
+
+/* History */
+.hi{padding:11px;border-radius:10px;border:1px solid var(--border);margin-bottom:7px;background:rgba(255,255,255,.02)}
+.hi.done{border-left:3px solid var(--green)}
+.hi.error{border-left:3px solid var(--red)}
+.hi.running{border-left:3px solid var(--blue)}
+.hi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.h-st{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:20px}
+.st-done{background:rgba(16,185,129,.15);color:var(--green)}
+.st-error{background:rgba(239,68,68,.15);color:var(--red)}
+.st-running{background:rgba(59,130,246,.15);color:var(--blue)}
+.hi-q{font-size:.77rem;color:var(--text);margin-bottom:7px;line-height:1.4}
+.posts{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.pp{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:.66rem;font-weight:600;text-decoration:none}
+.pp-done{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.pp-err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.pp-skip{background:rgba(107,107,138,.08);color:var(--muted);border:1px solid var(--border)}
+.pp-run{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.hi-err{font-size:.7rem;color:var(--red);background:rgba(239,68,68,.08);padding:5px 7px;border-radius:6px;margin-top:3px}
+.hi-acts{display:flex;gap:5px;margin-top:5px}
+
+#toasts{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{padding:10px 14px;border-radius:10px;font-size:.78rem;font-weight:500;color:#fff;opacity:0;transform:translateY(10px);transition:all .3s;max-width:290px}
+.toast.show{opacity:1;transform:translateY(0)}
+.t-ok{background:#064e2a;border:1px solid rgba(16,185,129,.3)}
+.t-err{background:#4c0519;border:1px solid rgba(239,68,68,.3)}
+.t-info{background:#1e3a5f;border:1px solid rgba(59,130,246,.3)}
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid rgba(59,130,246,.3);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){
+  .form-grid,.pl-grid{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  header{padding:11px 13px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Screen ── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">📅</div>
+      <h1>Scheduler</h1>
+      <p>Auto-generate &amp; post content on schedule</p>
+      <div style="margin-top:8px;padding:7px 14px;background:rgba(5,191,219,.08);border:1px solid rgba(5,191,219,.2);border-radius:8px;font-size:.75rem;color:#67e8f9">
+        Sign in with your <strong>AI Hub</strong> account (same email &amp; password)
+      </div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div class="auth-form">
+      <div class="auth-field" id="name-fields" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">First Name</label>
+            <input id="auth-firstname" type="text" placeholder="John" autocomplete="given-name" style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;color:var(--text);font-size:.88rem;outline:none"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Last Name</label>
+            <input id="auth-lastname" type="text" placeholder="Doe" autocomplete="family-name" style="width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 12px;color:var(--text);font-size:.88rem;outline:none"/>
+          </div>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <div class="auth-field" id="confirm-field" style="display:none">
+        <label>Confirm Password</label>
+        <input id="auth-confirm" type="password" placeholder="••••••••" autocomplete="new-password"/>
+      </div>
+      <button class="auth-btn" id="auth-submit" onclick="doAuth()">Sign In</button>
+      <div class="auth-divider" id="auth-hint">Don't have an account? <a href="#" onclick="switchTab('signup');return false" style="color:var(--accent)">Sign up free</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Screen ── -->
+<div id="app-screen">
+  <header>
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="https://aitools-hub-c5g.pages.dev" style="font-size:.78rem;color:var(--muted);text-decoration:none;white-space:nowrap;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 12px;transition:color .2s" onmouseover="this.style.color='#67e8f9'" onmouseout="this.style.color=''">← AI Hub</a>
+      <div class="logo">
+        <span class="logo-icon">📅</span>
+        <div><h1>Scheduler</h1><p>Auto-generate &amp; post content on schedule</p></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="user-chip">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <span id="user-email" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span id="sched-credits" style="font-size:.72rem;padding:2px 9px;background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.3);border-radius:20px;color:#f5a623;font-weight:700;display:none">⚡ –</span>
+      </div>
+      <button class="btn btn-purple btn-sm" onclick="openCredsModal()">🔑 Credentials</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreate()">＋ New</button>
+      <button class="btn btn-ghost btn-sm" onclick="signOut()" title="Sign out">⏻</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stats-grid">
+      <div class="stat-card" style="--c:#f59e0b"><div class="stat-num" id="s-total">–</div><div class="stat-label">Schedules</div></div>
+      <div class="stat-card" style="--c:#10b981"><div class="stat-num" id="s-active">–</div><div class="stat-label">Active</div></div>
+      <div class="stat-card" style="--c:#3b82f6"><div class="stat-num" id="s-today">–</div><div class="stat-label">Videos Today</div></div>
+      <div class="stat-card" style="--c:#8b5cf6"><div class="stat-num" id="s-posted">–</div><div class="stat-label">Posts Published</div></div>
+    </div>
+    <div class="section-hdr">
+      <div class="section-title">📋 My Schedules</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻ Refresh</button>
+    </div>
+    <div id="sched-con"></div>
+    <div class="activity-section">
+      <div class="section-hdr"><div class="section-title">⚡ Recent Activity</div></div>
+      <div class="act-list" id="act-list"><div style="padding:16px;text-align:center;color:var(--muted);font-size:.82rem">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Schedule Modal ── -->
+<div class="ov" id="sched-modal">
+  <div class="modal">
+    <button class="mc" onclick="closeModal('sched-modal')">✕</button>
+    <div class="modal-title" id="sm-title">📅 New Schedule</div>
+    <div class="form-grid">
+      <div class="fg full"><label>Schedule Name</label><input id="f-name" type="text" placeholder="e.g. Daily Maths Quiz"/></div>
+      <div class="fg"><label>Category</label><select id="f-cat" onchange="loadSubs()"><option value="">— Select —</option></select></div>
+      <div class="fg"><label>Subcategory</label><select id="f-sub"><option value="">— Pick Category —</option></select></div>
+      <div class="fg full"><label>Video Format</label>
+        <div class="fmt-row">
+          <button class="fmt-btn on" id="fmt169" onclick="setFmt('16:9')">📺 16:9 Landscape</button>
+          <button class="fmt-btn" id="fmt916" onclick="setFmt('9:16')">📱 9:16 Portrait</button>
+        </div>
+      </div>
+      <div class="fg full"><label>Frequency</label>
+        <select id="f-freq" onchange="onFreq()">
+          <option value="hourly">Every Hour</option><option value="every2h">Every 2 Hours</option>
+          <option value="every4h">Every 4 Hours</option><option value="every6h">Every 6 Hours</option>
+          <option value="every12h">Every 12 Hours</option><option value="daily" selected>Daily</option>
+          <option value="weekly">Weekly</option><option value="custom">Custom Cron</option>
+        </select>
+      </div>
+      <div class="fg" id="time-grp"><label>Run Time</label><input id="f-time" type="time" value="09:00"/></div>
+      <div class="fg" id="day-grp" style="display:none"><label>Day of Week</label>
+        <select id="f-day">
+          <option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option>
+          <option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option>
+        </select>
+      </div>
+      <div class="fg full" id="cron-grp" style="display:none">
+        <label>Cron Expression</label><input id="f-cron" type="text" placeholder="e.g. 0 */3 * * *"/>
+        <span class="hint">Use <a href="https://crontab.guru" target="_blank" class="hl">crontab.guru</a></span>
+      </div>
+      <div class="fg full"><label>Post to Platforms</label><div class="pl-grid" id="plat-grid"></div></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-ghost" onclick="closeModal('sched-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSched()">💾 Save Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Credentials Modal ── -->
+<div class="ov" id="creds-modal">
+  <div class="modal modal-lg">
+    <button class="mc" onclick="closeModal('creds-modal')">✕</button>
+    <div class="modal-title">🔑 Platform Credentials</div>
+    <p style="font-size:.77rem;color:var(--muted);margin-bottom:14px">Your API keys are stored securely per account. Add credentials once — they'll be here every time you log in.</p>
+    <div id="creds-list"></div>
+  </div>
+</div>
+
+<!-- ── History Modal ── -->
+<div class="ov" id="hist-modal">
+  <div class="modal modal-lg">
+    <button class="mc" onclick="closeModal('hist-modal')">✕</button>
+    <div class="modal-title">🗂 History — <span id="hist-title"></span></div>
+    <div id="hist-list" style="max-height:500px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ── Supabase init ─────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://dhdzftmlrkuwcsgmgihe.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_9Ns_telLHzlI-qwxJ_-XbQ_u_9Sab3J';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const SOCIAL = 'https://social-media-uploader-production.up.railway.app';
+
+let currentUser = null;
+let currentToken = null;
+let categories = {};
+let configuredCreds  = {};
+let savedCredValues  = {};  // actual field values loaded from Supabase
+let selectedFmt = '16:9';
+let editingId = null;
+
+const PI = {'YouTube Shorts':'▶️','Instagram Reels':'📸','TikTok':'🎵','X (Twitter)':'𝕏','Facebook':'👥','LinkedIn':'💼'};
+const CAT_COLORS = {Maths:'#f59e0b',Science:'#10b981',Sports:'#3b82f6','General Knowledge':'#8b5cf6',History:'#e94560'};
+
+const PLAT_DEFS = {
+  'YouTube Shorts':{icon:'▶️',oauth:true,
+    instructions:`<div style="background:rgba(233,69,96,.1);border:1px solid rgba(233,69,96,.3);border-radius:8px;padding:12px;margin-bottom:10px;font-size:.82rem">
+        🔴 <strong>REQUIRED — Do this FIRST or you'll get redirect_uri_mismatch error:</strong><br><br>
+        Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="hl" style="color:#67e8f9">Google Cloud Console → APIs &amp; Services → Credentials</a><br>
+        → Click your <strong>OAuth 2.0 Client ID</strong> → Under <strong>"Authorized redirect URIs"</strong> → click <strong>+ ADD URI</strong> → paste exactly:
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0;background:rgba(0,0,0,.4);border-radius:6px;padding:8px 12px">
+          <code style="font-size:.8rem;color:#67e8f9;flex:1;word-break:break-all">https://quiz-scheduler-production.up.railway.app/auth/youtube/callback</code>
+          <button onclick="navigator.clipboard.writeText('https://quiz-scheduler-production.up.railway.app/auth/youtube/callback').then(()=>{this.textContent='✅ Copied';setTimeout(()=>this.textContent='Copy',2000)}).catch(()=>{})" style="background:rgba(5,191,219,.2);border:1px solid rgba(5,191,219,.3);border-radius:4px;padding:4px 10px;color:#67e8f9;cursor:pointer;font-size:.72rem;white-space:nowrap;flex-shrink:0">Copy</button>
+        </div>
+        → Click <strong>Save</strong> → Then come back here and click <strong>Authorize with Google</strong>.
+      </div>
+      Setup steps in <a href="https://console.cloud.google.com" target="_blank" class="hl">Google Cloud Console</a>:<br>
+      1. Enable <strong>YouTube Data API v3</strong><br>
+      2. Create <strong>OAuth 2.0 Web Application</strong> credentials<br>
+      3. ✅ Add redirect URI above &amp; Save<br>
+      4. Copy your Client ID &amp; Client Secret into the fields below<br>
+      5. Click <strong>Authorize with Google</strong>`,
+    fields:[{k:'client_id',l:'Client ID',ph:'123-xxx.apps.googleusercontent.com'},{k:'client_secret',l:'Client Secret',ph:'GOCSPX-...',pw:true}]},
+  'Instagram Reels':{icon:'📸',
+    instructions:`Get from <a href="https://developers.facebook.com" target="_blank" class="hl">Meta for Developers</a>:<br>
+      1. Create app → Add <strong>Instagram Graph API</strong><br>
+      2. Generate <strong>long-lived User Access Token</strong> (instagram_basic, instagram_content_publish)<br>
+      3. Find your <strong>Instagram Business Account ID</strong>`,
+    fields:[{k:'access_token',l:'Access Token',ph:'EAA...',pw:true},{k:'instagram_account_id',l:'Instagram Account ID',ph:'12345'}]},
+  'X (Twitter)':{icon:'𝕏',
+    instructions:`Get from <a href="https://developer.twitter.com" target="_blank" class="hl">Twitter Developer Portal</a>:<br>
+      1. Create Project/App → Enable OAuth 1.0a (Read &amp; Write)<br>
+      2. Generate Access Token &amp; Secret<br>
+      3. Requires <em>Elevated</em> access for video uploads`,
+    fields:[{k:'api_key',l:'API Key',ph:'xxx'},{k:'api_secret',l:'API Secret',ph:'xxx',pw:true},{k:'access_token',l:'Access Token',ph:'123-xxx'},{k:'access_token_secret',l:'Access Token Secret',ph:'xxx',pw:true}]},
+  'TikTok':{icon:'🎵',
+    instructions:`Get from <a href="https://developers.tiktok.com" target="_blank" class="hl">TikTok for Developers</a>:<br>
+      1. Create app → Enable <strong>Content Posting API</strong><br>
+      2. Generate Access Token with <code>video.publish</code> scope`,
+    fields:[{k:'access_token',l:'Access Token',ph:'act.xxx',pw:true}]},
+  'Facebook':{icon:'👥',
+    instructions:`Get from <a href="https://developers.facebook.com" target="_blank" class="hl">Meta for Developers</a>:<br>
+      1. Create app → Add Pages API<br>
+      2. Generate <strong>Page Access Token</strong> (never-expiring)<br>
+      3. Get your Page ID from Page Settings → General`,
+    fields:[{k:'page_access_token',l:'Page Access Token',ph:'EAA...',pw:true},{k:'page_id',l:'Page ID',ph:'123456'}]},
+  'LinkedIn':{icon:'💼',
+    instructions:`Get from <a href="https://www.linkedin.com/developers/apps" target="_blank" class="hl">LinkedIn Developers</a>:<br>
+      1. Create app → Request <strong>Share on LinkedIn + Video</strong> products<br>
+      2. Generate token with <code>w_member_social</code> scope<br>
+      3. Person URN format: <code>urn:li:person:YOUR_ID</code>`,
+    fields:[{k:'access_token',l:'Access Token',ph:'AQV...',pw:true},{k:'person_urn',l:'Person URN',ph:'urn:li:person:abc123'}]},
+};
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function checkSession() {
+  // Read session from URL hash (cross-domain SSO from main page)
+  const _hash = new URLSearchParams(window.location.hash.slice(1));
+  const _at = _hash.get('access_token'), _rt = _hash.get('refresh_token');
+  if (_at && _rt) {
+    await sb.auth.setSession({ access_token: _at, refresh_token: _rt });
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    currentUser  = session.user;
+    currentToken = session.access_token;
+    showApp();
+  } else {
+    showAuth();
+  }
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    currentUser  = session.user;
+    currentToken = session.access_token;
+    if (event === 'SIGNED_IN') showApp();
+  } else {
+    currentUser = null; currentToken = null;
+    if (event === 'SIGNED_OUT') showAuth();
+  }
+});
+
+async function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display  = 'block';
+  const meta      = currentUser.user_metadata || {};
+  const firstName = meta.first_name || meta.full_name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User';
+  document.getElementById('user-email').textContent = `Hi, ${firstName}!`;
+  document.getElementById('user-avatar').textContent = firstName.charAt(0).toUpperCase();
+  loadSchedCredits();
+  await loadCredsFromSupabase(); // must finish before init() calls loadCredentials()
+  init();
+}
+
+async function loadSchedCredits() {
+  try {
+    const { data } = await sb.from('user_credits').select('balance').single();
+    const el = document.getElementById('sched-credits');
+    if (el) { el.textContent = '⚡ ' + (data?.balance ?? '?'); el.style.display = ''; }
+  } catch {}
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app-screen').style.display  = 'none';
+}
+
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('tab-login').classList.toggle('active', isLogin);
+  document.getElementById('tab-signup').classList.toggle('active', !isLogin);
+  document.getElementById('name-fields').style.display   = isLogin ? 'none' : '';
+  document.getElementById('confirm-field').style.display = isLogin ? 'none' : '';
+  document.getElementById('auth-submit').textContent = isLogin ? 'Sign In' : 'Create Account';
+  document.getElementById('auth-hint').innerHTML = isLogin
+    ? `Don't have an account? <a href="#" onclick="switchTab('signup');return false" style="color:var(--accent)">Sign up free</a>`
+    : `Already have an account? <a href="#" onclick="switchTab('login');return false" style="color:var(--accent)">Sign in</a>`;
+  document.getElementById('auth-error').classList.remove('show');
+}
+
+async function doAuth() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const confirm  = document.getElementById('auth-confirm').value;
+  const isSignup = document.getElementById('tab-signup').classList.contains('active');
+  const btn      = document.getElementById('auth-submit');
+  const errEl    = document.getElementById('auth-error');
+
+  errEl.classList.remove('show');
+  if (!email || !password) { errEl.textContent = 'Enter email and password'; errEl.classList.add('show'); return; }
+
+  if (isSignup) {
+    const firstName = document.getElementById('auth-firstname').value.trim();
+    const lastName  = document.getElementById('auth-lastname').value.trim();
+    if (!firstName) { errEl.textContent = 'Enter your first name'; errEl.classList.add('show'); return; }
+    if (password !== confirm) { errEl.textContent = 'Passwords do not match'; errEl.classList.add('show'); return; }
+    if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; errEl.classList.add('show'); return; }
+    btn.disabled = true; btn.textContent = '…';
+    const fullName = `${firstName} ${lastName}`.trim();
+    const r = await sb.auth.signUp({ email, password, options: { data: { full_name: fullName, first_name: firstName, last_name: lastName } } });
+    btn.disabled = false; btn.textContent = 'Create Account';
+    if (r.error) { errEl.textContent = r.error.message; errEl.classList.add('show'); return; }
+    if (r.data?.user && !r.data.session) {
+      errEl.style.background = 'rgba(16,185,129,.12)'; errEl.style.borderColor = 'rgba(16,185,129,.2)'; errEl.style.color = 'var(--green)';
+      errEl.textContent = '✅ Check your email to confirm, then sign in.';
+      errEl.classList.add('show'); return;
+    }
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '…';
+  const r = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) { errEl.textContent = error.message; errEl.classList.add('show'); }
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  currentUser = null; currentToken = null;
+  configuredCreds = {}; savedCredValues = {};
+}
+
+// ── API helper (adds auth header) ─────────────────────────────────────────────
+async function api(path, opts = {}) {
+  // Refresh token if needed
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.access_token) currentToken = session.access_token;
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${currentToken}`, ...(opts.headers||{}) };
+  return fetch(path, { ...opts, headers });
+}
+
+// ── App init ──────────────────────────────────────────────────────────────────
+async function init() {
+  await loadCategories();
+  await loadCredentials();
+  await loadAll();
+  setInterval(loadAll, 30000);
+}
+
+async function loadCategories() {
+  try {
+    const d = await (await fetch('/api/categories')).json();
+    if (d.success) {
+      categories = d.categories;
+      const sel = document.getElementById('f-cat');
+      sel.innerHTML = '<option value="">— Select —</option>';
+      Object.keys(categories).forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`);
+    }
+  } catch {}
+}
+
+function loadSubs() {
+  const subs = categories[document.getElementById('f-cat').value] || [];
+  document.getElementById('f-sub').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('') || '<option>—</option>';
+}
+
+async function loadAll() {
+  await Promise.all([loadStats(), loadSchedules(), loadActivity()]);
+}
+
+async function loadStats() {
+  try {
+    const d = await (await api('/api/stats')).json();
+    if (d.success) {
+      document.getElementById('s-total').textContent  = d.stats.total;
+      document.getElementById('s-active').textContent = d.stats.active;
+      document.getElementById('s-today').textContent  = d.stats.todayJobs;
+      document.getElementById('s-posted').textContent = d.stats.posted;
+    }
+  } catch {}
+}
+
+async function loadSchedules() {
+  try {
+    const d = await (await api('/api/schedules')).json();
+    const el = document.getElementById('sched-con');
+    if (!d.schedules?.length) {
+      el.innerHTML = `<div class="empty"><div class="empty-ico">📅</div><h3>No schedules yet</h3>
+        <p>Create your first schedule to auto-generate and post quiz videos.</p>
+        <button class="btn btn-primary" onclick="openCreate()">＋ Create Schedule</button></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="grid">${d.schedules.map(renderCard).join('')}</div>`;
+  } catch(e) {
+    document.getElementById('sched-con').innerHTML = `<div class="empty"><h3>Load failed</h3><p>${esc(e.message)}</p></div>`;
+  }
+}
+
+function renderCard(s) {
+  const color = CAT_COLORS[s.category] || '#f59e0b';
+  const pls   = s.platforms || [];
+  return `<div class="sc ${s.active?'':'paused'}" id="sc-${s.id}">
+    <div class="sc-top-bar" style="background:${color}"></div>
+    <div class="sc-top">
+      <div><div class="sc-title">${esc(s.name)}</div><div class="sc-sub">${esc(s.category)} › ${esc(s.subcategory)}</div></div>
+      <label class="toggle"><input type="checkbox" ${s.active?'checked':''} onchange="toggleSched(${s.id},this)"/>
+        <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+    </div>
+    <div class="badges">
+      <span class="badge b-freq">🔁 ${s.freq_label}</span>
+      <span class="badge b-fmt">${s.format==='9:16'?'📱':'📺'} ${s.format}</span>
+      ${!s.active?'<span class="badge b-pause">⏸ Paused</span>':''}
+    </div>
+    <div class="times">
+      <div class="tbox"><div class="tbox-l">Last Run</div><div class="tbox-v">${s.last_run?timeAgo(s.last_run):'Never'}</div></div>
+      <div class="tbox"><div class="tbox-l">Next Run</div><div class="tbox-v">${s.next_run?fmtDate(s.next_run):'—'}</div></div>
+    </div>
+    ${pls.length?`<div class="pl-row">${pls.map(p=>`<span class="pl-chip ${configuredCreds[p]?'ok':'nok'}" title="${configuredCreds[p]?'✅ Ready':'⚠️ No credentials'}">${PI[p]||'📱'} ${p}</span>`).join('')}</div>`:''}
+    <div class="sc-stats">✅ <strong>${s.total_runs}</strong> videos${s.total_errors?` · ❌ <strong>${s.total_errors}</strong> errors`:''}</div>
+    <div class="sc-actions">
+      <button class="btn btn-green btn-sm" onclick="runNow(${s.id})">▶ Run Now</button>
+      <button class="btn btn-blue btn-sm" onclick="showHistory(${s.id},'${esc(s.name)}')">🗂 History</button>
+      <button class="btn btn-ghost btn-sm" onclick="openEdit(${s.id})">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="delSched(${s.id})">🗑</button>
+    </div>
+  </div>`;
+}
+
+async function loadActivity() {
+  try {
+    const d = await (await api('/api/jobs?limit=10')).json();
+    const el = document.getElementById('act-list');
+    if (!d.jobs?.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:.81rem">No activity yet. Create a schedule and click Run Now.</div>'; return; }
+    el.innerHTML = d.jobs.map(j => {
+      const posted = (j.postings||[]).filter(p=>p.status==='done').length;
+      return `<div class="act-row">
+        <div class="adot ${j.status}"></div>
+        <div><div style="font-size:.79rem">${esc(j.sname||'')}</div>
+          <div class="aname">${j.question?esc(j.question.slice(0,55))+'…':j.status==='running'?'Generating…':'(error)'}</div>
+          ${posted?`<div style="font-size:.66rem;color:var(--green);margin-top:1px">📤 Posted to ${posted} platform${posted>1?'s':''}</div>`:''}
+        </div>
+        <div>${j.video_url?`<a href="${j.video_url}" target="_blank" class="btn btn-ghost btn-sm">▶</a>`:j.status==='running'?'<span class="spinner"></span>':''}</div>
+        <div class="atime">${timeAgo(j.created_at)}</div>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function toggleSched(id, cb) {
+  const r = await (await api(`/api/schedules/${id}/toggle`,{method:'PATCH'})).json();
+  if (r.success) { toast(r.active?'Activated':'Paused','info'); loadAll(); }
+  else { cb.checked=!cb.checked; toast(r.error,'err'); }
+}
+
+async function runNow(id) {
+  toast('Starting video generation…','info');
+  await api(`/api/schedules/${id}/run`,{method:'POST'});
+  [3000,15000,60000,180000].forEach(t=>setTimeout(loadAll,t));
+}
+
+async function delSched(id) {
+  if (!confirm('Delete this schedule and all its history?')) return;
+  const r = await (await api(`/api/schedules/${id}`,{method:'DELETE'})).json();
+  if (r.success) { toast('Deleted','info'); loadAll(); } else toast(r.error,'err');
+}
+
+async function showHistory(id, name) {
+  document.getElementById('hist-title').textContent = name;
+  document.getElementById('hist-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Loading…</div>';
+  openOv('hist-modal');
+  const d = await (await api(`/api/jobs?schedule_id=${id}&limit=50`)).json();
+  if (!d.jobs?.length) { document.getElementById('hist-list').innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">No jobs yet.</div>'; return; }
+  document.getElementById('hist-list').innerHTML = d.jobs.map(j => {
+    const posts = (j.postings||[]).map(p => {
+      if (p.status==='done'&&p.post_url) return `<a href="${p.post_url}" target="_blank" class="pp pp-done">${PI[p.platform]||''} ${p.platform} ✓</a>`;
+      if (p.status==='error') return `<span class="pp pp-err" title="${esc(p.error||'')}">⚠️ ${p.platform}</span>`;
+      if (p.status==='skipped') return `<span class="pp pp-skip" title="Add credentials in 🔑">🔒 ${p.platform}</span>`;
+      return `<span class="pp pp-run"><span class="spinner"></span> ${p.platform}</span>`;
+    }).join('');
+    return `<div class="hi ${j.status}">
+      <div class="hi-top"><span class="h-st st-${j.status}">${j.status.toUpperCase()}</span><span style="font-size:.68rem;color:var(--muted)">${fmtDate(j.created_at)}</span></div>
+      ${j.question?`<div class="hi-q">❓ ${esc(j.question)}</div>`:''}
+      ${posts?`<div class="posts">${posts}</div>`:''}
+      ${j.error?`<div class="hi-err">⚠️ ${esc(j.error)}</div>`:''}
+      <div class="hi-acts">
+        ${j.video_url?`<a href="${j.video_url}" target="_blank" class="btn btn-green btn-sm">▶ Play</a>`:''}
+        ${j.video_url?`<a href="${j.video_url}" download class="btn btn-ghost btn-sm">⬇ Download</a>`:''}
+        ${j.video_url?`<a href="${SOCIAL}?video=${encodeURIComponent(j.video_url)}&title=${encodeURIComponent(j.question||'')}" target="_blank" class="btn btn-primary btn-sm">🚀 Post Manually</a>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Schedule Form ─────────────────────────────────────────────────────────────
+function buildPlatGrid() {
+  document.getElementById('plat-grid').innerHTML = Object.keys(PLAT_DEFS).map(p => {
+    const ok = !!configuredCreds[p];
+    return `<label class="pl-cb" title="${ok?'✅ Credentials ready':'⚠️ Add credentials in 🔑 first'}">
+      <input type="checkbox" name="plat" value="${p}" ${ok?'':'disabled style="opacity:.4"'}/>${PLAT_DEFS[p].icon} ${p} ${ok?'':'🔒'}
+    </label>`;
+  }).join('');
+}
+
+function openCreate() {
+  editingId=null; document.getElementById('sm-title').textContent='📅 New Schedule';
+  document.getElementById('f-name').value=''; document.getElementById('f-cat').value='';
+  document.getElementById('f-sub').innerHTML='<option>— Pick Category —</option>';
+  setFmt('16:9'); document.getElementById('f-freq').value='daily';
+  document.getElementById('f-time').value='09:00'; document.getElementById('f-day').value=1;
+  document.getElementById('f-cron').value=''; onFreq(); buildPlatGrid();
+  openOv('sched-modal');
+}
+
+async function openEdit(id) {
+  const d = await (await api('/api/schedules')).json();
+  const s = d.schedules?.find(x=>x.id===id);
+  if (!s) return toast('Not found','err');
+  editingId=id; document.getElementById('sm-title').textContent='✏️ Edit Schedule';
+  document.getElementById('f-name').value=s.name;
+  document.getElementById('f-cat').value=s.category; loadSubs();
+  setTimeout(()=>document.getElementById('f-sub').value=s.subcategory, 60);
+  setFmt(s.format); document.getElementById('f-freq').value=s.freq_type;
+  document.getElementById('f-time').value=s.run_time||'09:00';
+  document.getElementById('f-day').value=s.run_day||1;
+  document.getElementById('f-cron').value=s.freq_type==='custom'?s.cron_expr:'';
+  onFreq(); buildPlatGrid();
+  setTimeout(()=>document.querySelectorAll('input[name="plat"]').forEach(cb=>cb.checked=(s.platforms||[]).includes(cb.value)),80);
+  openOv('sched-modal');
+}
+
+async function saveSched() {
+  const name=document.getElementById('f-name').value.trim();
+  const cat=document.getElementById('f-cat').value;
+  const sub=document.getElementById('f-sub').value;
+  if (!name) return toast('Enter a name','err');
+  if (!cat)  return toast('Select category','err');
+  if (!sub)  return toast('Select subcategory','err');
+  const body={name,category:cat,subcategory:sub,format:selectedFmt,
+    freq_type:document.getElementById('f-freq').value,
+    freq_value:document.getElementById('f-cron').value.trim(),
+    run_time:document.getElementById('f-time').value,
+    run_day:+document.getElementById('f-day').value,
+    platforms:[...document.querySelectorAll('input[name="plat"]:checked')].map(c=>c.value)};
+  const r=await(await api(editingId?`/api/schedules/${editingId}`:'/api/schedules',{method:editingId?'PUT':'POST',body:JSON.stringify(body)})).json();
+  if(r.success){toast(editingId?'Updated!':'Created!','ok');closeModal('sched-modal');loadAll();}
+  else toast(r.error||'Failed','err');
+}
+
+function onFreq(){
+  const v=document.getElementById('f-freq').value;
+  document.getElementById('time-grp').style.display=['daily','weekly'].includes(v)?'':'none';
+  document.getElementById('day-grp').style.display=v==='weekly'?'':'none';
+  document.getElementById('cron-grp').style.display=v==='custom'?'':'none';
+}
+function setFmt(f){selectedFmt=f;document.getElementById('fmt169').classList.toggle('on',f==='16:9');document.getElementById('fmt916').classList.toggle('on',f==='9:16');}
+
+// ── Credentials ───────────────────────────────────────────────────────────────
+async function loadCredentials() {
+  try {
+    const d = await (await api('/api/credentials')).json();
+    configuredCreds = d.credentials || {};
+  } catch {}
+}
+
+async function loadCredsFromSupabase() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await sb.from('scheduler_credentials')
+      .select('platform, config_json').eq('user_id', currentUser.id);
+    if (error || !data?.length) return;
+    for (const row of data) {
+      savedCredValues[row.platform] = row.config_json;
+      // Push each credential to the backend so scheduled jobs can use them
+      try {
+        await api(`/api/credentials/${encodeURIComponent(row.platform)}`,
+          { method: 'POST', body: JSON.stringify(row.config_json) });
+      } catch {}
+    }
+    await loadCredentials(); // refresh badge statuses
+  } catch(e) { console.warn('Supabase credential load failed:', e.message); }
+}
+
+async function openCredsModal() {
+  await loadCredentials();
+  renderCreds();
+  openOv('creds-modal');
+}
+
+function renderCreds() {
+  document.getElementById('creds-list').innerHTML = Object.entries(PLAT_DEFS).map(([name, def]) => {
+    const ok = !!configuredCreds[name];
+    const sid = sid2(name);
+    const saved = savedCredValues[name] || {};
+    const fields = def.fields.map(f => {
+      const val = saved[f.k] ? ` value="${saved[f.k].replace(/"/g,'&quot;')}"` : '';
+      return `<div class="fg"><label>${f.l}</label><input id="cf-${sid}-${f.k}" type="${f.pw?'password':'text'}" placeholder="${f.ph}"${val} autocomplete="off"/></div>`;
+    }).join('');
+    return `<div class="cred-sec">
+      <div class="cred-head" onclick="togCred('${sid}')">
+        <div class="cred-plat"><span>${def.icon}</span> ${name}</div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span class="cb-badge ${ok?'cb-ok':'cb-no'}">${ok?'✅ Connected':'○ Not Set'}</span><span style="color:var(--muted)">▼</span>
+        </div>
+      </div>
+      <div class="cred-body" id="cb-${sid}">
+        <div class="cred-instructions">${def.instructions}</div>
+        <div class="cred-fields">${fields}</div>
+        <div class="cred-actions">
+          ${def.oauth?`<button class="btn btn-primary btn-sm" onclick="ytOAuth('${sid}')">🔗 Authorize with Google</button>`:''}
+          <button class="btn btn-primary btn-sm" onclick="saveCred('${name}')">💾 Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="testCred('${name}')">🔍 Test</button>
+          ${ok?`<button class="btn btn-danger btn-sm" onclick="delCred('${name}')">🗑 Remove</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togCred(id){ document.getElementById(`cb-${id}`).classList.toggle('open'); }
+
+function ytOAuth(sid) {
+  const cid = document.getElementById(`cf-${sid}-client_id`)?.value.trim();
+  const cs  = document.getElementById(`cf-${sid}-client_secret`)?.value.trim();
+  if (!cid||!cs) return toast('Enter Client ID & Secret first','err');
+  const popup = window.open(`/auth/youtube?client_id=${encodeURIComponent(cid)}&client_secret=${encodeURIComponent(cs)}&user_id=${encodeURIComponent(currentUser.id)}`, '_blank','width=620,height=720');
+  toast('Complete the Google authorization in the popup…','info');
+  // When popup closes, fetch full config (incl. refresh_token) and save to Supabase
+  const t = setInterval(async () => {
+    if (!popup || popup.closed) {
+      clearInterval(t);
+      try {
+        const r = await (await api('/api/credentials/YouTube%20Shorts/config')).json();
+        if (r.success && r.config) {
+          configuredCreds['YouTube Shorts'] = { configured: true };
+          savedCredValues['YouTube Shorts'] = r.config;
+          try {
+            await sb.from('scheduler_credentials').upsert({
+              user_id: currentUser.id, platform: 'YouTube Shorts', config_json: r.config,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id,platform' });
+          } catch {}
+          renderCreds();
+          toast('✅ YouTube connected! Credentials saved.','ok');
+        } else {
+          await loadCredentials(); renderCreds();
+        }
+      } catch { await loadCredentials(); renderCreds(); }
+    }
+  }, 1000);
+}
+
+async function saveCred(name) {
+  const sid = sid2(name);
+  const def = PLAT_DEFS[name];
+  const cfg = {};
+  def.fields.forEach(f => { const v=document.getElementById(`cf-${sid}-${f.k}`)?.value.trim(); if(v) cfg[f.k]=v; });
+  if (!Object.keys(cfg).length) return toast('Enter at least one field','err');
+  // Save to backend (Railway SQLite — for scheduled job use)
+  const r = await (await api(`/api/credentials/${encodeURIComponent(name)}`,{method:'POST',body:JSON.stringify(cfg)})).json();
+  if (!r.success) return toast(r.error,'err');
+  // Update UI immediately — don't wait for another API round-trip
+  configuredCreds[name] = { configured: true };
+  savedCredValues[name] = cfg;
+  // Save to Supabase — persists across Railway restarts
+  try {
+    await sb.from('scheduler_credentials').upsert({
+      user_id: currentUser.id, platform: name, config_json: cfg,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,platform' });
+  } catch(e) { console.warn('Supabase credential save failed:', e.message); }
+  toast('Credentials saved!','ok');
+  renderCreds();
+}
+
+async function testCred(name) {
+  toast('Testing…','info');
+  const r = await (await api(`/api/credentials/${encodeURIComponent(name)}/test`,{method:'POST'})).json();
+  if (r.success) toast(`✅ ${r.message}`,'ok'); else toast(`❌ ${r.error}`,'err');
+}
+
+async function delCred(name) {
+  if (!confirm(`Remove ${name} credentials?`)) return;
+  const r = await (await api(`/api/credentials/${encodeURIComponent(name)}`,{method:'DELETE'})).json();
+  if (r.success) {
+    try {
+      await sb.from('scheduler_credentials').delete().eq('user_id', currentUser.id).eq('platform', name);
+      delete savedCredValues[name];
+    } catch(e) { console.warn('Supabase delete failed:', e.message); }
+    toast('Removed','info'); await loadCredentials(); renderCreds();
+  }
+}
+
+// ── Modal utils ───────────────────────────────────────────────────────────────
+function openOv(id)   { document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+document.querySelectorAll('.ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id);}));
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function toast(msg,type='info'){
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');
+  t.className=`toast t-${type==='err'?'err':type==='ok'?'ok':'info'}`;
+  t.textContent=msg; c.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3800);
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function sid2(s){return s.replace(/[^a-z0-9]/gi,'_').toLowerCase();}
+function timeAgo(iso){
+  const d=(Date.now()-new Date(iso))/1000;
+  if(d<60)return`${~~d}s ago`;if(d<3600)return`${~~(d/60)}m ago`;if(d<86400)return`${~~(d/3600)}h ago`;return`${~~(d/86400)}d ago`;
+}
+function fmtDate(iso){if(!iso)return'—';return new Date(iso).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'});}
+
+// Enter key for auth
+document.getElementById('auth-password').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
+document.getElementById('auth-confirm').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+onFreq();
+checkSession();
+</script>
+</body>
+</html>
