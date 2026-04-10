@@ -682,7 +682,10 @@ function renderCard(s) {
       <div class="tbox"><div class="tbox-l">Last Run</div><div class="tbox-v">${s.last_run?timeAgo(s.last_run):'Never'}</div></div>
       <div class="tbox"><div class="tbox-l">Next Run</div><div class="tbox-v">${s.next_run?fmtDate(s.next_run):'—'}</div></div>
     </div>
-    ${pls.length?`<div class="pl-row">${pls.map(p=>`<span class="pl-chip ${configuredCreds[p]?'ok':'nok'}" title="${configuredCreds[p]?'✅ Ready':'⚠️ No credentials'}">${PI[p]||'📱'} ${p}</span>`).join('')}</div>`:''}
+    ${pls.length
+      ? `<div class="pl-row">${pls.map(p=>`<span class="pl-chip ${configuredCreds[p]?'ok':'nok'}" title="${configuredCreds[p]?'✅ Ready':'⚠️ No credentials — save creds in 🔑'}">${PI[p]||'📱'} ${p}</span>`).join('')}</div>`
+      : `<div style="margin:8px 0 4px;padding:6px 10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:.75rem;color:#f59e0b">⚠️ No platforms selected — click <strong>✏️</strong> to edit and add platforms</div>`
+    }
     <div class="sc-stats">✅ <strong>${s.total_runs}</strong> videos${s.total_errors?` · ❌ <strong>${s.total_errors}</strong> errors`:''}</div>
     <div class="sc-actions">
       <button class="btn btn-green btn-sm" onclick="runNow(${s.id})">▶ Run Now</button>
@@ -699,12 +702,20 @@ async function loadActivity() {
     const el = document.getElementById('act-list');
     if (!d.jobs?.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:.81rem">No activity yet. Create a schedule and click Run Now.</div>'; return; }
     el.innerHTML = d.jobs.map(j => {
-      const posted = (j.postings||[]).filter(p=>p.status==='done').length;
+      const allPosts = j.postings||[];
+      const posted   = allPosts.filter(p=>p.status==='done').length;
+      const skipped  = allPosts.filter(p=>p.status==='skipped').length;
+      const errored  = allPosts.filter(p=>p.status==='error').length;
+      const postLine = posted  ? `<span style="color:var(--green)">📤 ${posted} posted</span>` : '';
+      const skipLine = skipped ? `<span style="color:var(--muted)" title="No credentials for these platforms — save credentials in 🔑">🔒 ${skipped} skipped (no creds)</span>` : '';
+      const errLine  = errored ? `<span style="color:var(--red)" title="API error — check History for details">⚠️ ${errored} failed</span>` : '';
+      const noPlatLine = j.status==='done'&&!allPosts.length ? `<span style="color:var(--accent)" title="Schedule has no platforms — click ✏️ to edit">⚠️ No platforms set</span>` : '';
+      const postSummary = [postLine,skipLine,errLine,noPlatLine].filter(Boolean).join(' · ');
       return `<div class="act-row">
         <div class="adot ${j.status}"></div>
         <div><div style="font-size:.79rem">${esc(j.sname||'')}</div>
           <div class="aname">${j.question?esc(j.question.slice(0,55))+'…':j.status==='running'?'Generating…':'(error)'}</div>
-          ${posted?`<div style="font-size:.66rem;color:var(--green);margin-top:1px">📤 Posted to ${posted} platform${posted>1?'s':''}</div>`:''}
+          ${postSummary?`<div style="font-size:.66rem;margin-top:2px">${postSummary}</div>`:''}
         </div>
         <div>${j.video_url?`<a href="${j.video_url}" target="_blank" class="btn btn-ghost btn-sm">▶</a>`:j.status==='running'?'<span class="spinner"></span>':''}</div>
         <div class="atime">${timeAgo(j.created_at)}</div>
@@ -722,6 +733,12 @@ async function toggleSched(id, cb) {
 
 async function runNow(id) {
   toast('Starting video generation…','info');
+  // Pre-push all credentials to server so posting works even after Railway restarts
+  for (const [platform, cfg] of Object.entries(savedCredValues)) {
+    if (cfg && Object.keys(cfg).length) {
+      try { await api(`/api/credentials/${encodeURIComponent(platform)}`,{method:'POST',body:JSON.stringify(cfg)}); } catch {}
+    }
+  }
   await api(`/api/schedules/${id}/run`,{method:'POST'});
   [3000,15000,60000,180000].forEach(t=>setTimeout(loadAll,t));
 }
