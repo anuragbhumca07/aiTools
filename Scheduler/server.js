@@ -182,8 +182,11 @@ async function stageVideo(videoUrl) {
   const fname  = `v_${Date.now()}.mp4`;
   const fpath  = path.join(SERVE_DIR, fname);
   const pubUrl = `${BASE_URL}/serve/${fname}`;
-  const tmp = await downloadToTemp(videoUrl);
-  fs.renameSync(tmp, fpath);
+  // Download directly into SERVE_DIR (avoids cross-device rename from /tmp)
+  const res = await axios({ url: videoUrl, method: 'GET', responseType: 'stream', timeout: 180000 });
+  const w = fs.createWriteStream(fpath);
+  res.data.pipe(w);
+  await new Promise((ok, fail) => { w.on('finish', ok); w.on('error', fail); });
   // Auto-delete after 3 hours
   setTimeout(() => { try { fs.unlinkSync(fpath); } catch {} }, 3 * 60 * 60 * 1000);
   return { fpath, pubUrl };
