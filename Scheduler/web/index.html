@@ -483,8 +483,11 @@ async function showApp() {
   const firstName = meta.first_name || meta.full_name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User';
   document.getElementById('user-email').textContent = `Hi, ${firstName}!`;
   document.getElementById('user-avatar').textContent = firstName.charAt(0).toUpperCase();
+  // Restore creds from localStorage immediately — no network needed
+  applyLocalCreds();
   loadSchedCredits();
-  await loadCredsFromSupabase(); // must finish before init() calls loadCredentials()
+  // Push saved creds back to Railway SQLite (in case of restart), then init
+  await loadCredsFromSupabase();
   init();
 }
 
@@ -551,9 +554,47 @@ async function doAuth() {
 }
 
 async function signOut() {
+  if (currentUser) {
+    try { localStorage.removeItem(`sched_creds_${currentUser.id}`); } catch {}
+  }
   await sb.auth.signOut();
   currentUser = null; currentToken = null;
   configuredCreds = {}; savedCredValues = {};
+}
+
+// ── localStorage credential helpers ───────────────────────────────────────────
+function lsKey() { return currentUser ? `sched_creds_${currentUser.id}` : null; }
+
+function saveCredToLocal(name, cfg) {
+  const k = lsKey(); if (!k) return;
+  try {
+    const all = JSON.parse(localStorage.getItem(k) || '{}');
+    all[name] = cfg;
+    localStorage.setItem(k, JSON.stringify(all));
+  } catch {}
+}
+
+function deleteCredFromLocal(name) {
+  const k = lsKey(); if (!k) return;
+  try {
+    const all = JSON.parse(localStorage.getItem(k) || '{}');
+    delete all[name];
+    localStorage.setItem(k, JSON.stringify(all));
+  } catch {}
+}
+
+// Apply saved creds from localStorage immediately (before any async calls)
+function applyLocalCreds() {
+  const k = lsKey(); if (!k) return;
+  try {
+    const all = JSON.parse(localStorage.getItem(k) || '{}');
+    for (const [platform, cfg] of Object.entries(all)) {
+      if (cfg && Object.keys(cfg).length) {
+        configuredCreds[platform] = { configured: true };
+        savedCredValues[platform]  = cfg;
+      }
+    }
+  } catch {}
 }
 
 // ── API helper (adds auth header) ─────────────────────────────────────────────
@@ -791,20 +832,26 @@ async function loadCredentials() {
 
 async function loadCredsFromSupabase() {
   if (!currentUser) return;
+  // Merge from Supabase (overrides localStorage with server-side copy)
   try {
     const { data, error } = await sb.from('scheduler_credentials')
       .select('platform, config_json').eq('user_id', currentUser.id);
-    if (error || !data?.length) return;
-    for (const row of data) {
-      savedCredValues[row.platform] = row.config_json;
-      // Push each credential to the backend so scheduled jobs can use them
-      try {
-        await api(`/api/credentials/${encodeURIComponent(row.platform)}`,
-          { method: 'POST', body: JSON.stringify(row.config_json) });
-      } catch {}
+    if (!error && data?.length) {
+      for (const row of data) {
+        savedCredValues[row.platform] = row.config_json;
+        configuredCreds[row.platform] = { configured: true };
+        saveCredToLocal(row.platform, row.config_json); // keep localStorage in sync
+      }
     }
-    await loadCredentials(); // refresh badge statuses
   } catch(e) { console.warn('Supabase credential load failed:', e.message); }
+  // Push all known creds to Railway SQLite so scheduled jobs can use them
+  for (const [platform, cfg] of Object.entries(savedCredValues)) {
+    try {
+      await api(`/api/credentials/${encodeURIComponent(platform)}`,
+        { method: 'POST', body: JSON.stringify(cfg) });
+    } catch {}
+  }
+  await loadCredentials(); // final refresh from Railway
 }
 
 async function openCredsModal() {
@@ -860,6 +907,7 @@ function ytOAuth(sid) {
         if (r.success && r.config) {
           configuredCreds['YouTube Shorts'] = { configured: true };
           savedCredValues['YouTube Shorts'] = r.config;
+          saveCredToLocal('YouTube Shorts', r.config);
           try {
             await sb.from('scheduler_credentials').upsert({
               user_id: currentUser.id, platform: 'YouTube Shorts', config_json: r.config,
@@ -888,6 +936,7 @@ async function saveCred(name) {
   // Update UI immediately — don't wait for another API round-trip
   configuredCreds[name] = { configured: true };
   savedCredValues[name] = cfg;
+  saveCredToLocal(name, cfg); // persist in browser localStorage
   // Save to Supabase — persists across Railway restarts
   try {
     await sb.from('scheduler_credentials').upsert({
@@ -909,9 +958,11 @@ async function delCred(name) {
   if (!confirm(`Remove ${name} credentials?`)) return;
   const r = await (await api(`/api/credentials/${encodeURIComponent(name)}`,{method:'DELETE'})).json();
   if (r.success) {
+    delete configuredCreds[name];
+    delete savedCredValues[name];
+    deleteCredFromLocal(name);
     try {
       await sb.from('scheduler_credentials').delete().eq('user_id', currentUser.id).eq('platform', name);
-      delete savedCredValues[name];
     } catch(e) { console.warn('Supabase delete failed:', e.message); }
     toast('Removed','info'); await loadCredentials(); renderCreds();
   }
