@@ -634,3 +634,4 @@ app.listen(PORT, async () => {
   // Re-register all active cron jobs
   db.prepare('SELECT * FROM schedules WHERE active=1').all().forEach(startCron);
 });
+
