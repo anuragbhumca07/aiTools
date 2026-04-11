@@ -1,0 +1,7 @@
+Use It for Testing
+Once set up, you can drive the full testing loop from the Claude Code CLI:
+
+"Use the planner agent to explore my checkout flow and create a test plan"
+"Use the generator agent to write Playwright tests from specs/checkout.md"
+"A test is failing — use the healer agent to fix it"
+"Run all Playwright tests and fix any failures"

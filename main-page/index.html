@@ -3,12 +3,154 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>AI Tools Hub</title>
+  <title>AI Hub — Anurag's AI Studio</title>
   <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    /* ── Auth bar ── */
+    .auth-bar {
+      display: flex; justify-content: center; align-items: center;
+      gap: 12px; margin-bottom: 32px;
+    }
+    .auth-chip {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 50px; padding: 8px 16px;
+      font-size: .85rem;
+    }
+    .auth-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: grid; place-items: center;
+      font-size: .8rem; font-weight: 900; color: #fff;
+    }
+    .auth-name { color: var(--text); font-weight: 600; }
+    .auth-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      color: #fff; border: none; cursor: pointer;
+      border-radius: 50px; padding: 8px 20px;
+      font-size: .85rem; font-weight: 700; letter-spacing: .3px;
+      transition: opacity .2s, transform .2s;
+    }
+    .auth-btn:hover { opacity: .85; transform: translateY(-1px); }
+    .auth-btn.outline {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.15);
+      color: var(--muted);
+    }
+    .auth-btn.outline:hover { border-color: rgba(255,255,255,.3); color: var(--text); }
+
+    /* ── Auth modal overlay ── */
+    .auth-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+      display: none; place-items: center;
+    }
+    .auth-overlay.show { display: grid; }
+    .auth-modal {
+      background: #0f0f28;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 24px; padding: 40px 36px;
+      width: 100%; max-width: 420px; margin: 20px;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6);
+    }
+    .auth-modal h2 {
+      font-size: 1.5rem; font-weight: 900; margin-bottom: 6px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .auth-modal p { color: var(--muted); font-size: .88rem; margin-bottom: 28px; }
+    .auth-tabs { display: flex; gap: 0; margin-bottom: 24px; background: rgba(255,255,255,.04); border-radius: 10px; padding: 4px; }
+    .auth-tab {
+      flex: 1; padding: 8px; border: none; background: transparent; color: var(--muted);
+      cursor: pointer; border-radius: 8px; font-size: .85rem; font-weight: 700; transition: all .2s;
+    }
+    .auth-tab.active { background: rgba(255,255,255,.1); color: var(--text); }
+    .auth-field { margin-bottom: 16px; }
+    .auth-field label { display: block; font-size: .72rem; font-weight: 800; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 7px; text-transform: uppercase; }
+    .auth-field input {
+      width: 100%; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px; padding: 11px 14px; color: var(--text); font-size: .92rem;
+      outline: none; transition: border-color .2s;
+    }
+    .auth-field input:focus { border-color: var(--cyan); }
+    .auth-submit {
+      width: 100%; padding: 13px; margin-top: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      border: none; border-radius: 12px; color: #fff;
+      font-size: 1rem; font-weight: 800; cursor: pointer;
+      transition: opacity .2s, transform .2s;
+    }
+    .auth-submit:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .auth-submit:disabled { opacity: .5; cursor: default; }
+    .auth-err {
+      display: none; margin-top: 14px; padding: 10px 14px;
+      background: rgba(233,69,96,.12); border: 1px solid rgba(233,69,96,.25);
+      border-radius: 10px; color: #f87171; font-size: .84rem; text-align: center;
+    }
+    .auth-err.show { display: block; }
+    .auth-close {
+      position: absolute; top: 16px; right: 16px;
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 1.4rem; padding: 4px 10px;
+      border-radius: 8px; transition: color .2s;
+    }
+    .auth-close:hover { color: var(--text); }
+
+    /* Welcome message */
+    .welcome-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(5,191,219,.08); border: 1px solid rgba(5,191,219,.2);
+      border-radius: 50px; padding: 6px 16px;
+      font-size: .82rem; color: var(--cyan); font-weight: 600;
+    }
+  </style>
 </head>
 <body>
 <div id="stars"></div>
 <div id="nebula"></div>
+
+<!-- Auth Modal -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-modal" style="position:relative">
+    <button class="auth-close" onclick="closeAuthModal()">✕</button>
+    <h2>AI Hub</h2>
+    <p>Sign in to personalize your experience and save settings across tools.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
+    </div>
+    <div class="auth-field" id="nameRow" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="display:block;font-size:.72rem;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;text-transform:uppercase">First Name</label>
+          <input type="text" id="authFirstName" placeholder="John" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;color:var(--text);font-size:.92rem;outline:none"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:.72rem;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;text-transform:uppercase">Last Name</label>
+          <input type="text" id="authLastName" placeholder="Doe" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;color:var(--text);font-size:.92rem;outline:none"/>
+        </div>
+      </div>
+    </div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()"/>
+    </div>
+    <div class="auth-field" id="confirmRow" style="display:none">
+      <label>Confirm Password</label>
+      <input type="password" id="authConfirm" placeholder="Repeat password" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;color:var(--text);font-size:.92rem;outline:none" onkeydown="if(event.key==='Enter')doAuth()"/>
+    </div>
+    <button class="auth-submit" id="authSubmit" onclick="doAuth()">Sign In</button>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
 
 <div class="page">
 
@@ -20,10 +162,25 @@
     <div class="badge">ANURAG'S AI STUDIO</div>
     <h1>AI Tools<br><span class="gradient-text">Hub</span></h1>
     <p class="subtitle">A collection of powerful AI-powered tools to automate<br>your creative and social media workflow.</p>
+
+    <!-- Auth bar -->
+    <div class="auth-bar" id="authBar">
+      <div id="guestBar">
+        <button class="auth-btn" onclick="openAuthModal()">Sign In to AI Hub</button>
+      </div>
+      <div id="userBar" style="display:none">
+        <div class="auth-chip">
+          <div class="auth-avatar" id="userAvatar">A</div>
+          <span class="auth-name">Welcome, <strong id="userFirstName">there</strong>!</span>
+          <button class="auth-btn outline" onclick="signOut()" style="padding:5px 14px;font-size:.78rem">Sign Out</button>
+        </div>
+      </div>
+    </div>
+
     <div class="stats-row">
-      <div class="stat"><span class="stat-num" id="statTools">2</span><span class="stat-label">Live Tools</span></div>
+      <div class="stat"><span class="stat-num" id="statTools">4</span><span class="stat-label">Live Tools</span></div>
       <div class="stat-sep"></div>
-      <div class="stat"><span class="stat-num">6</span><span class="stat-label">Coming Soon</span></div>
+      <div class="stat"><span class="stat-num">4</span><span class="stat-label">Coming Soon</span></div>
       <div class="stat-sep"></div>
       <div class="stat"><span class="stat-num">∞</span><span class="stat-label">Possibilities</span></div>
     </div>
@@ -37,7 +194,7 @@
   <div class="tools-grid">
 
     <!-- ── my-video ── -->
-    <a href="https://quiz-video-generator.pages.dev" class="tool-card" target="_blank" data-color="cyan">
+    <a href="https://quiz-video-generator.pages.dev" class="tool-card" data-color="cyan">
       <div class="card-glow glow-cyan"></div>
       <div class="icon-stage">
         <div class="icon-3d">
@@ -57,7 +214,7 @@
     </a>
 
     <!-- ── social-media ── -->
-    <a href="https://aitools-social.pages.dev" class="tool-card" target="_blank" data-color="purple">
+    <a href="https://social-media-uploader.pages.dev" class="tool-card" data-color="purple">
       <div class="card-glow glow-purple"></div>
       <div class="icon-stage">
         <div class="icon-3d">
@@ -77,11 +234,11 @@
     </a>
 
     <!-- ── ai-explainer ── -->
-    <a href="https://ai-explainer-1a0.pages.dev" class="tool-card" target="_blank" data-color="green">
+    <a href="https://ai-explainer-1a0.pages.dev" class="tool-card" data-color="green">
       <div class="card-glow glow-green"></div>
       <div class="icon-stage">
         <div class="icon-3d">
-          <div class="icon-face front">🎬</div>
+          <div class="icon-face front">🧠</div>
           <div class="icon-shadow"></div>
         </div>
       </div>
@@ -92,6 +249,26 @@
         <span class="tag">Manim</span>
         <span class="tag">Animated</span>
         <span class="tag">MP4</span>
+      </div>
+      <div class="card-cta">Open App <span class="arrow">→</span></div>
+    </a>
+
+    <!-- ── scheduler ── -->
+    <a href="https://quiz-scheduler-production.up.railway.app" class="tool-card" data-color="gold">
+      <div class="card-glow glow-gold"></div>
+      <div class="icon-stage">
+        <div class="icon-3d">
+          <div class="icon-face front">📅</div>
+          <div class="icon-shadow"></div>
+        </div>
+      </div>
+      <div class="card-badge live">● LIVE</div>
+      <h2 class="tool-name">Quiz Scheduler</h2>
+      <p class="tool-desc">Auto-schedule quiz video generation by category, set posting frequency, and publish to all social platforms — fully automated in the cloud.</p>
+      <div class="tool-tags">
+        <span class="tag">Auto-Schedule</span>
+        <span class="tag">Cron Jobs</span>
+        <span class="tag">Multi-Platform</span>
       </div>
       <div class="card-cta">Open App <span class="arrow">→</span></div>
     </a>
@@ -181,46 +358,6 @@
         <span class="tag">SEO</span>
         <span class="tag">Long-Form</span>
         <span class="tag">WordPress</span>
-      </div>
-      <div class="card-cta soon-cta">In Development</div>
-    </div>
-
-    <!-- ── AI Code Reviewer ── -->
-    <div class="tool-card soon" data-color="purple">
-      <div class="card-glow glow-purple"></div>
-      <div class="icon-stage">
-        <div class="icon-3d" style="--delay:1.5s">
-          <div class="icon-face front">💻</div>
-          <div class="icon-shadow"></div>
-        </div>
-      </div>
-      <div class="card-badge soon-badge">⏳ COMING SOON</div>
-      <h2 class="tool-name">AI Code Reviewer</h2>
-      <p class="tool-desc">Paste code or link a GitHub PR — AI reviews for bugs, security issues, performance bottlenecks, and suggests improvements with explanations.</p>
-      <div class="tool-tags">
-        <span class="tag">GitHub PR</span>
-        <span class="tag">Security</span>
-        <span class="tag">Multi-Lang</span>
-      </div>
-      <div class="card-cta soon-cta">In Development</div>
-    </div>
-
-    <!-- ── AI Data Analyst ── -->
-    <div class="tool-card soon" data-color="pink">
-      <div class="card-glow glow-pink"></div>
-      <div class="icon-stage">
-        <div class="icon-3d" style="--delay:1.8s">
-          <div class="icon-face front">📊</div>
-          <div class="icon-shadow"></div>
-        </div>
-      </div>
-      <div class="card-badge soon-badge">⏳ COMING SOON</div>
-      <h2 class="tool-name">AI Data Analyst</h2>
-      <p class="tool-desc">Upload any CSV, Excel or database export — AI understands your data, creates charts, discovers trends and writes a full analysis report.</p>
-      <div class="tool-tags">
-        <span class="tag">CSV / Excel</span>
-        <span class="tag">Charts</span>
-        <span class="tag">Auto-Report</span>
       </div>
       <div class="card-cta soon-cta">In Development</div>
     </div>

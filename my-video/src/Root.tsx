@@ -61,8 +61,8 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={async ({ props }: { props: QuizProps }) => {
           const portrait = (props.format ?? "16:9") === "9:16";
           return {
-            width: portrait ? 720 : 1280,
-            height: portrait ? 1280 : 720,
+            width: portrait ? 540 : 1280,
+            height: portrait ? 960 : 720,
           };
         }}
       />

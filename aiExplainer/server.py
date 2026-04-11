@@ -8,7 +8,7 @@ import tempfile
 import subprocess
 
 import requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 
 try:
@@ -489,6 +489,54 @@ def explain():
         "topic":    topic,
         "steps":    steps,
     })
+
+
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    """
+    All-in-one API endpoint.
+    Request  (JSON): { "groq_api_key": "gsk_...", "problem": "2x + y = 7, x - y = 1" }
+    Response        : MP4 video file (Content-Type: video/mp4)
+    On error        : JSON { "success": false, "error": "..." } with 4xx/5xx status
+    """
+    data    = request.get_json(force=True, silent=True) or {}
+    problem = (data.get("problem") or "").strip()
+    api_key = (data.get("groq_api_key") or "").strip()
+
+    if not problem:
+        return jsonify({"success": False, "error": "problem is required"}), 400
+    if not api_key:
+        return jsonify({"success": False, "error": "groq_api_key is required"}), 400
+
+    try:
+        topic, steps = ai_solve(problem, api_key)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except requests.HTTPError as e:
+        return jsonify({"success": False, "error": f"AI API error: {e}"}), 502
+    except (json.JSONDecodeError, KeyError):
+        return jsonify({"success": False,
+                        "error": "AI returned malformed response. Try again."}), 502
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    try:
+        video_id = render_video(topic, steps)
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    video_path = os.path.join(VIDEOS_DIR, f"{video_id}.mp4")
+    safe_name  = "".join(c if c.isalnum() or c in "-_ " else "_" for c in topic)[:60]
+    filename   = f"{safe_name}.mp4"
+
+    return send_file(
+        video_path,
+        mimetype="video/mp4",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 if __name__ == "__main__":

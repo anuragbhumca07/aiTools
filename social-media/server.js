@@ -11,7 +11,7 @@ const path = require('path');
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 const PORT     = process.env.PORT     || 3001;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const BASE_URL = process.env.BASE_URL || 'https://social-media-uploader-production.up.railway.app';
 
 // ── PKCE helpers ───────────────────────────────────────────────────────────────
 function generateCodeVerifier()      { return crypto.randomBytes(48).toString('base64url'); }
@@ -581,7 +581,7 @@ function authForm(platform, color, action, fields, hint) {
     <button type="submit" style="margin-top:1.25rem;width:100%;padding:10px;background:${color};border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Authorize →</button>
   </form>
   <p style="font-size:12px;color:#8884a8;margin-top:1rem">${hint}</p>
-  <p style="font-size:12px;margin-top:.5rem"><a href="/" style="color:#a78bfa">← Back to app</a></p>
+  <p style="font-size:12px;margin-top:.5rem"><a href="https://social-media-uploader.pages.dev" style="color:#a78bfa">← Back to app</a></p>
 </div></body></html>`;
 }
 
@@ -598,13 +598,13 @@ function tokenPage(title, key1, val1, extra) {
   <code style="display:block;background:#0f0f1a;padding:10px;border-radius:8px;word-break:break-all;font-size:12px;color:#a78bfa;border:1px solid #2a2a3a;margin:4px 0">${val1}</code>
   <button onclick="navigator.clipboard.writeText('${val1.replace(/'/g,"\\'")}');this.textContent='Copied!'" style="padding:6px 14px;background:#6c63ff;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px">Copy</button>
   ${extraHtml}
-  <p style="font-size:13px;color:#8884a8;margin-top:1rem">Close this tab and return to the app.</p>
-  <a href="/" style="color:#a78bfa;font-size:13px">← Back to app</a>
+  <p style="font-size:13px;color:#8884a8;margin-top:1rem">Copy the token above, then close this tab and paste it into the app.</p>
+  <a href="https://social-media-uploader.pages.dev" style="color:#a78bfa;font-size:13px">← Back to app</a>
 </div></body></html>`;
 }
 
 function authError(msg, retryUrl) {
-  return `<div style="${PAGE_STYLE}"><h2 style="color:#ef4444">Auth Error</h2><p style="color:#8884a8">${msg}</p><a href="${retryUrl}" style="color:#a78bfa">Try again</a> · <a href="/" style="color:#a78bfa">Back to app</a></div>`;
+  return `<div style="${PAGE_STYLE}"><h2 style="color:#ef4444">Auth Error</h2><p style="color:#8884a8">${msg}</p><a href="${retryUrl}" style="color:#a78bfa">Try again</a> · <a href="https://social-media-uploader.pages.dev" style="color:#a78bfa">Back to app</a></div>`;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

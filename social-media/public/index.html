@@ -4,9 +4,91 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>🚀 Social Media Uploader</title>
-  <link rel="stylesheet" href="style.css?v=5"/>
+  <link rel="stylesheet" href="style.css?v=8"/>
+  <style>
+    /* Hub auth bar */
+    #hub-bar { position:fixed;top:0;left:0;right:0;z-index:900;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(6,6,26,.9);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08); }
+    #hub-bar a { font-size:.8rem;color:#8892a4;text-decoration:none; }
+    #hub-bar a:hover { color:#00d9ff; }
+    .hub-modal-ov { display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);place-items:center; }
+    .hub-modal-ov.show { display:grid; }
+    .hub-modal { background:#0f0f28;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px;width:100%;max-width:380px;margin:20px;position:relative; }
+    .hub-modal h2 { font-size:1.2rem;font-weight:900;margin-bottom:6px;background:linear-gradient(135deg,#00d9ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }
+    .hub-modal p { color:#8892a4;font-size:.82rem;margin-bottom:18px; }
+    .hub-field { margin-bottom:14px; }
+    .hub-field label { display:block;font-size:.68rem;font-weight:800;letter-spacing:1.5px;color:#8892a4;margin-bottom:6px;text-transform:uppercase; }
+    .hub-field input { width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 13px;color:#e2e8f0;font-size:.9rem;outline:none;box-sizing:border-box; }
+    .hub-field input:focus { border-color:#00d9ff; }
+    .hub-signin-btn { width:100%;padding:12px;background:linear-gradient(135deg,#00d9ff,#a855f7);border:none;border-radius:10px;color:#fff;font-size:.95rem;font-weight:800;cursor:pointer; }
+    .hub-signin-btn:disabled { opacity:.5;cursor:default; }
+    .hub-err { display:none;margin-top:10px;padding:9px 12px;background:rgba(233,69,96,.12);border:1px solid rgba(233,69,96,.25);border-radius:8px;color:#f87171;font-size:.8rem;text-align:center; }
+    .hub-err.show { display:block; }
+    .hub-close { position:absolute;top:10px;right:12px;background:none;border:none;color:#8892a4;cursor:pointer;font-size:1.1rem;padding:4px 8px; }
+    .hub-credit-badge { font-size:.78rem;padding:3px 10px;background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.3);border-radius:20px;color:#f5a623;font-weight:700; }
+    .hub-signin-pill { background:linear-gradient(135deg,#00d9ff,#a855f7);color:#fff;border:none;border-radius:20px;padding:6px 16px;font-size:.8rem;font-weight:700;cursor:pointer; }
+    .hub-signout-pill { background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#8892a4;border-radius:20px;padding:5px 12px;font-size:.78rem;cursor:pointer; }
+    .page { padding-top: 60px !important; }
+  </style>
+  <style>
+    /* Disabled platform dimming */
+    .platform-card.disabled-card { opacity: .45; }
+    .platform-card.disabled-card .pf-fields { pointer-events: none; }
+
+    /* Missing-key warning banner */
+    #keyWarning {
+      display: none; margin-top: 16px; padding: 12px 16px;
+      background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.3);
+      border-radius: 10px; color: #f5a623; font-size: .88rem; font-weight: 600;
+    }
+    #keyWarning.show { display: flex; align-items: center; gap: 10px; }
+
+    .pf-header { cursor: pointer; }
+    .pf-enabled-badge {
+      font-size: .68rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 20px; margin-left: auto;
+      background: rgba(0,200,83,.15); color: #00c853; border: 1px solid rgba(0,200,83,.25);
+    }
+    .pf-enabled-badge.off {
+      background: rgba(255,255,255,.06); color: var(--muted); border-color: var(--border);
+    }
+  </style>
 </head>
 <body>
+<!-- AI Hub Auth Bar -->
+<div id="hub-bar">
+  <a href="https://aitools-hub-c5g.pages.dev">← AI Hub</a>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div id="hub-guest-bar">
+      <button class="hub-signin-pill" onclick="openHubAuth()">Sign In</button>
+    </div>
+    <div id="hub-user-bar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:.82rem;color:#e2e8f0">Hi, <strong id="hub-firstname">there</strong>!</span>
+      <span class="hub-credit-badge" id="hub-credits-badge">⚡ –</span>
+      <button class="hub-signout-pill" onclick="hubSignOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Hub Auth Modal -->
+<div class="hub-modal-ov" id="hub-modal-ov">
+  <div class="hub-modal">
+    <button class="hub-close" onclick="closeHubAuth()">✕</button>
+    <h2>Sign In to AI Hub</h2>
+    <p>Sign in to upload videos to social media platforms.</p>
+    <div class="hub-field">
+      <label>Email</label>
+      <input type="email" id="hub-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter')hubSignIn()"/>
+    </div>
+    <div class="hub-field">
+      <label>Password</label>
+      <input type="password" id="hub-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')hubSignIn()"/>
+    </div>
+    <button class="hub-signin-btn" id="hub-signin-btn" onclick="hubSignIn()">Sign In</button>
+    <div class="hub-err" id="hub-auth-err"></div>
+    <p style="text-align:center;margin-top:12px;font-size:.77rem;color:#8892a4">No account? <a href="https://aitools-hub-c5g.pages.dev" target="_blank" style="color:#00d9ff">Create one at AI Hub ↗</a></p>
+  </div>
+</div>
+
 <div id="stars"></div>
 
 <div class="page">
@@ -27,8 +109,8 @@
       <div class="drop-icon">🎬</div>
       <p class="drop-text">Drag & drop your video here</p>
       <p class="drop-sub">MP4, MOV, AVI — up to 2 GB</p>
-      <label class="btn btn-outline" for="fileInput">Browse File</label>
-      <input type="file" id="fileInput" accept="video/*" hidden/>
+      <label class="btn btn-outline" for="fileInput" onclick="event.stopPropagation()">Browse File</label>
+      <input type="file" id="fileInput" accept="video/*" style="display:none"/>
     </div>
     <div class="file-info" id="fileInfo" style="display:none">
       <span>🎬</span>
@@ -63,7 +145,7 @@
     <span class="step-badge">02</span> AI Content Generator
   </div>
   <div class="card full-card" id="step-ai">
-    <p class="card-desc">Pick a free AI provider, paste your key — content generates automatically when you drop a video.</p>
+    <p class="card-desc">Pick a free AI provider, paste your key — click Generate to get platform-optimised captions and titles.</p>
 
     <div class="provider-grid">
       <label class="provider-card" data-p="groq">
@@ -94,11 +176,20 @@
 
     <div id="aiKeyRow" class="form-group">
       <label id="aiKeyLabel">GROQ API KEY — <a class="key-link" id="aiKeyLink" href="https://console.groq.com" target="_blank">Get free ↗</a></label>
-      <input type="password" id="aiApiKey" placeholder="Paste your API key…"/>
+      <input type="password" id="aiApiKey" placeholder="Paste your API key here…"/>
     </div>
     <div id="ollamaRow" class="form-group" style="display:none">
       <label>OLLAMA URL</label>
       <input type="text" id="ollamaUrl" value="http://localhost:11434"/>
+    </div>
+
+    <div id="keyWarning">
+      ⚠ Paste your AI API key above, then click Generate to create platform content.
+    </div>
+
+    <div class="form-group" style="margin-top:16px">
+      <label>VIDEO TITLE (used to generate content)</label>
+      <input type="text" id="manualTitle" placeholder="Enter your video title or topic…"/>
     </div>
 
     <!-- Generate / Regenerate button -->
@@ -189,6 +280,7 @@
   <!-- ── Step 3: Platforms ── -->
   <div class="section-title">
     <span class="step-badge">03</span> Platform Credentials
+    <span style="font-size:.78rem;color:var(--muted);margin-left:10px;font-weight:500">Toggle to include a platform in upload</span>
   </div>
   <div class="platform-grid">
 
@@ -199,6 +291,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">YouTube</span><span class="pf-sub">Video Upload</span></div>
+        <span class="pf-enabled-badge off" id="ytBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="ytEnabled" onchange="onToggle('yt')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="ytFields" style="display:none">
@@ -219,6 +312,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">Instagram</span><span class="pf-sub">Reels</span></div>
+        <span class="pf-enabled-badge off" id="igBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="igEnabled" onchange="onToggle('ig')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="igFields" style="display:none">
@@ -235,6 +329,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">Facebook</span><span class="pf-sub">Page Video</span></div>
+        <span class="pf-enabled-badge off" id="fbBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="fbEnabled" onchange="onToggle('fb')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="fbFields" style="display:none">
@@ -251,6 +346,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.01a8.16 8.16 0 0 0 4.77 1.52V7.08a4.85 4.85 0 0 1-1-.39z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">TikTok</span><span class="pf-sub">Video Post</span></div>
+        <span class="pf-enabled-badge off" id="ttBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="ttEnabled" onchange="onToggle('tt')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="ttFields" style="display:none">
@@ -272,6 +368,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">X / Twitter</span><span class="pf-sub">Tweet + Video</span></div>
+        <span class="pf-enabled-badge off" id="twBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="twEnabled" onchange="onToggle('tw')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="twFields" style="display:none">
@@ -290,6 +387,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
         </div>
         <div class="pf-info"><span class="pf-name">LinkedIn</span><span class="pf-sub">Video Post</span></div>
+        <span class="pf-enabled-badge off" id="liBadge">OFF</span>
         <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" id="liEnabled" onchange="onToggle('li')"/><span class="ts"></span></label>
       </div>
       <div class="pf-fields" id="liFields" style="display:none">
@@ -308,12 +406,14 @@
     <span class="step-badge">04</span> Publish
   </div>
   <div class="card full-card">
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:16px">Toggle platforms ON above, then click Publish. Your video and AI-generated content will be uploaded to each enabled platform.</p>
     <button class="btn btn-upload" id="uploadAllBtn">🚀 Upload to All Enabled Platforms</button>
     <div id="resultsList"></div>
   </div>
 
 </div><!-- /page -->
 
-<script src="app.js?v=5"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

@@ -24,7 +24,31 @@
       "Bash(node:*)",
       "Bash(powershell.exe -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { \\(Get-NetTCPConnection -OwningProcess \\\\$_.Id -ErrorAction SilentlyContinue | Where-Object LocalPort -eq 3001\\) } | Stop-Process -Force; Write-Host 'killed'\")",
       "Bash(curl -s http://localhost:3001/api/categories)",
-      "Bash(python -m json.tool)"
+      "Bash(python -m json.tool)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(railway status:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway init:*)",
+      "Bash(railway list:*)",
+      "Bash(railway link:*)",
+      "Bash(railway up:*)",
+      "Bash(railway service:*)",
+      "Bash(railway token:*)",
+      "Read(//c/Users/anura/.railway/**)",
+      "Bash(curl:*)",
+      "Bash(railway domain:*)",
+      "Bash(railway variables:*)",
+      "Bash(git add:*)",
+      "Bash(TOKEN=\"TqfjO7wdoL_kyJBpXV_toM1CYRfI51eG63kMt4wJh-9\")",
+      "Bash(railway --help)",
+      "Bash(railway add:*)",
+      "Bash(supabase status:*)",
+      "Bash(npx supabase:*)",
+      "Bash(railway volume:*)",
+      "Bash(grep -o \"<title>[^<]*</title>\" curl -s \"https://ai-explainer-production.up.railway.app/\" -X GET)",
+      "WebFetch(domain:quiz-scheduler-production.up.railway.app)"
     ]
   }
 }

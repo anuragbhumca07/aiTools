@@ -90,6 +90,11 @@ db.exec(`
   );
 `);
 
+// Migrate: add new columns to existing DBs (safe on fresh DBs too)
+try { db.exec('ALTER TABLE schedules ADD COLUMN start_date TEXT'); } catch {}
+try { db.exec('ALTER TABLE schedules ADD COLUMN question_list TEXT'); } catch {}
+try { db.exec('ALTER TABLE schedules ADD COLUMN question_index INTEGER NOT NULL DEFAULT 0'); } catch {}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function verifyJWT(token) {
   const r = await axios.get(`${SUPABASE_URL}/auth/v1/user`, {
@@ -312,6 +317,16 @@ async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
 async function runSchedule(scheduleId) {
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(scheduleId);
   if (!s) return;
+
+  // Check start date — skip silently if not yet reached
+  if (s.start_date) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today < s.start_date) {
+      console.log(`[CRON] #${s.id} "${s.name}" skipped — starts on ${s.start_date}`);
+      return;
+    }
+  }
+
   const platforms = JSON.parse(s.platforms || '[]');
   // Sync credentials from Supabase if any platform's creds are missing (handles Railway restarts)
   if (platforms.length) {
@@ -321,9 +336,32 @@ async function runSchedule(scheduleId) {
   const jobId = db.prepare(`INSERT INTO jobs (schedule_id,user_id,status) VALUES (?,?,'running')`).run(s.id, s.user_id).lastInsertRowid;
   console.log(`[CRON] #${s.id} "${s.name}" → job #${jobId}`);
   try {
-    const resp = await axios.post(`${QUIZ_API}/api/generate-random`, { category: s.category, subcategory: s.subcategory, format: s.format }, { timeout: 300000 });
-    if (!resp.data.success) throw new Error(resp.data.error || 'Video generation failed');
-    let { videoUrl, question, options, correctIndex } = resp.data;
+    let videoUrl, question, options, correctIndex;
+
+    if (s.question_list) {
+      // Custom question list mode — cycle through questions in order
+      let questions;
+      try { questions = JSON.parse(s.question_list); } catch { throw new Error('Invalid question list — re-save the schedule'); }
+      if (!questions.length) throw new Error('Question list is empty');
+      const idx = (s.question_index || 0) % questions.length;
+      const q = questions[idx];
+      console.log(`[CRON] Using custom question ${idx + 1}/${questions.length}: "${q.question?.slice(0, 50)}"`);
+      const resp = await axios.post(`${QUIZ_API}/api/generate-custom`,
+        { question: q.question, options: q.options, correctIndex: q.correctIndex, format: s.format },
+        { timeout: 300000 });
+      if (!resp.data.success) throw new Error(resp.data.error || 'Video generation failed');
+      ({ videoUrl, question, options, correctIndex } = resp.data);
+      // Advance index (wraps back to 0 after last question)
+      db.prepare('UPDATE schedules SET question_index=? WHERE id=?').run((idx + 1) % questions.length, s.id);
+    } else {
+      // Random mode — pick from category/subcategory
+      const resp = await axios.post(`${QUIZ_API}/api/generate-random`,
+        { category: s.category, subcategory: s.subcategory, format: s.format },
+        { timeout: 300000 });
+      if (!resp.data.success) throw new Error(resp.data.error || 'Video generation failed');
+      ({ videoUrl, question, options, correctIndex } = resp.data);
+    }
+
     // Ensure videoUrl is absolute (guard against missing BACKEND_URL in quiz-video service)
     if (videoUrl && !videoUrl.startsWith('http')) videoUrl = `${QUIZ_API}${videoUrl}`;
     db.prepare(`UPDATE jobs SET status='done',video_url=?,question=?,options=?,correct_idx=? WHERE id=?`)
@@ -475,7 +513,13 @@ app.get('/api/stats', authMiddleware, (req, res) => {
 });
 
 // ── Schedules ─────────────────────────────────────────────────────────────────
-function fmtSched(r) { return { ...r, platforms: JSON.parse(r.platforms||'[]'), freq_label: FREQ_LABELS[r.freq_type]||r.freq_type }; }
+function fmtSched(r) {
+  let question_count = 0, question_list = null;
+  if (r.question_list) {
+    try { question_list = JSON.parse(r.question_list); question_count = question_list.length; } catch {}
+  }
+  return { ...r, platforms: JSON.parse(r.platforms||'[]'), freq_label: FREQ_LABELS[r.freq_type]||r.freq_type, question_count, question_list };
+}
 
 app.get('/api/schedules', authMiddleware, (_, res) => {
   res.json({ success: true, schedules: db.prepare('SELECT * FROM schedules WHERE user_id=? ORDER BY created_at DESC').all(_.user.id).map(fmtSched) });
@@ -483,13 +527,14 @@ app.get('/api/schedules', authMiddleware, (_, res) => {
 
 app.post('/api/schedules', authMiddleware, (req, res) => {
   const uid = req.user.id;
-  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[] } = req.body||{};
+  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list=null } = req.body||{};
   if (!name||!category||!subcategory||!freq_type) return res.status(400).json({ success:false, error:'name, category, subcategory, freq_type required' });
   const expr = buildCronExpr(freq_type, freq_value, run_time, run_day);
   if (!cron.validate(expr)) return res.status(400).json({ success:false, error:'Invalid schedule' });
   const nr = nextRun(expr);
-  const id = db.prepare(`INSERT INTO schedules (user_id,name,category,subcategory,format,freq_type,freq_value,run_time,run_day,cron_expr,platforms,next_run) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(uid,name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr).lastInsertRowid;
+  const ql = Array.isArray(question_list) && question_list.length ? JSON.stringify(question_list) : null;
+  const id = db.prepare(`INSERT INTO schedules (user_id,name,category,subcategory,format,freq_type,freq_value,run_time,run_day,cron_expr,platforms,next_run,start_date,question_list) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(uid,name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql).lastInsertRowid;
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(id);
   startCron(s);
   res.json({ success:true, schedule: fmtSched(s) });
@@ -498,11 +543,19 @@ app.post('/api/schedules', authMiddleware, (req, res) => {
 app.put('/api/schedules/:id', authMiddleware, (req, res) => {
   const { id } = req.params; const uid = req.user.id;
   if (!db.prepare('SELECT id FROM schedules WHERE id=? AND user_id=?').get(+id, uid)) return res.status(404).json({ success:false, error:'Not found' });
-  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[] } = req.body||{};
+  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list } = req.body||{};
   const expr = buildCronExpr(freq_type, freq_value, run_time, run_day);
   const nr = nextRun(expr);
-  db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=? WHERE id=? AND user_id=?`)
-    .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,+id,uid);
+  if (question_list !== undefined) {
+    // question_list was explicitly sent — update it and reset the index to 0
+    const ql = Array.isArray(question_list) && question_list.length ? JSON.stringify(question_list) : null;
+    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=?,question_list=?,question_index=0 WHERE id=? AND user_id=?`)
+      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql,+id,uid);
+  } else {
+    // question_list not sent — preserve existing list and index
+    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=? WHERE id=? AND user_id=?`)
+      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,+id,uid);
+  }
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(+id);
   startCron(s);
   res.json({ success:true, schedule: fmtSched(s) });
