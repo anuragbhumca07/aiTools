@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Question Creator — AI Hub</title>
+<style>
+:root{
+  --bg:#08080f;--surface:#0f0f1e;--card:#13132a;--border:rgba(255,255,255,.07);
+  --text:#e8e8f0;--muted:#6b6b8a;--accent:#06b6d4;--accent2:#0891b2;
+  --green:#10b981;--red:#ef4444;--yellow:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+header{
+  background:linear-gradient(135deg,#050d1a,#0c1a2e);
+  border-bottom:1px solid var(--border);
+  padding:16px 26px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{font-size:1.7rem;filter:drop-shadow(0 0 12px #06b6d488)}
+.logo h1{font-size:1.2rem;font-weight:700;background:linear-gradient(135deg,#06b6d4,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo p{font-size:.7rem;color:var(--muted)}
+.hub-link{font-size:.78rem;color:var(--muted);text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 13px;transition:color .2s}
+.hub-link:hover{color:var(--accent)}
+
+.main{max-width:960px;margin:0 auto;padding:28px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.main{grid-template-columns:1fr}}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+.panel-title{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:7px}
+
+/* Input tabs */
+.tabs{display:flex;background:rgba(255,255,255,.04);border-radius:9px;padding:3px;margin-bottom:16px}
+.tab{flex:1;padding:7px;text-align:center;font-size:.8rem;font-weight:600;border-radius:7px;cursor:pointer;color:var(--muted);transition:all .2s;border:none;background:none}
+.tab.active{background:var(--accent);color:#000}
+
+/* Drop zone */
+.drop-zone{
+  border:2px dashed rgba(6,182,212,.25);border-radius:12px;
+  padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;
+  background:rgba(6,182,212,.03);position:relative;
+}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(6,182,212,.08)}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{font-size:2rem;margin-bottom:8px}
+.drop-label{font-size:.85rem;color:var(--text);font-weight:600}
+.drop-sub{font-size:.73rem;color:var(--muted);margin-top:4px}
+.file-chosen{font-size:.78rem;color:var(--accent);margin-top:8px;font-weight:600}
+
+textarea{
+  width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);font-size:.82rem;padding:11px 13px;
+  outline:none;resize:vertical;font-family:inherit;transition:border-color .2s;
+}
+textarea:focus{border-color:var(--accent)}
+
+label{display:block;font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+
+/* Number of questions */
+.num-row{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.num-presets{display:flex;gap:6px;flex-wrap:wrap}
+.preset-btn{
+  padding:5px 11px;border-radius:7px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--muted);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s;
+}
+.preset-btn:hover,.preset-btn.active{border-color:var(--accent);background:rgba(6,182,212,.12);color:var(--accent)}
+.num-custom{width:68px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.85rem;padding:5px 9px;outline:none;text-align:center}
+.num-custom:focus{border-color:var(--accent)}
+
+/* Provider */
+.provider-row{display:flex;gap:10px;margin-bottom:14px}
+.prov-btn{
+  flex:1;padding:9px;border-radius:9px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--muted);font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:all .2s;text-align:center;
+}
+.prov-btn:hover{border-color:rgba(6,182,212,.4);color:var(--accent)}
+.prov-btn.active{border-color:var(--accent);background:rgba(6,182,212,.1);color:var(--accent)}
+.prov-note{font-size:.7rem;color:var(--muted);margin-top:3px;display:block}
+
+.api-row{position:relative;margin-bottom:18px}
+.api-row input{
+  width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:9px;color:var(--text);font-size:.85rem;padding:10px 40px 10px 13px;
+  outline:none;transition:border-color .2s;font-family:monospace;
+}
+.api-row input:focus{border-color:var(--accent)}
+.eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:2px}
+
+.btn-generate{
+  width:100%;padding:13px;border-radius:11px;border:none;cursor:pointer;
+  font-size:.95rem;font-weight:700;letter-spacing:.3px;
+  background:linear-gradient(135deg,#06b6d4,#0891b2);color:#000;
+  transition:all .25s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-generate:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 24px rgba(6,182,212,.35)}
+.btn-generate:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* Spinner */
+.spinner{width:16px;height:16px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:none}
+.spinner.show{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Output panel */
+.output-panel{grid-column:1/-1;display:none}
+.output-panel.show{display:block}
+.out-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.out-count{font-size:.82rem;color:var(--green);font-weight:600}
+.out-actions{display:flex;gap:8px}
+.btn-sm{
+  padding:6px 13px;border-radius:8px;border:none;cursor:pointer;font-size:.76rem;font-weight:600;
+  transition:all .2s;display:flex;align-items:center;gap:5px;
+}
+.btn-copy{background:rgba(6,182,212,.12);color:var(--accent);border:1px solid rgba(6,182,212,.25)}
+.btn-copy:hover{background:rgba(6,182,212,.22)}
+.btn-copy.copied{background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.25)}
+.btn-dl{background:rgba(245,158,11,.12);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.btn-dl:hover{background:rgba(245,158,11,.22)}
+.btn-sched{background:rgba(139,92,246,.12);color:#a78bfa;border:1px solid rgba(139,92,246,.25)}
+.btn-sched:hover{background:rgba(139,92,246,.22)}
+
+.output-box{
+  background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:11px;
+  padding:16px;font-family:'Cascadia Code','Courier New',monospace;font-size:.78rem;
+  line-height:1.7;white-space:pre-wrap;word-break:break-word;max-height:520px;overflow-y:auto;
+  color:#e2e8f0;
+}
+.output-box .q-line{color:#38bdf8;font-weight:600}
+.output-box .ans-line{color:#86efac;font-weight:600}
+
+.hint-box{
+  margin-top:12px;padding:10px 14px;border-radius:9px;
+  background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);
+  font-size:.74rem;color:var(--muted);line-height:1.5;
+}
+.hint-box strong{color:var(--accent)}
+
+.err-box{
+  padding:12px 14px;border-radius:9px;background:rgba(239,68,68,.1);
+  border:1px solid rgba(239,68,68,.25);font-size:.82rem;color:var(--red);margin-top:12px;display:none;
+}
+.err-box.show{display:block}
+
+/* Progress bar */
+.progress-wrap{margin-top:12px;display:none}
+.progress-wrap.show{display:block}
+.progress-bar{height:3px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#06b6d4,#38bdf8);border-radius:4px;width:0;transition:width .4s}
+.progress-label{font-size:.72rem;color:var(--muted);margin-top:5px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="https://aitools-hub-c5g.pages.dev" class="hub-link">← AI Hub</a>
+  <div class="logo">
+    <span class="logo-icon">📝</span>
+    <div><h1>Question Creator</h1><p>Turn any document into a quiz question bank</p></div>
+  </div>
+  <div style="width:80px"></div>
+</header>
+
+<div class="main">
+
+  <!-- ── Left: Input ── -->
+  <div class="panel">
+    <div class="panel-title">📄 Input</div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('file')">📁 Upload File</button>
+      <button class="tab" onclick="switchTab('paste')">✏️ Paste Text</button>
+    </div>
+
+    <!-- File tab -->
+    <div id="tab-file">
+      <div class="drop-zone" id="drop-zone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="onFileChange()"/>
+        <div class="drop-icon">📂</div>
+        <div class="drop-label">Drop file here or click to browse</div>
+        <div class="drop-sub">Supports PDF, DOCX, DOC, TXT · Max 20 MB</div>
+        <div class="file-chosen" id="file-chosen"></div>
+      </div>
+    </div>
+
+    <!-- Paste tab -->
+    <div id="tab-paste" style="display:none">
+      <textarea id="paste-input" rows="9" placeholder="Paste your text, notes, article, or any content here…"></textarea>
+    </div>
+
+    <div style="height:16px"></div>
+
+    <!-- Number of questions -->
+    <label>Number of Questions</label>
+    <div class="num-row">
+      <div class="num-presets">
+        <button class="preset-btn" onclick="setNum(5)">5</button>
+        <button class="preset-btn active" onclick="setNum(10)">10</button>
+        <button class="preset-btn" onclick="setNum(15)">15</button>
+        <button class="preset-btn" onclick="setNum(20)">20</button>
+        <button class="preset-btn" onclick="setNum(30)">30</button>
+        <button class="preset-btn" onclick="setNum(50)">50</button>
+      </div>
+      <input class="num-custom" type="number" id="num-input" value="10" min="1" max="50" oninput="onNumInput()"/>
+    </div>
+
+    <!-- AI Provider -->
+    <label>AI Provider</label>
+    <div class="provider-row">
+      <button class="prov-btn active" id="prov-groq" onclick="setProvider('groq')">
+        ⚡ Groq<span class="prov-note">Free tier · Fast</span>
+      </button>
+      <button class="prov-btn" id="prov-gemini" onclick="setProvider('gemini')">
+        ✨ Gemini<span class="prov-note">Google AI</span>
+      </button>
+    </div>
+
+    <!-- API Key -->
+    <label id="api-label">Groq API Key</label>
+    <div class="api-row">
+      <input type="password" id="api-key" placeholder="Enter your API key…" autocomplete="off" oninput="saveKey()"/>
+      <button class="eye-btn" onclick="toggleKey()" title="Show/hide">👁</button>
+    </div>
+
+    <div class="err-box" id="err-box"></div>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label">Generating questions…</div>
+    </div>
+
+    <button class="btn-generate" id="btn-gen" onclick="generate()">
+      <span class="spinner" id="spinner"></span>
+      <span id="btn-label">✨ Create Questions</span>
+    </button>
+  </div>
+
+  <!-- ── Right: Tips ── -->
+  <div class="panel" id="tips-panel">
+    <div class="panel-title">💡 How it works</div>
+    <div style="font-size:.82rem;color:var(--muted);line-height:1.8;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <strong style="color:var(--text)">1. Upload your content</strong><br>
+        PDF, Word doc, or plain text. Textbooks, notes, articles, manuals — anything works.
+      </div>
+      <div>
+        <strong style="color:var(--text)">2. Set question count</strong><br>
+        Pick 5–50 questions. Longer documents can support more.
+      </div>
+      <div>
+        <strong style="color:var(--text)">3. Choose AI provider</strong><br>
+        <strong style="color:var(--accent)">Groq</strong> is free at <a href="https://console.groq.com" target="_blank" style="color:var(--accent)">console.groq.com</a> → API Keys.<br>
+        <strong style="color:var(--accent)">Gemini</strong> key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a>.
+      </div>
+      <div>
+        <strong style="color:var(--text)">4. Use in Scheduler</strong><br>
+        Copy output → open Scheduler → New Schedule → Question Source: From File → paste.
+      </div>
+      <div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:9px;padding:11px;font-size:.76rem">
+        <strong style="color:var(--accent)">Output format</strong><br>
+        <code style="color:#94a3b8">Q: Question text<br>A: Option<br>B: Option<br>C: Option<br>D: Option<br>Answer: B</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Output (full width) ── -->
+  <div class="panel output-panel" id="output-panel">
+    <div class="out-header">
+      <div>
+        <div class="panel-title" style="margin-bottom:2px">✅ Generated Questions</div>
+        <div class="out-count" id="out-count"></div>
+      </div>
+      <div class="out-actions">
+        <button class="btn-sm btn-copy" id="btn-copy" onclick="copyAll()">📋 Copy All</button>
+        <button class="btn-sm btn-dl" onclick="downloadTxt()">⬇ Download .txt</button>
+        <a href="https://quiz-scheduler-production.up.railway.app" target="_blank" class="btn-sm btn-sched" style="text-decoration:none">📅 Open Scheduler</a>
+      </div>
+    </div>
+    <div class="output-box" id="output-box"></div>
+    <div class="hint-box">
+      <strong>Use in Scheduler:</strong> click <em>Copy All</em> → open Scheduler → <em>＋ New Schedule</em> → set <em>Question Source</em> to <strong>📄 From File</strong> → paste into the text area → Save.
+    </div>
+  </div>
+
+</div><!-- .main -->
+
+<script>
+const API = '';  // same origin
+let provider = 'groq';
+let numQ = 10;
+let activeTab = 'file';
+
+// ── API key persistence ───────────────────────────────────────────────────────
+function keyId() { return `qc_apikey_${provider}`; }
+function saveKey() { try { localStorage.setItem(keyId(), document.getElementById('api-key').value); } catch {} }
+function loadKey() { try { document.getElementById('api-key').value = localStorage.getItem(keyId()) || ''; } catch {} }
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+function setProvider(p) {
+  provider = p;
+  document.getElementById('prov-groq').classList.toggle('active', p === 'groq');
+  document.getElementById('prov-gemini').classList.toggle('active', p === 'gemini');
+  document.getElementById('api-label').textContent = p === 'groq' ? 'Groq API Key' : 'Gemini API Key';
+  loadKey();
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(t) {
+  activeTab = t;
+  document.getElementById('tab-file').style.display  = t === 'file'  ? '' : 'none';
+  document.getElementById('tab-paste').style.display = t === 'paste' ? '' : 'none';
+  document.querySelectorAll('.tab').forEach((btn, i) => btn.classList.toggle('active', (i === 0) === (t === 'file')));
+}
+
+// ── File drop ─────────────────────────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
+function onDragLeave()  { document.getElementById('drop-zone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault(); onDragLeave();
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('file-input').files = e.dataTransfer.files; onFileChange(); }
+}
+function onFileChange() {
+  const f = document.getElementById('file-input').files[0];
+  document.getElementById('file-chosen').textContent = f ? `✅ ${f.name}` : '';
+}
+
+// ── Number ────────────────────────────────────────────────────────────────────
+function setNum(n) {
+  numQ = n;
+  document.getElementById('num-input').value = n;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', +b.textContent === n));
+}
+function onNumInput() {
+  const v = Math.min(Math.max(parseInt(document.getElementById('num-input').value) || 10, 1), 50);
+  numQ = v;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', +b.textContent === v));
+}
+
+// ── Key toggle ────────────────────────────────────────────────────────────────
+function toggleKey() {
+  const el = document.getElementById('api-key');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Progress animation ────────────────────────────────────────────────────────
+let progTimer = null;
+function startProgress() {
+  const fill  = document.getElementById('progress-fill');
+  const label = document.getElementById('progress-label');
+  document.getElementById('progress-wrap').classList.add('show');
+  let pct = 0;
+  const msgs = ['Extracting text…','Sending to AI…','Generating questions…','Formatting output…'];
+  let mi = 0;
+  label.textContent = msgs[0];
+  fill.style.width = '0%';
+  progTimer = setInterval(() => {
+    pct = Math.min(pct + (pct < 70 ? 2 : 0.4), 92);
+    fill.style.width = pct + '%';
+    const ni = Math.floor(pct / 30);
+    if (ni !== mi && msgs[ni]) { mi = ni; label.textContent = msgs[ni]; }
+  }, 400);
+}
+function endProgress(ok) {
+  clearInterval(progTimer);
+  const fill = document.getElementById('progress-fill');
+  fill.style.width = '100%';
+  fill.style.background = ok ? 'var(--green)' : 'var(--red)';
+  setTimeout(() => { document.getElementById('progress-wrap').classList.remove('show'); fill.style.background = ''; }, 1200);
+}
+
+// ── Generate ──────────────────────────────────────────────────────────────────
+async function generate() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const errBox = document.getElementById('err-box');
+  errBox.classList.remove('show');
+
+  if (!apiKey) { showErr('Enter your API key first'); return; }
+  if (activeTab === 'file' && !document.getElementById('file-input').files[0]) {
+    if (!document.getElementById('paste-input').value.trim()) { showErr('Upload a file or paste text'); return; }
+  }
+
+  setBusy(true);
+  startProgress();
+
+  try {
+    const fd = new FormData();
+    fd.append('numQuestions', numQ);
+    fd.append('provider', provider);
+    fd.append('apiKey', apiKey);
+
+    if (activeTab === 'file' && document.getElementById('file-input').files[0]) {
+      fd.append('file', document.getElementById('file-input').files[0]);
+    } else {
+      fd.append('pastedText', document.getElementById('paste-input').value.trim());
+    }
+
+    const r = await fetch(`${API}/api/generate`, { method: 'POST', body: fd });
+    const d = await r.json();
+
+    if (!d.success) { endProgress(false); showErr(d.error || 'Generation failed'); return; }
+
+    endProgress(true);
+    showOutput(d.questions, d.count, d.requested);
+  } catch (e) {
+    endProgress(false); showErr(e.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function setBusy(v) {
+  document.getElementById('btn-gen').disabled = v;
+  document.getElementById('spinner').classList.toggle('show', v);
+  document.getElementById('btn-label').textContent = v ? 'Generating…' : '✨ Create Questions';
+}
+
+function showErr(msg) {
+  const el = document.getElementById('err-box');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('show');
+}
+
+function showOutput(text, count, requested) {
+  // Syntax-highlight Q: and Answer: lines
+  const html = text.split('\n').map(line => {
+    const t = line.trim();
+    if (/^Q:/i.test(t))      return `<span class="q-line">${esc(line)}</span>`;
+    if (/^Answer:/i.test(t)) return `<span class="ans-line">${esc(line)}</span>`;
+    return esc(line);
+  }).join('\n');
+
+  document.getElementById('output-box').innerHTML = html;
+  document.getElementById('out-count').textContent =
+    `${count} question${count !== 1 ? 's' : ''} generated${count < requested ? ` (requested ${requested})` : ''}`;
+  document.getElementById('output-panel').classList.add('show');
+  document.getElementById('tips-panel').style.display = 'none';
+  document.getElementById('output-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Store plain text for copy/download
+  document.getElementById('output-box').dataset.plain = text;
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Copy / Download ───────────────────────────────────────────────────────────
+async function copyAll() {
+  const text = document.getElementById('output-box').dataset.plain || '';
+  await navigator.clipboard.writeText(text).catch(() => {});
+  const btn = document.getElementById('btn-copy');
+  btn.textContent = '✅ Copied!'; btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '📋 Copy All'; btn.classList.remove('copied'); }, 2000);
+}
+
+function downloadTxt() {
+  const text = document.getElementById('output-box').dataset.plain || '';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `questions_${numQ}_${Date.now()}.txt`;
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadKey();
+</script>
+</body>
+</html>
