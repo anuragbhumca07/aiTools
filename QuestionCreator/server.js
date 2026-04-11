@@ -135,7 +135,12 @@ function cleanQuestions(raw) {
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.post('/api/generate', upload.single('file'), async (req, res) => {
+app.post('/api/generate', (req, res, next) => {
+  upload.single('file')(req, res, err => {
+    if (err) return res.status(400).json({ success: false, error: err.message });
+    next();
+  });
+}, async (req, res) => {
   try {
     const { numQuestions = '10', provider = 'groq', apiKey, pastedText } = req.body;
     const n = Math.min(Math.max(parseInt(numQuestions) || 10, 1), 50);
