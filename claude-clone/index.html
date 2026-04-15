@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claude — Meet your thinking partner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── NAV ── -->
+  <nav class="nav" id="nav">
+    <div class="nav__inner">
+      <a class="nav__logo" href="#">
+        <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 4C11.163 4 4 11.163 4 20s7.163 16 16 16 16-7.163 16-16S28.837 4 20 4zm0 5.6a10.4 10.4 0 1 1 0 20.8 10.4 10.4 0 0 1 0-20.8z" fill="#D97757"/>
+        </svg>
+        <span>Claude</span>
+      </a>
+
+      <ul class="nav__links" id="navLinks">
+        <li class="nav__item has-dropdown">
+          <button class="nav__btn">Meet Claude <svg class="chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>
+          <div class="dropdown">
+            <a href="#">Overview</a>
+            <a href="#">Models</a>
+            <a href="#">Claude.ai</a>
+          </div>
+        </li>
+        <li class="nav__item has-dropdown">
+          <button class="nav__btn">Platform <svg class="chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>
+          <div class="dropdown">
+            <a href="#">API</a>
+            <a href="#">Claude for Developers</a>
+            <a href="#">Enterprise</a>
+          </div>
+        </li>
+        <li class="nav__item has-dropdown">
+          <button class="nav__btn">Solutions <svg class="chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>
+          <div class="dropdown">
+            <a href="#">Customer Support</a>
+            <a href="#">Coding</a>
+            <a href="#">Research</a>
+          </div>
+        </li>
+        <li class="nav__item"><a class="nav__btn" href="#">Pricing</a></li>
+        <li class="nav__item has-dropdown">
+          <button class="nav__btn">Resources <svg class="chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></button>
+          <div class="dropdown">
+            <a href="#">Blog</a>
+            <a href="#">Docs</a>
+            <a href="#">Community</a>
+          </div>
+        </li>
+      </ul>
+
+      <div class="nav__actions">
+        <a class="btn btn--ghost" href="#">Log in</a>
+        <a class="btn btn--outline" href="#">Contact sales</a>
+        <a class="btn btn--primary" href="#">Try Claude</a>
+      </div>
+
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <div class="hero__glow"></div>
+    <div class="container">
+      <p class="hero__eyebrow">Introducing Claude 4</p>
+      <h1 class="hero__headline">
+        Meet your<br/>
+        <em>thinking partner</em>
+      </h1>
+      <p class="hero__sub">
+        Tackle any big, bold, bewildering challenge.<br/>
+        Claude thinks with you — not just for you.
+      </p>
+
+      <!-- prompt box -->
+      <div class="prompt-box">
+        <div class="prompt-tabs">
+          <button class="tab active" data-tab="write">Write</button>
+          <button class="tab" data-tab="learn">Learn</button>
+          <button class="tab" data-tab="code">Code</button>
+          <button class="tab" data-tab="analyze">Analyze</button>
+        </div>
+
+        <div class="prompt-suggestions" id="promptSuggestions">
+          <!-- filled by JS -->
+        </div>
+
+        <form class="prompt-form" id="promptForm">
+          <textarea
+            id="promptInput"
+            class="prompt-input"
+            placeholder="Ask Claude anything…"
+            rows="1"
+          ></textarea>
+          <button type="submit" class="prompt-submit" aria-label="Send">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M9 2v14M2 9l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── LOGOS ── -->
+  <section class="logos">
+    <div class="container">
+      <p class="logos__label">Trusted by teams at</p>
+      <div class="logos__row">
+        <span class="logo-pill">Notion</span>
+        <span class="logo-pill">Replit</span>
+        <span class="logo-pill">Cursor</span>
+        <span class="logo-pill">Perplexity</span>
+        <span class="logo-pill">DoorDash</span>
+        <span class="logo-pill">Slack</span>
+        <span class="logo-pill">Salesforce</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES GRID ── -->
+  <section class="features" id="features">
+    <div class="container">
+      <p class="section-eyebrow">What Claude can do</p>
+      <h2 class="section-title">Built for depth, built for you</h2>
+
+      <div class="features__grid">
+        <div class="feature-card feature-card--large">
+          <div class="feature-card__icon">✍️</div>
+          <h3>Write &amp; Create</h3>
+          <p>From first drafts to polished prose. Claude adapts to your voice, style, and audience — so your ideas shine.</p>
+          <a href="#" class="link-arrow">Try writing →</a>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card__icon">💡</div>
+          <h3>Reason &amp; Analyze</h3>
+          <p>Complex problems, research papers, spreadsheets — Claude works through it all step by step.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card__icon">🧑‍💻</div>
+          <h3>Code</h3>
+          <p>Write, debug, explain, and refactor code across 30+ languages. Claude understands context, not just syntax.</p>
+        </div>
+        <div class="feature-card feature-card--large feature-card--accent">
+          <div class="feature-card__icon">🎓</div>
+          <h3>Learn Anything</h3>
+          <p>Claude meets you at your level — breaking down the most complex topics into clear, approachable explanations without dumbing things down.</p>
+          <a href="#" class="link-arrow">Start learning →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── HOW IT WORKS ── -->
+  <section class="how" id="how">
+    <div class="container">
+      <p class="section-eyebrow">How it works</p>
+      <h2 class="section-title">A conversation that thinks</h2>
+      <div class="how__steps">
+        <div class="step">
+          <div class="step__num">01</div>
+          <h4>Ask anything</h4>
+          <p>Type a question, paste a document, share an idea — Claude handles text, code, and files.</p>
+        </div>
+        <div class="step__connector"></div>
+        <div class="step">
+          <div class="step__num">02</div>
+          <h4>Claude reasons</h4>
+          <p>It thinks step-by-step, considers multiple angles, and tells you when it's unsure.</p>
+        </div>
+        <div class="step__connector"></div>
+        <div class="step">
+          <div class="step__num">03</div>
+          <h4>You move forward</h4>
+          <p>Iterate, refine, or export. The conversation builds — every response aware of everything before it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODELS ── -->
+  <section class="models" id="models">
+    <div class="container">
+      <p class="section-eyebrow">Models</p>
+      <h2 class="section-title">The right Claude for every task</h2>
+      <div class="models__grid">
+        <div class="model-card">
+          <div class="model-card__badge">Fastest</div>
+          <h3>Claude Haiku</h3>
+          <p>Lightning-fast responses for simple tasks, summaries, and high-volume workflows.</p>
+          <ul>
+            <li>Instant replies</li>
+            <li>Cost-efficient</li>
+            <li>Great for integrations</li>
+          </ul>
+        </div>
+        <div class="model-card model-card--featured">
+          <div class="model-card__badge">Most Popular</div>
+          <h3>Claude Sonnet</h3>
+          <p>The perfect balance of intelligence and speed. Great for everyday tasks and complex reasoning.</p>
+          <ul>
+            <li>200K context window</li>
+            <li>Advanced reasoning</li>
+            <li>Code &amp; analysis</li>
+          </ul>
+          <a class="btn btn--primary" href="#">Try Sonnet</a>
+        </div>
+        <div class="model-card">
+          <div class="model-card__badge">Most Capable</div>
+          <h3>Claude Opus</h3>
+          <p>Unmatched intelligence for the most demanding research, writing, and reasoning tasks.</p>
+          <ul>
+            <li>Deepest reasoning</li>
+            <li>Complex analysis</li>
+            <li>Long-form writing</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TESTIMONIALS ── -->
+  <section class="testimonials">
+    <div class="container">
+      <p class="section-eyebrow">What people say</p>
+      <h2 class="section-title">People who think with Claude</h2>
+      <div class="testimonials__grid">
+        <blockquote class="testimonial">
+          <p>"Claude changed how I approach hard problems. It doesn't just answer — it helps me think."</p>
+          <footer>— Sarah K., Product Designer</footer>
+        </blockquote>
+        <blockquote class="testimonial">
+          <p>"The coding assistance is unreal. It understands what I'm trying to build, not just the syntax."</p>
+          <footer>— Marcus T., Software Engineer</footer>
+        </blockquote>
+        <blockquote class="testimonial">
+          <p>"I use Claude to prep for every important meeting. It's like having a brilliant research partner on call."</p>
+          <footer>— Priya M., Strategy Consultant</footer>
+        </blockquote>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA BANNER ── -->
+  <section class="cta-banner">
+    <div class="container">
+      <h2>Start thinking with Claude</h2>
+      <p>Free to try. No credit card required.</p>
+      <div class="cta-banner__actions">
+        <a class="btn btn--primary btn--lg" href="#">Try Claude for free</a>
+        <a class="btn btn--outline btn--lg" href="#">Talk to sales</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__top">
+        <div class="footer__brand">
+          <a class="nav__logo" href="#">
+            <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
+              <path d="M20 4C11.163 4 4 11.163 4 20s7.163 16 16 16 16-7.163 16-16S28.837 4 20 4zm0 5.6a10.4 10.4 0 1 1 0 20.8 10.4 10.4 0 0 1 0-20.8z" fill="#D97757"/>
+            </svg>
+            <span>Claude</span>
+          </a>
+          <p>An AI assistant that's safe, beneficial, and honest.</p>
+        </div>
+        <div class="footer__cols">
+          <div class="footer__col">
+            <h5>Product</h5>
+            <a href="#">Overview</a>
+            <a href="#">Models</a>
+            <a href="#">Pricing</a>
+            <a href="#">Enterprise</a>
+          </div>
+          <div class="footer__col">
+            <h5>Developers</h5>
+            <a href="#">API</a>
+            <a href="#">Docs</a>
+            <a href="#">Cookbook</a>
+            <a href="#">Status</a>
+          </div>
+          <div class="footer__col">
+            <h5>Company</h5>
+            <a href="#">About</a>
+            <a href="#">Blog</a>
+            <a href="#">Careers</a>
+            <a href="#">Press</a>
+          </div>
+          <div class="footer__col">
+            <h5>Legal</h5>
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
+            <a href="#">Usage Policy</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p>© 2025 Anthropic. All rights reserved.</p>
+        <div class="footer__social">
+          <a href="#" aria-label="X/Twitter">𝕏</a>
+          <a href="#" aria-label="LinkedIn">in</a>
+          <a href="#" aria-label="GitHub">GH</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
