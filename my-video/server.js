@@ -5,9 +5,6 @@ const { spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
-const { renderMedia, selectComposition } = require('@remotion/renderer');
-const { bundle } = require('@remotion/bundler');
-
 const execAsync = promisify(require('child_process').exec);
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -210,13 +207,20 @@ async function getMp3Duration(filePath) {
 }
 
 // ─── Remotion bundle cache ─────────────────────────────────────────
+// Modules loaded lazily so a missing native binary doesn't crash startup.
 // Bundle is created once on first render and reused. Voice files are
 // written directly into the bundle's served directory so staticFile()
 // can resolve them during rendering.
 let _bundleDir = null;
+let _renderMedia = null;
+let _selectComposition = null;
 
 async function getBundleDir() {
+  if (!_renderMedia) {
+    ({ renderMedia: _renderMedia, selectComposition: _selectComposition } = require('@remotion/renderer'));
+  }
   if (!_bundleDir) {
+    const { bundle } = require('@remotion/bundler');
     console.log('[bundle] Building Remotion bundle…');
     _bundleDir = await bundle({
       entryPoint: path.join(__dirname, 'src/index.ts'),
@@ -287,7 +291,7 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   const videoPath = path.join(outDir, videoName);
 
   console.log(`[${ts}] Selecting composition…`);
-  const composition = await selectComposition({
+  const composition = await _selectComposition({
     serveUrl: bundleDir,
     id: 'QuizVideo',
     inputProps,
@@ -296,7 +300,7 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
 
   console.log(`[${ts}] Rendering video… (format: ${format}, ${composition.width}x${composition.height}, frames: ${totalFrames})`);
   try {
-    await renderMedia({
+    await _renderMedia({
       composition,
       serveUrl: bundleDir,
       codec: 'h264',
