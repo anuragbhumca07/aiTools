@@ -1,13 +1,14 @@
 'use strict';
 
 const express = require('express');
-const { exec } = require('child_process');
 const { spawn } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
+const { renderMedia, selectComposition } = require('@remotion/renderer');
+const { bundle } = require('@remotion/bundler');
 
-const execAsync = promisify(exec);
+const execAsync = promisify(require('child_process').exec);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -208,13 +209,40 @@ async function getMp3Duration(filePath) {
   return parseFloat(stdout.trim());
 }
 
+// ─── Remotion bundle cache ─────────────────────────────────────────
+// Bundle is created once on first render and reused. Voice files are
+// written directly into the bundle's served directory so staticFile()
+// can resolve them during rendering.
+let _bundleDir = null;
+
+async function getBundleDir() {
+  if (!_bundleDir) {
+    console.log('[bundle] Building Remotion bundle…');
+    _bundleDir = await bundle({
+      entryPoint: path.join(__dirname, 'src/index.ts'),
+    });
+    fs.mkdirSync(path.join(_bundleDir, 'voice'), { recursive: true });
+    console.log('[bundle] Ready at', _bundleDir);
+  }
+  return _bundleDir;
+}
+
+const CHROMIUM_OPTIONS = {
+  enableMultiProcessOnLinux: false,   // single-process → far fewer threads
+  headless: true,
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-setuid-sandbox'],
+};
+
 // ─── Core: generate a video ────────────────────────────────────────
 async function generateVideo(question, options, correctIndex, format = '16:9') {
   const ts = getTimestamp();
-  const voiceDir = path.join(__dirname, 'public', 'voice');
-  const outDir   = path.join(__dirname, 'out');
+  const outDir = path.join(__dirname, 'out');
+  fs.mkdirSync(outDir, { recursive: true });
+
+  // Ensure bundle is ready; voice files go into bundle dir so staticFile() resolves them
+  const bundleDir = await getBundleDir();
+  const voiceDir = path.join(bundleDir, 'voice');
   fs.mkdirSync(voiceDir, { recursive: true });
-  fs.mkdirSync(outDir,   { recursive: true });
 
   const qAbs = path.join(voiceDir, `q_${ts}.mp3`);
   const oAbs = path.join(voiceDir, `o_${ts}.mp3`);
@@ -236,40 +264,53 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
     getMp3Duration(aAbs),
   ]);
 
-  const props = {
+  const inputProps = {
     question,
     options,
     correctIndex,
     format,
-    questionVoice:  `voice/q_${ts}.mp3`,
-    optionsVoice:   `voice/o_${ts}.mp3`,
-    answerVoice:    `voice/a_${ts}.mp3`,
+    questionVoice:   `voice/q_${ts}.mp3`,
+    optionsVoice:    `voice/o_${ts}.mp3`,
+    answerVoice:     `voice/a_${ts}.mp3`,
     questionSeconds: Math.ceil(qDur) + 1,
     optionsSeconds:  Math.ceil(oDur) + 1,
-    timerSeconds: 5,
+    timerSeconds:    5,
     answerSeconds:   Math.ceil(aDur) + 2,
   };
 
-  const propsFile = path.join(__dirname, `_props_${ts}.json`);
-  fs.writeFileSync(propsFile, JSON.stringify(props));
+  const totalFrames = (
+    inputProps.questionSeconds + inputProps.optionsSeconds +
+    inputProps.timerSeconds   + inputProps.answerSeconds
+  ) * 30;
 
   const videoName = `quiz_${ts}.mp4`;
-  const videoPath = path.join(outDir, videoName).replace(/\\/g, '/');
-  const propsPath = propsFile.replace(/\\/g, '/');
+  const videoPath = path.join(outDir, videoName);
 
-  const portrait = format === '9:16';
-  const vidW = portrait ? 540 : 1280;
-  const vidH = portrait ? 960 : 720;
-  const totalFrames = (props.questionSeconds + props.optionsSeconds + props.timerSeconds + props.answerSeconds) * 30;
+  console.log(`[${ts}] Selecting composition…`);
+  const composition = await selectComposition({
+    serveUrl: bundleDir,
+    id: 'QuizVideo',
+    inputProps,
+    chromiumOptions: CHROMIUM_OPTIONS,
+  });
 
-  console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH}, frames: ${totalFrames})`);
+  console.log(`[${ts}] Rendering video… (format: ${format}, ${composition.width}x${composition.height}, frames: ${totalFrames})`);
   try {
-    await execAsync(
-      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --frames=0-${totalFrames - 1} --concurrency=1 --chromium-flags="--no-sandbox --disable-dev-shm-usage --disable-setuid-sandbox --single-process"`,
-      { cwd: __dirname, timeout: 600000 }
-    );
+    await renderMedia({
+      composition,
+      serveUrl: bundleDir,
+      codec: 'h264',
+      outputLocation: videoPath,
+      inputProps,
+      concurrency: 1,
+      frameRange: [0, totalFrames - 1],
+      chromiumOptions: CHROMIUM_OPTIONS,
+    });
   } finally {
-    try { fs.unlinkSync(propsFile); } catch {}
+    // Clean up per-render voice files from bundle dir
+    for (const f of [qAbs, oAbs, aAbs]) {
+      try { fs.unlinkSync(f); } catch {}
+    }
   }
 
   console.log(`[${ts}] Done → out/${videoName}`);
