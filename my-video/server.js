@@ -265,7 +265,7 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   console.log(`[${ts}] Rendering video… (format: ${format}, ${vidW}x${vidH}, frames: ${totalFrames})`);
   try {
     await execAsync(
-      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --frames=0-${totalFrames - 1}`,
+      `npx remotion render QuizVideo "${videoPath}" --props="${propsPath}" --width=${vidW} --height=${vidH} --frames=0-${totalFrames - 1} --concurrency=1 --chromium-flags="--no-sandbox --disable-dev-shm-usage --disable-setuid-sandbox --single-process"`,
       { cwd: __dirname, timeout: 600000 }
     );
   } finally {
