@@ -225,7 +225,7 @@ async function getBundleDir() {
     _bundleDir = await bundle({
       entryPoint: path.join(__dirname, 'src/index.ts'),
     });
-    fs.mkdirSync(path.join(_bundleDir, 'voice'), { recursive: true });
+    fs.mkdirSync(path.join(_bundleDir, 'public', 'voice'), { recursive: true });
     console.log('[bundle] Ready at', _bundleDir);
   }
   return _bundleDir;
@@ -243,9 +243,9 @@ async function generateVideo(question, options, correctIndex, format = '16:9') {
   const outDir = path.join(__dirname, 'out');
   fs.mkdirSync(outDir, { recursive: true });
 
-  // Ensure bundle is ready; voice files go into bundle dir so staticFile() resolves them
+  // Ensure bundle is ready; voice files go into bundle's public/ dir so staticFile() resolves them
   const bundleDir = await getBundleDir();
-  const voiceDir = path.join(bundleDir, 'voice');
+  const voiceDir = path.join(bundleDir, 'public', 'voice');
   fs.mkdirSync(voiceDir, { recursive: true });
 
   const qAbs = path.join(voiceDir, `q_${ts}.mp3`);
