@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, 'web')));
 app.use('/videos', express.static(path.join(__dirname, 'out')));
 
 // Health check for UptimeRobot / Railway
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', renderer: 'programmatic-v2' }));
 
 // ─── Question Bank ─────────────────────────────────────────────────
 const QUESTION_BANK = {
