@@ -11,11 +11,13 @@ const cronParser = require('cron-parser');
 const { google } = require('googleapis');
 const { TwitterApi } = require('twitter-api-v2');
 const FormData   = require('form-data');
+const multer     = require('multer');
 
 const app  = express();
 const PORT = process.env.PORT || 3003;
 
 const QUIZ_API            = process.env.QUIZ_API_URL       || 'https://quiz-video-generator-production.up.railway.app';
+const BHAKTI_API          = process.env.BHAKTI_API_URL     || 'https://ai-bhakti-production.up.railway.app';
 const BASE_URL            = process.env.BASE_URL            || 'https://quiz-scheduler-production.up.railway.app';
 const SUPABASE_URL        = process.env.SUPABASE_URL        || 'https://dhdzftmlrkuwcsgmgihe.supabase.co';
 const SUPABASE_ANON       = process.env.SUPABASE_ANON_KEY   || 'sb_publishable_9Ns_telLHzlI-qwxJ_-XbQ_u_9Sab3J';
@@ -94,6 +96,16 @@ db.exec(`
 try { db.exec('ALTER TABLE schedules ADD COLUMN start_date TEXT'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN question_list TEXT'); } catch {}
 try { db.exec('ALTER TABLE schedules ADD COLUMN question_index INTEGER NOT NULL DEFAULT 0'); } catch {}
+try { db.exec("ALTER TABLE schedules ADD COLUMN video_type TEXT NOT NULL DEFAULT 'quiz'"); } catch {}
+try { db.exec('ALTER TABLE schedules ADD COLUMN story_text TEXT'); } catch {}
+try { db.exec('ALTER TABLE schedules ADD COLUMN story_index INTEGER NOT NULL DEFAULT 0'); } catch {}
+
+// Directory for Bhakti schedule images
+const BHAKTI_IMG_DIR = path.join(DATA_DIR, 'bhakti_images');
+try { fs.mkdirSync(BHAKTI_IMG_DIR, { recursive: true }); } catch {}
+
+// Multer for Bhakti image uploads (stored in BHAKTI_IMG_DIR temporarily)
+const imgUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function verifyJWT(token) {
@@ -336,9 +348,35 @@ async function runSchedule(scheduleId) {
   const jobId = db.prepare(`INSERT INTO jobs (schedule_id,user_id,status) VALUES (?,?,'running')`).run(s.id, s.user_id).lastInsertRowid;
   console.log(`[CRON] #${s.id} "${s.name}" → job #${jobId}`);
   try {
-    let videoUrl, question, options, correctIndex;
+    let videoUrl, question, options = [], correctIndex = 0;
 
-    if (s.question_list) {
+    if (s.video_type === 'bhakti') {
+      // ── Bhakti mode: cycle through stories and send to Bhakti API ──
+      const allStories = (s.story_text || '').split(/\n\s*---\s*\n/).map(t => t.trim()).filter(Boolean);
+      if (!allStories.length) throw new Error('No stories in Bhakti schedule — edit and add story text');
+      const idx   = (s.story_index || 0) % allStories.length;
+      const story = allStories[idx];
+      console.log(`[CRON] Bhakti story ${idx + 1}/${allStories.length}: "${story.slice(0, 60)}"`);
+
+      // Load images from disk
+      const imgDir   = path.join(BHAKTI_IMG_DIR, String(s.id));
+      let imageFiles = [];
+      try { imageFiles = fs.readdirSync(imgDir).filter(f => /\.(jpg|jpeg|png|webp|bmp)$/i.test(f)).sort().map(f => path.join(imgDir, f)); } catch {}
+      if (!imageFiles.length) throw new Error('No images uploaded for this Bhakti schedule. Click ✏️ to edit and upload images.');
+
+      // Build multipart form and call Bhakti API
+      const form = new FormData();
+      form.append('stories', story);
+      form.append('format', s.format || '16:9');
+      for (const imgPath of imageFiles) form.append('images', fs.createReadStream(imgPath), path.basename(imgPath));
+      const resp = await axios.post(`${BHAKTI_API}/api/generate`, form, { headers: form.getHeaders(), timeout: 300000 });
+      if (!resp.data.videos?.length) throw new Error('Bhakti API returned no videos');
+
+      videoUrl = `${BHAKTI_API}${resp.data.videos[0].url}`;
+      question = story.slice(0, 200);   // use story text as post caption
+      db.prepare('UPDATE schedules SET story_index=? WHERE id=?').run((idx + 1) % allStories.length, s.id);
+
+    } else if (s.question_list) {
       // Custom question list mode — cycle through questions in order
       let questions;
       try { questions = JSON.parse(s.question_list); } catch { throw new Error('Invalid question list — re-save the schedule'); }
@@ -351,7 +389,6 @@ async function runSchedule(scheduleId) {
         { timeout: 300000 });
       if (!resp.data.success) throw new Error(resp.data.error || 'Video generation failed');
       ({ videoUrl, question, options, correctIndex } = resp.data);
-      // Advance index (wraps back to 0 after last question)
       db.prepare('UPDATE schedules SET question_index=? WHERE id=?').run((idx + 1) % questions.length, s.id);
     } else {
       // Random mode — pick from category/subcategory
@@ -362,8 +399,8 @@ async function runSchedule(scheduleId) {
       ({ videoUrl, question, options, correctIndex } = resp.data);
     }
 
-    // Ensure videoUrl is absolute (guard against missing BACKEND_URL in quiz-video service)
-    if (videoUrl && !videoUrl.startsWith('http')) videoUrl = `${QUIZ_API}${videoUrl}`;
+    // Ensure videoUrl is absolute
+    if (videoUrl && !videoUrl.startsWith('http')) videoUrl = `${s.video_type==='bhakti'?BHAKTI_API:QUIZ_API}${videoUrl}`;
     db.prepare(`UPDATE jobs SET status='done',video_url=?,question=?,options=?,correct_idx=? WHERE id=?`)
       .run(videoUrl, question, JSON.stringify(options||[]), correctIndex??0, jobId);
     db.prepare(`UPDATE schedules SET last_run=datetime('now'),next_run=?,total_runs=total_runs+1 WHERE id=?`).run(nextRun(s.cron_expr), s.id);
@@ -518,7 +555,19 @@ function fmtSched(r) {
   if (r.question_list) {
     try { question_list = JSON.parse(r.question_list); question_count = question_list.length; } catch {}
   }
-  return { ...r, platforms: JSON.parse(r.platforms||'[]'), freq_label: FREQ_LABELS[r.freq_type]||r.freq_type, question_count, question_list };
+  let story_count = 0;
+  if (r.story_text) {
+    story_count = r.story_text.split(/\n\s*---\s*\n/).filter(s => s.trim()).length;
+  }
+  // Count images for Bhakti schedules
+  let image_count = 0;
+  if (r.video_type === 'bhakti') {
+    try {
+      const imgDir = path.join(BHAKTI_IMG_DIR, String(r.id));
+      image_count = fs.readdirSync(imgDir).filter(f => /\.(jpg|jpeg|png|webp|bmp)$/i.test(f)).length;
+    } catch {}
+  }
+  return { ...r, platforms: JSON.parse(r.platforms||'[]'), freq_label: FREQ_LABELS[r.freq_type]||r.freq_type, question_count, question_list, story_count, image_count };
 }
 
 app.get('/api/schedules', authMiddleware, (_, res) => {
@@ -527,14 +576,16 @@ app.get('/api/schedules', authMiddleware, (_, res) => {
 
 app.post('/api/schedules', authMiddleware, (req, res) => {
   const uid = req.user.id;
-  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list=null } = req.body||{};
-  if (!name||!category||!subcategory||!freq_type) return res.status(400).json({ success:false, error:'name, category, subcategory, freq_type required' });
+  const { name, category='', subcategory='', format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list=null, video_type='quiz', story_text=null } = req.body||{};
+  if (!name||!freq_type) return res.status(400).json({ success:false, error:'name and freq_type required' });
+  if (video_type==='quiz' && (!category||!subcategory)) return res.status(400).json({ success:false, error:'category and subcategory required for quiz schedules' });
+  if (video_type==='bhakti' && !story_text?.trim()) return res.status(400).json({ success:false, error:'story_text required for bhakti schedules' });
   const expr = buildCronExpr(freq_type, freq_value, run_time, run_day);
   if (!cron.validate(expr)) return res.status(400).json({ success:false, error:'Invalid schedule' });
   const nr = nextRun(expr);
   const ql = Array.isArray(question_list) && question_list.length ? JSON.stringify(question_list) : null;
-  const id = db.prepare(`INSERT INTO schedules (user_id,name,category,subcategory,format,freq_type,freq_value,run_time,run_day,cron_expr,platforms,next_run,start_date,question_list) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(uid,name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql).lastInsertRowid;
+  const id = db.prepare(`INSERT INTO schedules (user_id,name,category,subcategory,format,freq_type,freq_value,run_time,run_day,cron_expr,platforms,next_run,start_date,question_list,video_type,story_text) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(uid,name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql,video_type,story_text?.trim()||null).lastInsertRowid;
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(id);
   startCron(s);
   res.json({ success:true, schedule: fmtSched(s) });
@@ -543,18 +594,16 @@ app.post('/api/schedules', authMiddleware, (req, res) => {
 app.put('/api/schedules/:id', authMiddleware, (req, res) => {
   const { id } = req.params; const uid = req.user.id;
   if (!db.prepare('SELECT id FROM schedules WHERE id=? AND user_id=?').get(+id, uid)) return res.status(404).json({ success:false, error:'Not found' });
-  const { name, category, subcategory, format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list } = req.body||{};
+  const { name, category='', subcategory='', format='16:9', freq_type, freq_value, run_time='09:00', run_day=1, platforms=[], start_date=null, question_list, video_type='quiz', story_text } = req.body||{};
   const expr = buildCronExpr(freq_type, freq_value, run_time, run_day);
   const nr = nextRun(expr);
   if (question_list !== undefined) {
-    // question_list was explicitly sent — update it and reset the index to 0
     const ql = Array.isArray(question_list) && question_list.length ? JSON.stringify(question_list) : null;
-    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=?,question_list=?,question_index=0 WHERE id=? AND user_id=?`)
-      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql,+id,uid);
+    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=?,question_list=?,question_index=0,video_type=?,story_text=? WHERE id=? AND user_id=?`)
+      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,ql,video_type,story_text?.trim()||null,+id,uid);
   } else {
-    // question_list not sent — preserve existing list and index
-    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=? WHERE id=? AND user_id=?`)
-      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,+id,uid);
+    db.prepare(`UPDATE schedules SET name=?,category=?,subcategory=?,format=?,freq_type=?,freq_value=?,run_time=?,run_day=?,cron_expr=?,platforms=?,next_run=?,start_date=?,video_type=?,story_text=? WHERE id=? AND user_id=?`)
+      .run(name.trim(),category,subcategory,format,freq_type,freq_value||null,run_time,+run_day,expr,JSON.stringify(platforms),nr,start_date||null,video_type,story_text?.trim()||null,+id,uid);
   }
   const s = db.prepare('SELECT * FROM schedules WHERE id=?').get(+id);
   startCron(s);
@@ -576,6 +625,33 @@ app.delete('/api/schedules/:id', authMiddleware, (req, res) => {
   stopCron(uid, +req.params.id);
   db.prepare('DELETE FROM schedules WHERE id=? AND user_id=?').run(+req.params.id, uid);
   res.json({ success:true });
+});
+
+// ── Bhakti image management ───────────────────────────────────────────────────
+app.post('/api/schedules/:id/images', authMiddleware, imgUpload.array('images', 20), (req, res) => {
+  const s = db.prepare('SELECT id,video_type FROM schedules WHERE id=? AND user_id=?').get(+req.params.id, req.user.id);
+  if (!s) return res.status(404).json({ success:false, error:'Not found' });
+  const imgDir = path.join(BHAKTI_IMG_DIR, String(s.id));
+  fs.mkdirSync(imgDir, { recursive: true });
+  // Remove existing images
+  try { fs.readdirSync(imgDir).forEach(f => fs.unlinkSync(path.join(imgDir, f))); } catch {}
+  const EXT_MAP = { 'image/jpeg':'.jpg','image/png':'.png','image/webp':'.webp','image/gif':'.gif','image/bmp':'.bmp' };
+  let saved = 0;
+  for (let i = 0; i < (req.files||[]).length; i++) {
+    const f = req.files[i];
+    const ext = EXT_MAP[f.mimetype] || path.extname(f.originalname) || '.jpg';
+    fs.renameSync(f.path, path.join(imgDir, `img_${String(i).padStart(3,'0')}${ext}`));
+    saved++;
+  }
+  res.json({ success:true, count: saved });
+});
+
+app.get('/api/schedules/:id/images/count', authMiddleware, (req, res) => {
+  if (!db.prepare('SELECT id FROM schedules WHERE id=? AND user_id=?').get(+req.params.id, req.user.id))
+    return res.status(404).json({ success:false, error:'Not found' });
+  let count = 0;
+  try { count = fs.readdirSync(path.join(BHAKTI_IMG_DIR, req.params.id)).filter(f => /\.(jpg|jpeg|png|webp|bmp)$/i.test(f)).length; } catch {}
+  res.json({ success:true, count });
 });
 
 app.post('/api/schedules/:id/run', authMiddleware, (req, res) => {

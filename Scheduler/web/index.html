@@ -226,6 +226,19 @@ a.hl:hover{text-decoration:underline}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
   header{padding:11px 13px}
 }
+
+/* ── Error tooltip ── */
+[data-tip]{position:relative;cursor:help}
+[data-tip]::after{
+  content:attr(data-tip);
+  position:absolute;bottom:calc(100% + 6px);left:0;
+  background:#12122a;border:1px solid rgba(239,68,68,.4);border-radius:8px;
+  color:var(--text);font-size:.67rem;line-height:1.6;
+  padding:7px 10px;white-space:pre-wrap;min-width:180px;max-width:300px;
+  pointer-events:none;opacity:0;transition:opacity .12s;z-index:500;
+  word-break:break-word;box-shadow:0 4px 18px rgba(0,0,0,.6);
+}
+[data-tip]:hover::after{opacity:1}
 </style>
 </head>
 <body>
@@ -325,9 +338,44 @@ a.hl:hover{text-decoration:underline}
     <button class="mc" onclick="closeModal('sched-modal')">✕</button>
     <div class="modal-title" id="sm-title">📅 New Schedule</div>
     <div class="form-grid">
-      <div class="fg full"><label>Schedule Name</label><input id="f-name" type="text" placeholder="e.g. Daily Maths Quiz"/></div>
-      <div class="fg"><label>Category</label><select id="f-cat" onchange="loadSubs()"><option value="">— Select —</option></select></div>
-      <div class="fg"><label>Subcategory</label><select id="f-sub"><option value="">— Pick Category —</option></select></div>
+      <div class="fg full"><label>Schedule Name</label><input id="f-name" type="text" placeholder="e.g. Daily Bhakti Story"/></div>
+
+      <!-- Video Type toggle -->
+      <div class="fg full"><label>Video Type</label>
+        <div class="fmt-row">
+          <button class="fmt-btn on" id="vtype-quiz"   onclick="setVideoType('quiz')">🎯 Quiz Video</button>
+          <button class="fmt-btn"    id="vtype-bhakti" onclick="setVideoType('bhakti')">🕉 Bhakti Video</button>
+        </div>
+      </div>
+
+      <!-- Quiz-specific fields -->
+      <div id="quiz-fields" style="display:contents">
+        <div class="fg"><label>Category</label><select id="f-cat" onchange="loadSubs()"><option value="">— Select —</option></select></div>
+        <div class="fg"><label>Subcategory</label><select id="f-sub"><option value="">— Pick Category —</option></select></div>
+      </div>
+
+      <!-- Bhakti-specific fields -->
+      <div class="fg full" id="bhakti-fields" style="display:none">
+        <label>Story Text <span style="color:var(--muted);font-weight:400;font-size:.74rem">(separate multiple stories with --- on its own line)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="file" id="f-story-file" accept=".txt" onchange="onStoryFileChange()" style="display:none"/>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-story-file').click()">📂 Browse .txt File</button>
+          <span id="story-file-status" style="font-size:.78rem;color:var(--muted)">No file selected</span>
+        </div>
+        <textarea id="f-story-text" rows="6" spellcheck="false"
+          placeholder="Lord Krishna played his flute in Vrindavan...&#10;&#10;---&#10;&#10;Hanuman crossed the ocean with Ram's name in his heart..."
+          style="font-size:.8rem;font-family:inherit;resize:vertical;margin-bottom:10px"
+          oninput="onStoryTextChange()"></textarea>
+        <div id="story-count-hint" class="hint" style="margin-bottom:12px"></div>
+        <label>Slideshow Images <span style="color:var(--muted);font-weight:400;font-size:.74rem">(uploaded after saving — up to 20 images per schedule)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;margin:6px 0 4px">
+          <input type="file" id="f-bhakti-imgs" accept="image/*" multiple style="display:none" onchange="onBhaktiImgChange()"/>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-bhakti-imgs').click()">🖼 Select Images</button>
+          <span id="bhakti-img-status" style="font-size:.78rem;color:var(--muted)">No images selected</span>
+        </div>
+        <div id="bhakti-img-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      </div>
+
       <div class="fg full"><label>Video Format</label>
         <div class="fmt-row">
           <button class="fmt-btn on" id="fmt169" onclick="setFmt('16:9')">📺 16:9 Landscape</button>
@@ -357,22 +405,24 @@ a.hl:hover{text-decoration:underline}
         <label>Start Date <span style="color:var(--muted);font-weight:400;font-size:.74rem">(optional — leave blank to start immediately)</span></label>
         <input id="f-start-date" type="date"/>
       </div>
-      <div class="fg full">
-        <label>Question Source</label>
-        <div class="qs-row">
-          <label class="qs-opt"><input type="radio" name="q-source" value="random" checked onchange="onQSource()"/> 🎲 Random (from category)</label>
-          <label class="qs-opt"><input type="radio" name="q-source" value="custom" onchange="onQSource()"/> 📄 From File</label>
+      <div id="quiz-source-fields">
+        <div class="fg full">
+          <label>Question Source</label>
+          <div class="qs-row">
+            <label class="qs-opt"><input type="radio" name="q-source" value="random" checked onchange="onQSource()"/> 🎲 Random (from category)</label>
+            <label class="qs-opt"><input type="radio" name="q-source" value="custom" onchange="onQSource()"/> 📄 From File</label>
+          </div>
         </div>
-      </div>
-      <div class="fg full" id="ql-grp" style="display:none">
-        <label>Question List <span style="color:var(--muted);font-weight:400;font-size:.74rem">(.txt file or paste directly)</span></label>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <input type="file" id="f-qfile" accept=".txt" onchange="onQFileChange()" style="display:none"/>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-qfile').click()">📂 Browse .txt File</button>
-          <span id="ql-status" style="font-size:.78rem;color:var(--muted)">No file selected</span>
+        <div class="fg full" id="ql-grp" style="display:none">
+          <label>Question List <span style="color:var(--muted);font-weight:400;font-size:.74rem">(.txt file or paste directly)</span></label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <input type="file" id="f-qfile" accept=".txt" onchange="onQFileChange()" style="display:none"/>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-qfile').click()">📂 Browse .txt File</button>
+            <span id="ql-status" style="font-size:.78rem;color:var(--muted)">No file selected</span>
+          </div>
+          <textarea id="f-qtext" rows="7" spellcheck="false" placeholder="Paste questions here…" style="font-size:.74rem;font-family:monospace;resize:vertical" oninput="onQTextChange()"></textarea>
+          <span class="hint">Format per question (blank line between each):<br><code style="color:var(--accent)">Q: Question text<br>A: Option 1 &nbsp; B: Option 2 &nbsp; C: Option 3 &nbsp; D: Option 4<br>Answer: B</code></span>
         </div>
-        <textarea id="f-qtext" rows="7" spellcheck="false" placeholder="Paste questions here…" style="font-size:.74rem;font-family:monospace;resize:vertical" oninput="onQTextChange()"></textarea>
-        <span class="hint">Format per question (blank line between each):<br><code style="color:var(--accent)">Q: Question text<br>A: Option 1 &nbsp; B: Option 2 &nbsp; C: Option 3 &nbsp; D: Option 4<br>Answer: B</code></span>
       </div>
       <div class="fg full"><label>Post to Platforms</label><div class="pl-grid" id="plat-grid"></div></div>
     </div>
@@ -417,6 +467,8 @@ let categories = {};
 let configuredCreds  = {};
 let savedCredValues  = {};  // actual field values loaded from Supabase
 let selectedFmt = '16:9';
+let selectedVideoType = 'quiz';
+let bhaktiImageFiles = [];
 let editingId = null;
 
 const PI = {'YouTube Shorts':'▶️','Instagram Reels':'📸','TikTok':'🎵','X (Twitter)':'𝕏','Facebook':'👥','LinkedIn':'💼'};
@@ -702,19 +754,24 @@ async function loadSchedules() {
 }
 
 function renderCard(s) {
-  const color = CAT_COLORS[s.category] || '#f59e0b';
-  const pls   = s.platforms || [];
+  const isBhakti = s.video_type === 'bhakti';
+  const color    = isBhakti ? '#c084fc' : (CAT_COLORS[s.category] || '#f59e0b');
+  const pls      = s.platforms || [];
+  const subLine  = isBhakti
+    ? `🕉 Bhakti · ${s.story_count||0} stor${(s.story_count||0)!==1?'ies':'y'} · ${s.image_count||0} img${(s.image_count||0)!==1?'s':''}`
+    : `${esc(s.category)} › ${esc(s.subcategory)}`;
   return `<div class="sc ${s.active?'':'paused'}" id="sc-${s.id}">
     <div class="sc-top-bar" style="background:${color}"></div>
     <div class="sc-top">
-      <div><div class="sc-title">${esc(s.name)}</div><div class="sc-sub">${esc(s.category)} › ${esc(s.subcategory)}</div></div>
+      <div><div class="sc-title">${esc(s.name)}</div><div class="sc-sub">${subLine}</div></div>
       <label class="toggle"><input type="checkbox" ${s.active?'checked':''} onchange="toggleSched(${s.id},this)"/>
         <div class="toggle-track"></div><div class="toggle-thumb"></div></label>
     </div>
     <div class="badges">
       <span class="badge b-freq">🔁 ${s.freq_label}</span>
       <span class="badge b-fmt">${s.format==='9:16'?'📱':'📺'} ${s.format}</span>
-      ${s.question_count?`<span class="badge" style="background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.2)" title="Custom question list — cycling through ${s.question_count} questions">📄 ${s.question_index||0}/${s.question_count} questions</span>`:''}
+      ${isBhakti?`<span class="badge" style="background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.3)">🕉 Bhakti · story ${(s.story_index||0)+1}/${s.story_count||1}</span>`:''}
+      ${!isBhakti&&s.question_count?`<span class="badge" style="background:rgba(139,92,246,.15);color:var(--purple);border:1px solid rgba(139,92,246,.2)" title="Cycling through ${s.question_count} questions">📄 ${s.question_index||0}/${s.question_count} questions</span>`:''}
       ${s.start_date?`<span class="badge" style="background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.2)">📅 from ${s.start_date}</span>`:''}
       ${!s.active?'<span class="badge b-pause">⏸ Paused</span>':''}
     </div>
@@ -749,16 +806,18 @@ async function loadActivity() {
       const postLine = posted  ? `<span style="color:var(--green)">📤 ${posted} posted</span>` : '';
       const skipLine = skipped ? `<span style="color:var(--muted)" title="No credentials for these platforms — save credentials in 🔑">🔒 ${skipped} skipped (no creds)</span>` : '';
       const erroredPosts = allPosts.filter(p=>p.status==='error');
-      const errTip = erroredPosts.map(p=>`${p.platform}: ${p.error||'Unknown error'}`).join('\n');
-      const errLine  = erroredPosts.length ? `<span style="color:var(--red)" title="${esc(errTip)}">⚠️ ${erroredPosts.length} failed</span>` : '';
+      const errTip = 'Step: Platform Posting\n' + erroredPosts.map(p=>`${p.platform}: ${p.error||'Unknown error'}`).join('\n');
+      const errLine  = erroredPosts.length ? `<span style="color:var(--red)" data-tip="${esc(errTip)}">⚠️ ${erroredPosts.length} failed</span>` : '';
       const noPlatLine = j.status==='done'&&!allPosts.length ? `<span style="color:var(--accent)" title="Schedule has no platforms — click ✏️ to edit">⚠️ No platforms set</span>` : '';
       const postSummary = [postLine,skipLine,errLine,noPlatLine].filter(Boolean).join(' · ');
-      const jobErrText = j.status==='error' ? (j.error ? esc(j.error.slice(0,80)) : 'Error') : '(error)';
+      const jobFullErr = j.error||'Unknown error';
+      const jobErrText = j.status==='error' ? (j.error ? esc(j.error.slice(0,60))+'…' : 'Error') : '(error)';
+      const jobErrTip = esc('Step: Video Generation\n' + jobFullErr);
       return `<div class="act-row">
         <div class="adot ${j.status}"></div>
         <div><div style="font-size:.79rem">${esc(j.sname||'')}</div>
           <div class="aname">${j.question?esc(j.question.slice(0,55))+'…':j.status==='running'?'Generating…':jobErrText}</div>
-          ${j.status==='error'&&j.error?`<div style="font-size:.66rem;margin-top:2px;color:var(--red);word-break:break-word">⚠️ ${esc(j.error.slice(0,120))}</div>`:''}
+          ${j.status==='error'&&j.error?`<div style="font-size:.66rem;margin-top:2px;color:var(--red);word-break:break-word" data-tip="${jobErrTip}">⚠️ ${esc(j.error.slice(0,80))}${j.error.length>80?'…':''}</div>`:''}
           ${postSummary?`<div style="font-size:.66rem;margin-top:2px">${postSummary}</div>`:''}
         </div>
         <div>${j.video_url?`<a href="${j.video_url}" target="_blank" class="btn btn-ghost btn-sm">▶</a>`:j.status==='running'?'<span class="spinner"></span>':''}</div>
@@ -817,7 +876,7 @@ async function showHistory(id, name) {
     }).join('');
     return `<div class="hi ${j.status}">
       <div class="hi-top"><span class="h-st st-${j.status}">${j.status.toUpperCase()}</span><span style="font-size:.68rem;color:var(--muted)">${fmtDate(j.created_at)}</span></div>
-      ${j.question?`<div class="hi-q">❓ ${esc(j.question)}</div>`:''}
+      ${j.question?`<div class="hi-q">${j.question.length>80?'📖':'❓'} ${esc(j.question.slice(0,120))}${j.question.length>120?'…':''}</div>`:''}
       ${posts?`<div class="posts">${posts}</div>`:''}
       ${j.error?`<div class="hi-err">⚠️ ${esc(j.error)}</div>`:''}
       <div class="hi-acts">
@@ -843,12 +902,16 @@ function openCreate() {
   editingId=null; document.getElementById('sm-title').textContent='📅 New Schedule';
   document.getElementById('f-name').value=''; document.getElementById('f-cat').value='';
   document.getElementById('f-sub').innerHTML='<option>— Pick Category —</option>';
-  setFmt('16:9'); document.getElementById('f-freq').value='daily';
+  setFmt('16:9'); setVideoType('quiz');
+  document.getElementById('f-freq').value='daily';
   document.getElementById('f-time').value='09:00'; document.getElementById('f-day').value=1;
   document.getElementById('f-cron').value=''; document.getElementById('f-start-date').value='';
   document.querySelector('input[name="q-source"][value="random"]').checked=true;
   document.getElementById('f-qtext').value=''; document.getElementById('ql-status').textContent='No file selected';
   document.getElementById('ql-status').style.color=''; parsedQuestions=null;
+  document.getElementById('f-story-text').value=''; onStoryTextChange();
+  bhaktiImageFiles=[]; document.getElementById('bhakti-img-status').textContent='No images selected';
+  document.getElementById('bhakti-img-preview').innerHTML='';
   onFreq(); onQSource(); buildPlatGrid();
   openOv('sched-modal');
 }
@@ -861,7 +924,17 @@ async function openEdit(id) {
   document.getElementById('f-name').value=s.name;
   document.getElementById('f-cat').value=s.category; loadSubs();
   setTimeout(()=>document.getElementById('f-sub').value=s.subcategory, 60);
-  setFmt(s.format); document.getElementById('f-freq').value=s.freq_type;
+  setFmt(s.format); setVideoType(s.video_type||'quiz');
+  document.getElementById('f-story-text').value=s.story_text||''; onStoryTextChange();
+  // Image count hint
+  if (s.video_type==='bhakti') {
+    const imgStatus = document.getElementById('bhakti-img-status');
+    imgStatus.textContent = s.image_count ? `${s.image_count} image${s.image_count>1?'s':''} on server` : 'No images uploaded yet';
+    imgStatus.style.color = s.image_count ? 'var(--green)' : '';
+    bhaktiImageFiles = [];
+    document.getElementById('bhakti-img-preview').innerHTML = '';
+  }
+  document.getElementById('f-freq').value=s.freq_type;
   document.getElementById('f-time').value=s.run_time||'09:00';
   document.getElementById('f-day').value=s.run_day||1;
   document.getElementById('f-cron').value=s.freq_type==='custom'?s.cron_expr:'';
@@ -884,25 +957,59 @@ async function openEdit(id) {
 }
 
 async function saveSched() {
-  const name=document.getElementById('f-name').value.trim();
-  const cat=document.getElementById('f-cat').value;
-  const sub=document.getElementById('f-sub').value;
+  const name = document.getElementById('f-name').value.trim();
   if (!name) return toast('Enter a name','err');
-  if (!cat)  return toast('Select category','err');
-  if (!sub)  return toast('Select subcategory','err');
-  const useCustom=document.querySelector('input[name="q-source"]:checked')?.value==='custom';
+
+  const isBhakti = selectedVideoType === 'bhakti';
+  const cat = isBhakti ? '' : document.getElementById('f-cat').value;
+  const sub = isBhakti ? '' : document.getElementById('f-sub').value;
+  if (!isBhakti && !cat) return toast('Select category','err');
+  if (!isBhakti && !sub) return toast('Select subcategory','err');
+
+  const storyText = document.getElementById('f-story-text').value.trim();
+  if (isBhakti && !storyText) return toast('Enter story text for Bhakti schedule','err');
+
+  const useCustom = !isBhakti && document.querySelector('input[name="q-source"]:checked')?.value==='custom';
   if (useCustom && (!parsedQuestions||!parsedQuestions.length)) return toast('Upload or paste at least one valid question','err');
-  const body={name,category:cat,subcategory:sub,format:selectedFmt,
-    freq_type:document.getElementById('f-freq').value,
-    freq_value:document.getElementById('f-cron').value.trim(),
-    run_time:document.getElementById('f-time').value,
-    run_day:+document.getElementById('f-day').value,
-    start_date:document.getElementById('f-start-date').value||null,
-    question_list:useCustom?parsedQuestions:null,
-    platforms:[...document.querySelectorAll('input[name="plat"]:checked')].map(c=>c.value)};
-  const r=await(await api(editingId?`/api/schedules/${editingId}`:'/api/schedules',{method:editingId?'PUT':'POST',body:JSON.stringify(body)})).json();
-  if(r.success){toast(editingId?'Updated!':'Created!','ok');closeModal('sched-modal');loadAll();}
-  else toast(r.error||'Failed','err');
+
+  const body = {
+    name, category: cat, subcategory: sub, format: selectedFmt,
+    video_type: selectedVideoType,
+    story_text: isBhakti ? storyText : null,
+    freq_type: document.getElementById('f-freq').value,
+    freq_value: document.getElementById('f-cron').value.trim(),
+    run_time: document.getElementById('f-time').value,
+    run_day: +document.getElementById('f-day').value,
+    start_date: document.getElementById('f-start-date').value || null,
+    question_list: useCustom ? parsedQuestions : null,
+    platforms: [...document.querySelectorAll('input[name="plat"]:checked')].map(c => c.value),
+  };
+
+  const r = await (await api(editingId ? `/api/schedules/${editingId}` : '/api/schedules',
+    { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(body) })).json();
+
+  if (!r.success) return toast(r.error || 'Failed','err');
+
+  // Upload Bhakti images if any were selected
+  if (isBhakti && bhaktiImageFiles.length > 0) {
+    const schedId = r.schedule.id;
+    const fd = new FormData();
+    for (const f of bhaktiImageFiles) fd.append('images', f);
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const token = session?.access_token || currentToken;
+      const ir = await fetch(`/api/schedules/${schedId}/images`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+      });
+      const ij = await ir.json();
+      if (ij.success) toast(`✅ ${ij.count} image${ij.count!==1?'s':''} uploaded`,'ok');
+      else toast('Image upload failed: ' + ij.error,'err');
+    } catch(e) { toast('Image upload error: ' + e.message,'err'); }
+  }
+
+  toast(editingId ? 'Updated!' : 'Created!', 'ok');
+  closeModal('sched-modal');
+  loadAll();
 }
 
 function onFreq(){
@@ -912,6 +1019,45 @@ function onFreq(){
   document.getElementById('cron-grp').style.display=v==='custom'?'':'none';
 }
 function setFmt(f){selectedFmt=f;document.getElementById('fmt169').classList.toggle('on',f==='16:9');document.getElementById('fmt916').classList.toggle('on',f==='9:16');}
+
+function setVideoType(t) {
+  selectedVideoType = t;
+  document.getElementById('vtype-quiz').classList.toggle('on', t==='quiz');
+  document.getElementById('vtype-bhakti').classList.toggle('on', t==='bhakti');
+  const isBhakti = t === 'bhakti';
+  document.getElementById('quiz-fields').style.display       = isBhakti ? 'none' : 'contents';
+  document.getElementById('quiz-source-fields').style.display = isBhakti ? 'none' : '';
+  document.getElementById('bhakti-fields').style.display     = isBhakti ? '' : 'none';
+}
+
+function onStoryFileChange() {
+  const file = document.getElementById('f-story-file').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('f-story-text').value = e.target.result; onStoryTextChange(); };
+  reader.readAsText(file, 'utf-8');
+}
+function onStoryTextChange() {
+  const text   = document.getElementById('f-story-text').value.trim();
+  const count  = text ? text.split(/\n\s*---\s*\n/).filter(s => s.trim()).length : 0;
+  const el     = document.getElementById('story-count-hint');
+  const status = document.getElementById('story-file-status');
+  el.textContent = count ? `✅ ${count} stor${count>1?'ies':'y'} detected (one video per run, cycling)` : '';
+  el.style.color = count ? 'var(--green)' : '';
+  status.textContent = count ? `${count} stor${count>1?'ies':'y'} loaded` : 'No file selected';
+  status.style.color = count ? 'var(--green)' : '';
+}
+function onBhaktiImgChange() {
+  const input = document.getElementById('f-bhakti-imgs');
+  bhaktiImageFiles = [...input.files].slice(0, 20);
+  document.getElementById('bhakti-img-status').textContent =
+    bhaktiImageFiles.length ? `${bhaktiImageFiles.length} image${bhaktiImageFiles.length>1?'s':''} selected` : 'No images selected';
+  const preview = document.getElementById('bhakti-img-preview');
+  preview.innerHTML = bhaktiImageFiles.map(f => {
+    const url = URL.createObjectURL(f);
+    return `<img src="${url}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>`;
+  }).join('');
+}
 
 // ── Question List ─────────────────────────────────────────────────────────────
 let parsedQuestions = null;

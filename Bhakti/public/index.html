@@ -198,12 +198,36 @@
       transition: background .2s;
     }
     .download-btn:hover { background: rgba(155,89,240,.35); }
+
+    /* ── Format buttons ── */
+    .fmt-btn {
+      flex: 1; padding: 10px; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(255,255,255,.04);
+      color: var(--muted); cursor: pointer; font-size: .85rem; font-weight: 600;
+      text-align: center; transition: all .2s;
+    }
+    .fmt-btn.fmt-on { background: rgba(59,130,246,.15); border-color: #3b82f6; color: #93c5fd; }
+
+    /* ── Post-generation actions ── */
+    .result-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .btn-action {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 18px; border-radius: 8px; font-size: .84rem; font-weight: 600;
+      cursor: pointer; border: none; text-decoration: none; transition: all .2s;
+    }
+    .btn-dl   { background: rgba(155,89,240,.2); border: 1px solid rgba(155,89,240,.4); color: var(--lavender); }
+    .btn-dl:hover   { background: rgba(155,89,240,.35); }
+    .btn-soc  { background: rgba(255,140,0,.15); border: 1px solid rgba(255,140,0,.35); color: #ffb347; }
+    .btn-soc:hover  { background: rgba(255,140,0,.28); }
+    .btn-open { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.3); color: #6ee7b7; }
+    .btn-open:hover { background: rgba(16,185,129,.22); }
   </style>
 </head>
 <body>
 <div class="page">
 
   <header>
+    <a href="https://aitools-hub-c5g.pages.dev" style="position:absolute;top:18px;left:20px;font-size:.78rem;color:var(--muted);text-decoration:none;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 13px;transition:color .2s" onmouseover="this.style.color='#c3a0ff'" onmouseout="this.style.color=''">← AI Hub</a>
     <div class="om">ॐ</div>
     <h1>aiBhakti</h1>
     <p>Transform spiritual stories into beautiful narrated videos — with your images as a divine slideshow.</p>
@@ -227,6 +251,15 @@
 In the silence of dawn, the great sage Narada meditated beneath the Peepal tree..."
       ></textarea>
       <p class="hint">One story = one video. Use --- on its own line to generate multiple videos at once.</p>
+    </div>
+
+    <!-- Format selection -->
+    <div class="card">
+      <div class="card-title">Video Format</div>
+      <div style="display:flex;gap:10px">
+        <button type="button" class="fmt-btn fmt-on" id="fmt169" onclick="setFmt('16:9')">📺 16:9 Landscape</button>
+        <button type="button" class="fmt-btn" id="fmt916" onclick="setFmt('9:16')">📱 9:16 Portrait / Shorts</button>
+      </div>
     </div>
 
     <!-- Image upload -->
@@ -266,6 +299,15 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? window.location.origin
     : 'https://ai-bhakti-production.up.railway.app';
+  const SOCIAL_UPLOADER = 'https://social-media-uploader-production.up.railway.app';
+
+  // ── Format selection ─────────────────────────────────────────────
+  let selectedFmt = '16:9';
+  function setFmt(f) {
+    selectedFmt = f;
+    document.getElementById('fmt169').classList.toggle('fmt-on', f === '16:9');
+    document.getElementById('fmt916').classList.toggle('fmt-on', f === '9:16');
+  }
 
   // ── Image management ───────────────────────────────────────────
   let selectedFiles = [];
@@ -341,6 +383,7 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
 
     const formData = new FormData();
     formData.append('stories', storyText);
+    formData.append('format', selectedFmt);
     for (const file of selectedFiles) {
       formData.append('images', file);
     }
@@ -350,7 +393,7 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Server error');
 
-      renderResults(data.videos);
+      renderResults(data.videos, storyText);
     } catch (err) {
       showError(err.message);
     } finally {
@@ -359,23 +402,29 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     }
   });
 
-  function renderResults(videos) {
-    const results = document.getElementById('results');
+  function renderResults(videos, storyText) {
+    const stories = storyText.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
+    const results  = document.getElementById('results');
     results.innerHTML = `<div class="card-title" style="margin-bottom:16px;font-size:.85rem;letter-spacing:1px;font-weight:700;color:var(--gold)">
       ✨ ${videos.length} Video${videos.length > 1 ? 's' : ''} Ready
     </div>`;
 
     videos.forEach((v, i) => {
-      const videoUrl = `${API_BASE}${v.url}`;
+      const videoUrl   = `${API_BASE}${v.url}`;
+      const topic      = (stories[i] || stories[0] || 'Bhakti Story').slice(0, 120);
+      const socialUrl  = `${SOCIAL_UPLOADER}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
+      const filename   = `bhakti_story${v.story}.mp4`;
+
       const item = document.createElement('div');
       item.className = 'result-item';
       item.innerHTML = `
         <div class="result-label">Story ${v.story}</div>
         <video controls preload="metadata" src="${videoUrl}"></video>
-        <br/>
-        <a class="download-btn" href="${videoUrl}" download="bhakti_story${v.story}.mp4">
-          ⬇ Download MP4
-        </a>
+        <div class="result-actions">
+          <a class="btn-action btn-dl" href="${videoUrl}" download="${filename}">⬇ Download MP4</a>
+          <a class="btn-action btn-soc" href="${socialUrl}" target="_blank">⬆ Upload to Social Media</a>
+          <a class="btn-action btn-open" href="${SOCIAL_UPLOADER}" target="_blank">🚀 Open Uploader App</a>
+        </div>
       `;
       results.appendChild(item);
     });

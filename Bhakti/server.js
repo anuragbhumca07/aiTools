@@ -163,16 +163,21 @@ function formatAssTime(s) {
   return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
 }
 
-function generateASS(timings) {
+function generateASS(timings, format = '16:9') {
+  const portrait = format === '9:16';
+  const playResX = portrait ? 720  : 1280;
+  const playResY = portrait ? 1280 : 720;
+  const marginH  = portrait ? 40   : 80;
+  const marginV  = portrait ? 60   : 50;
   const header = `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1280
-PlayResY: 720
+PlayResX: ${playResX}
+PlayResY: ${playResY}
 WrapStyle: 1
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Noto Sans,40,&H0042C8F5,&H00FFA0C3,&H002E0A1A,&HA0000000,1,0,0,0,100,100,0,0,1,2,1,2,80,80,50,1
+Style: Default,Noto Sans,40,&H0042C8F5,&H00FFA0C3,&H002E0A1A,&HA0000000,1,0,0,0,100,100,0,0,1,2,1,2,${marginH},${marginH},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`;
@@ -189,7 +194,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
 }
 
 // ─── Video generation: xfade slideshow + embedded CC subtitles ───────
-async function generateVideo(storyText, imagePaths, outputPath) {
+async function generateVideo(storyText, imagePaths, outputPath, format = '16:9') {
   const tmpDir    = fs.mkdtempSync(path.join(os.tmpdir(), 'bhakti_vid_'));
   const audioPath = path.join(tmpDir, 'narration.mp3');
   const assPath   = path.join(tmpDir, 'subs.ass');
@@ -198,15 +203,18 @@ async function generateVideo(storyText, imagePaths, outputPath) {
     const timings  = await generateNarration(storyText, audioPath);
     const totalDur = timings[timings.length - 1].end;
 
-    fs.writeFileSync(assPath, generateASS(timings), 'utf8');
+    fs.writeFileSync(assPath, generateASS(timings, format), 'utf8');
 
+    const portrait   = format === '9:16';
+    const W          = portrait ? 720  : 1280;
+    const H          = portrait ? 1280 : 720;
     const n          = imagePaths.length;
     // Crossfade transition duration (min of 0.7 s or 15% of per-image time)
     const TRANSITION = n > 1 ? Math.min(0.7, (totalDur / n) * 0.15) : 0;
     // Each image stream must be slightly longer to compensate for overlap
     const imgDur     = n > 1 ? (totalDur + (n - 1) * TRANSITION) / n : totalDur;
 
-    const scale      = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=#1a0a2e';
+    const scale      = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=#1a0a2e`;
     const assLinux   = assPath.replace(/\\/g, '/');
 
     const filterParts = [];
@@ -283,6 +291,7 @@ app.post(
     }
 
     const stories = storiesRaw.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
+    const format  = ['9:16', '16:9'].includes(req.body.format) ? req.body.format : '16:9';
 
     const EXT_MAP = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp' };
     const imagePaths = imageFiles.map(f => {
@@ -300,8 +309,8 @@ app.post(
       for (let i = 0; i < stories.length; i++) {
         const ts      = `${Date.now()}_${i}`;
         const outFile = path.join(outDir, `bhakti_${ts}.mp4`);
-        console.log(`[bhakti] Video ${i + 1}/${stories.length}…`);
-        await generateVideo(stories[i], imagePaths, outFile);
+        console.log(`[bhakti] Video ${i + 1}/${stories.length}… (format: ${format})`);
+        await generateVideo(stories[i], imagePaths, outFile, format);
         videos.push({ url: `/out/bhakti_${ts}.mp4`, story: i + 1 });
         if (i < stories.length - 1) await new Promise(r => setTimeout(r, 1500));
       }
