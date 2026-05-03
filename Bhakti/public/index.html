@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>aiBhakti — Spiritual Story Video Generator</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0520;
+      --surface:  #1a0a2e;
+      --card:     #1f0d38;
+      --border:   rgba(180,120,255,.18);
+      --gold:     #f5c842;
+      --saffron:  #ff8c00;
+      --purple:   #9b59f0;
+      --lavender: #c3a0ff;
+      --text:     #f0e8ff;
+      --muted:    #8b7aaa;
+      --radius:   14px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Stars background ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(155,89,240,.25) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(245,200,66,.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .page { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 48px; }
+    .om { font-size: 3rem; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 0 16px var(--gold)); }
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--gold), var(--saffron), var(--lavender));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p {
+      margin-top: 10px; color: var(--muted); font-size: .95rem; max-width: 520px; margin-inline: auto;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: .75rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--lavender); margin-bottom: 14px;
+    }
+
+    /* ── Labels & helpers ── */
+    label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+    .hint { font-size: .75rem; color: var(--muted); margin-top: 6px; opacity: .75; }
+
+    /* ── Textarea ── */
+    textarea {
+      width: 100%; min-height: 200px; resize: vertical;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 14px;
+      font-size: .92rem; line-height: 1.6; font-family: inherit;
+      transition: border-color .2s;
+    }
+    textarea:focus { outline: none; border-color: var(--purple); }
+    textarea::placeholder { color: var(--muted); opacity: .6; }
+
+    /* ── Image upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--purple);
+      background: rgba(155,89,240,.08);
+    }
+    .upload-zone input { display: none; }
+    .upload-icon { font-size: 2.4rem; margin-bottom: 10px; }
+    .upload-label { font-size: .9rem; color: var(--lavender); font-weight: 600; }
+    .upload-sub   { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Image preview grid ── */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-item .remove-btn {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,.7); border: none; color: #fff;
+      border-radius: 50%; width: 20px; height: 20px;
+      font-size: 11px; cursor: pointer; display: grid; place-items: center;
+      line-height: 1;
+    }
+    .preview-count {
+      font-size: .78rem; color: var(--muted); margin-top: 6px;
+    }
+
+    /* ── Button ── */
+    .btn-generate {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--purple), var(--saffron));
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: .5px;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s;
+    }
+    .btn-generate:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .btn-generate:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Progress ── */
+    #progressArea { display: none; text-align: center; padding: 24px 0; }
+    .spinner {
+      width: 48px; height: 48px; margin: 0 auto 14px;
+      border: 3px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #progressText { color: var(--lavender); font-size: .9rem; }
+
+    /* ── Error ── */
+    #errorBox {
+      display: none;
+      background: rgba(220,50,50,.12);
+      border: 1px solid rgba(220,50,50,.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: #ff8080;
+      font-size: .88rem;
+      margin-bottom: 20px;
+    }
+
+    /* ── Results ── */
+    #results { margin-top: 32px; }
+    .result-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .result-label {
+      font-size: .75rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 12px;
+    }
+    .result-item video {
+      width: 100%; border-radius: 8px; background: #000;
+    }
+    .download-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 12px;
+      padding: 9px 20px;
+      background: rgba(155,89,240,.2);
+      border: 1px solid rgba(155,89,240,.4);
+      border-radius: 8px;
+      color: var(--lavender);
+      text-decoration: none;
+      font-size: .85rem;
+      font-weight: 600;
+      transition: background .2s;
+    }
+    .download-btn:hover { background: rgba(155,89,240,.35); }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="om">ॐ</div>
+    <h1>aiBhakti</h1>
+    <p>Transform spiritual stories into beautiful narrated videos — with your images as a divine slideshow.</p>
+  </header>
+
+  <div id="errorBox"></div>
+
+  <form id="bhaktiForm">
+
+    <!-- Story input -->
+    <div class="card">
+      <div class="card-title">Spiritual Story / Stories</div>
+      <label for="storiesInput">Enter your story text below. For multiple videos, separate each story with a line containing only <strong style="color:var(--lavender)">---</strong></label>
+      <textarea
+        id="storiesInput"
+        name="stories"
+        placeholder="Once upon a time, in the sacred forest of Vrindavan, Lord Krishna played his divine flute...
+
+---
+
+In the silence of dawn, the great sage Narada meditated beneath the Peepal tree..."
+      ></textarea>
+      <p class="hint">One story = one video. Use --- on its own line to generate multiple videos at once.</p>
+    </div>
+
+    <!-- Image upload -->
+    <div class="card">
+      <div class="card-title">Images for Slideshow</div>
+      <label>Upload images to display in the video (they will cycle through the full duration).</label>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="imageInput" name="images" accept="image/*" multiple/>
+        <div class="upload-icon">🖼️</div>
+        <div class="upload-label">Click or drag & drop images here</div>
+        <div class="upload-sub">JPG, PNG, WEBP · up to 20 images · max 50 MB each</div>
+      </div>
+      <div class="preview-grid" id="previewGrid"></div>
+      <div class="preview-count" id="previewCount"></div>
+    </div>
+
+    <!-- Submit -->
+    <button type="submit" class="btn-generate" id="generateBtn">
+      ✨ Generate Video(s)
+    </button>
+
+  </form>
+
+  <!-- Progress -->
+  <div id="progressArea">
+    <div class="spinner"></div>
+    <div id="progressText">Generating your sacred video…</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
+
+</div><!-- /page -->
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────
+  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? window.location.origin
+    : 'https://ai-bhakti-production.up.railway.app';
+
+  // ── Image management ───────────────────────────────────────────
+  let selectedFiles = [];
+
+  const dropZone    = document.getElementById('dropZone');
+  const imageInput  = document.getElementById('imageInput');
+  const previewGrid = document.getElementById('previewGrid');
+  const previewCount = document.getElementById('previewCount');
+
+  dropZone.addEventListener('click', () => imageInput.click());
+  imageInput.addEventListener('change', e => addFiles(e.target.files));
+
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    addFiles(e.dataTransfer.files);
+  });
+
+  function addFiles(fileList) {
+    for (const f of fileList) {
+      if (!f.type.startsWith('image/')) continue;
+      if (selectedFiles.length >= 20) break;
+      selectedFiles.push(f);
+    }
+    renderPreviews();
+  }
+
+  function removeFile(idx) {
+    selectedFiles.splice(idx, 1);
+    renderPreviews();
+  }
+
+  function renderPreviews() {
+    previewGrid.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const url  = URL.createObjectURL(f);
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      item.innerHTML = `
+        <img src="${url}" alt="img${i+1}"/>
+        <button class="remove-btn" type="button" onclick="removeFile(${i})">✕</button>
+      `;
+      previewGrid.appendChild(item);
+    });
+    previewCount.textContent = selectedFiles.length
+      ? `${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} selected`
+      : '';
+  }
+
+  // ── Form submit ────────────────────────────────────────────────
+  document.getElementById('bhaktiForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const errorBox   = document.getElementById('errorBox');
+    const results    = document.getElementById('results');
+    const progressArea = document.getElementById('progressArea');
+    const generateBtn  = document.getElementById('generateBtn');
+
+    errorBox.style.display = 'none';
+    results.innerHTML = '';
+
+    const storyText = document.getElementById('storiesInput').value.trim();
+    if (!storyText) { showError('Please enter at least one story.'); return; }
+    if (!selectedFiles.length) { showError('Please upload at least one image.'); return; }
+
+    const storyCount = storyText.split(/\n\s*---\s*\n/).filter(s => s.trim()).length;
+
+    generateBtn.disabled = true;
+    progressArea.style.display = 'block';
+    document.getElementById('progressText').textContent =
+      `Generating ${storyCount} video${storyCount > 1 ? 's' : ''}… This may take a minute.`;
+
+    const formData = new FormData();
+    formData.append('stories', storyText);
+    for (const file of selectedFiles) {
+      formData.append('images', file);
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/generate`, { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Server error');
+
+      renderResults(data.videos);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      generateBtn.disabled = false;
+      progressArea.style.display = 'none';
+    }
+  });
+
+  function renderResults(videos) {
+    const results = document.getElementById('results');
+    results.innerHTML = `<div class="card-title" style="margin-bottom:16px;font-size:.85rem;letter-spacing:1px;font-weight:700;color:var(--gold)">
+      ✨ ${videos.length} Video${videos.length > 1 ? 's' : ''} Ready
+    </div>`;
+
+    videos.forEach((v, i) => {
+      const videoUrl = `${API_BASE}${v.url}`;
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <div class="result-label">Story ${v.story}</div>
+        <video controls preload="metadata" src="${videoUrl}"></video>
+        <br/>
+        <a class="download-btn" href="${videoUrl}" download="bhakti_story${v.story}.mp4">
+          ⬇ Download MP4
+        </a>
+      `;
+      results.appendChild(item);
+    });
+
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function showError(msg) {
+    const errorBox = document.getElementById('errorBox');
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.style.display = 'block';
+    errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
