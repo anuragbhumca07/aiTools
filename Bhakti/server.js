@@ -189,7 +189,7 @@ async function generateNarration(storyText, audioOutPath) {
   }
 }
 
-// ─── ASS subtitle: karaoke word-level colour — uses display text ──────
+// ─── ASS subtitle: karaoke word-level colour ──────────────────────────
 // ASS colour: &HAABBGGRR
 //   Gold    #F5C842 → &H0042C8F5  (highlighted / spoken word)
 //   Lavender#C3A0FF → &H00FFA0C3  (upcoming / unspoken words)
@@ -202,7 +202,11 @@ function formatAssTime(s) {
   return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
 }
 
-function generateASS(timings, format = '16:9') {
+// originalText = exact user input, never altered — used verbatim for CC.
+// timings      = [{start, end}] from audio generation, used only for timing.
+// Words from originalText are distributed across timing windows proportionally
+// by duration so karaoke colouring stays in sync with the audio.
+function generateASS(originalText, timings, format = '16:9') {
   const portrait = format === '9:16';
   const playResX = portrait ? 720  : 1280;
   const playResY = portrait ? 1280 : 720;
@@ -222,14 +226,31 @@ Style: Default,Noto Sans,40,&H0042C8F5,&H00FFA0C3,&H002E0A1A,&HA0000000,1,0,0,0,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`;
 
-  // Use display text for subtitles (original user input, not sanitized TTS text)
-  const dialogues = timings.map(({ display, start, end }) => {
-    const words = display.split(/\s+/).filter(Boolean);
-    if (!words.length) return null;
-    const csPerWord = Math.max(1, Math.round(((end - start) / words.length) * 100));
+  // ── Distribute original words across audio timing windows ──────────
+  const allWords = originalText.trim().split(/\s+/).filter(Boolean);
+  const totalDur = timings.reduce((s, t) => s + (t.end - t.start), 0);
+
+  const dialogues = [];
+  let wordIdx = 0;
+
+  for (let ti = 0; ti < timings.length; ti++) {
+    const { start, end } = timings[ti];
+    const segDur = end - start;
+    const isLast = ti === timings.length - 1;
+
+    // Words for this window = proportional slice; last window gets remainder
+    const segWordCount = isLast
+      ? allWords.length - wordIdx
+      : Math.max(1, Math.round((segDur / totalDur) * allWords.length));
+
+    const words = allWords.slice(wordIdx, wordIdx + segWordCount);
+    wordIdx += segWordCount;
+    if (!words.length) continue;
+
+    const csPerWord = Math.max(1, Math.round((segDur / words.length) * 100));
     const karaoke   = words.map(w => `{\\k${csPerWord}}${w}`).join(' ');
-    return `Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,,0,0,0,,${karaoke}`;
-  }).filter(Boolean);
+    dialogues.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,,0,0,0,,${karaoke}`);
+  }
 
   return [header, ...dialogues].join('\n');
 }
@@ -261,8 +282,8 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
     const timings  = await generateNarration(storyText, audioPath);
     const totalDur = timings[timings.length - 1].end;
 
-    // Subtitles use original display text
-    fs.writeFileSync(assPath, generateASS(timings, format), 'utf8');
+    // Subtitles use exact original storyText — no alteration
+    fs.writeFileSync(assPath, generateASS(storyText, timings, format), 'utf8');
 
     const portrait   = format === '9:16';
     const W          = portrait ? 720  : 1280;
