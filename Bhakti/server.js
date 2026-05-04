@@ -98,15 +98,30 @@ function makeSegments(text, maxLen = 150) {
     : [{ display: text.trim(), tts: sanitizeForTts(text, hindi) }];
 }
 
-// ─── TTS ─────────────────────────────────────────────────────────────
-function runEdgeTts(text, outputPath, voice) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('python', ['-m', 'edge_tts', '--voice', voice, '--text', text, '--write-media', outputPath]);
-    let stderr = '';
-    proc.stderr.on('data', (d) => (stderr += d.toString()));
-    proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`edge-tts failed: ${stderr}`))));
-    proc.on('error', reject);
-  });
+// ─── TTS with retry / back-off (handles Microsoft 503 rate-limits) ───
+async function runEdgeTts(text, outputPath, voice, maxRetries = 3) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      const wait = attempt * 3000;   // 3 s, 6 s back-off
+      console.log(`[bhakti] TTS attempt ${attempt + 1}/${maxRetries}, waiting ${wait}ms…`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+    try {
+      await new Promise((resolve, reject) => {
+        const proc = spawn('python', ['-m', 'edge_tts', '--voice', voice, '--text', text, '--write-media', outputPath]);
+        let stderr = '';
+        proc.stderr.on('data', (d) => (stderr += d.toString()));
+        proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`edge-tts failed: ${stderr}`))));
+        proc.on('error', reject);
+      });
+      return;  // success
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[bhakti] TTS attempt ${attempt + 1} failed: ${err.message.slice(0, 120)}`);
+    }
+  }
+  throw lastErr;
 }
 
 // ─── Audio duration ───────────────────────────────────────────────────
@@ -357,7 +372,7 @@ app.post(
         console.log(`[bhakti] Video ${i + 1}/${stories.length}… (format: ${format})`);
         await generateVideo(stories[i], imagePaths, outFile, format);
         videos.push({ url: `/out/bhakti_${ts}.mp4`, story: i + 1 });
-        if (i < stories.length - 1) await new Promise(r => setTimeout(r, 1500));
+        if (i < stories.length - 1) await new Promise(r => setTimeout(r, 3000));
       }
       cleanup();
       res.json({ videos });
