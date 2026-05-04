@@ -215,12 +215,17 @@
       padding: 9px 18px; border-radius: 8px; font-size: .84rem; font-weight: 600;
       cursor: pointer; border: none; text-decoration: none; transition: all .2s;
     }
+    .btn-play { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.35); color: #6ee7b7; }
+    .btn-play:hover { background: rgba(16,185,129,.28); cursor: pointer; }
     .btn-dl   { background: rgba(155,89,240,.2); border: 1px solid rgba(155,89,240,.4); color: var(--lavender); }
     .btn-dl:hover   { background: rgba(155,89,240,.35); }
     .btn-soc  { background: rgba(255,140,0,.15); border: 1px solid rgba(255,140,0,.35); color: #ffb347; }
     .btn-soc:hover  { background: rgba(255,140,0,.28); }
-    .btn-open { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.3); color: #6ee7b7; }
-    .btn-open:hover { background: rgba(16,185,129,.22); }
+
+    /* ── Inline video player ── */
+    .video-wrap { display: none; margin-top: 12px; }
+    .video-wrap.open { display: block; }
+    .video-wrap video { width: 100%; border-radius: 8px; background: #000; max-height: 480px; }
   </style>
 </head>
 <body>
@@ -299,7 +304,7 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? window.location.origin
     : 'https://ai-bhakti-production.up.railway.app';
-  const SOCIAL_UPLOADER = 'https://social-media-uploader-production.up.railway.app';
+  const SOCIAL_UPLOADER = 'https://social-media-uploader.pages.dev';
 
   // ── Format selection ─────────────────────────────────────────────
   let selectedFmt = '16:9';
@@ -402,6 +407,26 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     }
   });
 
+  let _playingId = null;
+  function togglePlay(id, videoUrl) {
+    const wrap = document.getElementById('vwrap-' + id);
+    if (_playingId && _playingId !== id) {
+      const prev = document.getElementById('vwrap-' + _playingId);
+      if (prev) { prev.classList.remove('open'); prev.querySelector('video').pause(); }
+    }
+    if (wrap.classList.contains('open')) {
+      wrap.classList.remove('open');
+      wrap.querySelector('video').pause();
+      _playingId = null;
+    } else {
+      wrap.classList.add('open');
+      const vid = wrap.querySelector('video');
+      vid.src = videoUrl;
+      vid.play();
+      _playingId = id;
+    }
+  }
+
   function renderResults(videos, storyText) {
     const stories = storyText.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
     const results  = document.getElementById('results');
@@ -414,16 +439,19 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
       const topic      = (stories[i] || stories[0] || 'Bhakti Story').slice(0, 120);
       const socialUrl  = `${SOCIAL_UPLOADER}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
       const filename   = `bhakti_story${v.story}.mp4`;
+      const pid        = `v${i}`;
 
       const item = document.createElement('div');
       item.className = 'result-item';
       item.innerHTML = `
         <div class="result-label">Story ${v.story}</div>
-        <video controls preload="metadata" src="${videoUrl}"></video>
         <div class="result-actions">
+          <button class="btn-action btn-play" onclick="togglePlay('${pid}','${videoUrl}')">▶ Play</button>
           <a class="btn-action btn-dl" href="${videoUrl}" download="${filename}">⬇ Download MP4</a>
           <a class="btn-action btn-soc" href="${socialUrl}" target="_blank">⬆ Upload to Social Media</a>
-          <a class="btn-action btn-open" href="${SOCIAL_UPLOADER}" target="_blank">🚀 Open Uploader App</a>
+        </div>
+        <div class="video-wrap" id="vwrap-${pid}">
+          <video controls preload="none"></video>
         </div>
       `;
       results.appendChild(item);

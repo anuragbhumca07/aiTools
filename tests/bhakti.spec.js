@@ -97,6 +97,22 @@ test.describe('aiBhakti', () => {
     console.log(`Hindi video size: ${(videoBuffer.length / 1024).toFixed(1)} KB — PASS`);
   });
 
+  test('generates 9:16 portrait video', async ({ request }) => {
+    const imageBuffer = require('fs').readFileSync(TEST_IMAGE);
+    const resp = await request.post(`${BASE_URL}/api/generate`, {
+      multipart: {
+        stories: 'In the silence of dawn, the great sage Narada meditated beneath the sacred Peepal tree, his heart filled with devotion.',
+        format: '9:16',
+        images: { name: 'test.jpg', mimeType: 'image/bmp', buffer: imageBuffer },
+      },
+      timeout: 120_000,
+    });
+    const body = await resp.json();
+    expect(resp.ok(), JSON.stringify(body)).toBeTruthy();
+    expect(body.videos[0].url).toMatch(/\.mp4$/);
+    console.log('9:16 video:', body.videos[0].url, '— PASS');
+  });
+
   test('generates multiple videos from multi-story input', async ({ request }) => {
     const imageBuffer = require('fs').readFileSync(TEST_IMAGE);
     const twoStories = [

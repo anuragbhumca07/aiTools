@@ -209,16 +209,24 @@ async function stageVideo(videoUrl) {
   return { fpath, pubUrl };
 }
 
+// ── Hashtag sets per video type ───────────────────────────────────────────────
+const TAGS = {
+  quiz:   { yt: ['quiz','trivia','shorts','education'],   str: '#quiz #trivia #shorts #education', cat: '27' },
+  bhakti: { yt: ['bhakti','spiritual','devotional','shorts'], str: '#bhakti #spiritual #devotional #shorts #spiritualawakening', cat: '22' },
+};
+function vtags(videoType) { return TAGS[videoType] || TAGS.quiz; }
+
 // ── Platform Posters (all receive { fpath, pubUrl } staged video) ─────────────
-async function postYouTube(fpath, pubUrl, title, desc, c) {
+async function postYouTube(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
   if (!c.refresh_token) throw new Error('YouTube not authorized — click "Authorize with Google" in Credentials first');
+  const t = vtags(videoType);
   const oauth2 = new google.auth.OAuth2(c.client_id, c.client_secret, `${BASE_URL}/auth/youtube/callback`);
   oauth2.setCredentials({ refresh_token: c.refresh_token });
   const yt = google.youtube({ version: 'v3', auth: oauth2 });
   const r  = await yt.videos.insert({
     part: ['snippet','status'],
     requestBody: {
-      snippet: { title: title.slice(0,100), description: `${desc}\n\n#quiz #trivia #shorts`, tags: ['quiz','trivia','shorts'], categoryId: '27' },
+      snippet: { title: title.slice(0,100), description: `${desc}\n\n${t.str}`, tags: t.yt, categoryId: t.cat },
       status:  { privacyStatus: 'public', selfDeclaredMadeForKids: false },
     },
     media: { body: fs.createReadStream(fpath) },
@@ -226,8 +234,9 @@ async function postYouTube(fpath, pubUrl, title, desc, c) {
   return `https://youtube.com/shorts/${r.data.id}`;
 }
 
-async function postInstagram(fpath, pubUrl, title, desc, c) {
-  const caption = `${title}\n\n${desc}\n\n#quiz #trivia #reels`;
+async function postInstagram(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+  const t = vtags(videoType);
+  const caption = `${title}\n\n${desc}\n\n${t.str}`;
   const con = await axios.post(`https://graph.facebook.com/v19.0/${c.instagram_account_id}/media`, null,
     { params: { video_url: pubUrl, media_type: 'REELS', caption, access_token: c.access_token }, timeout: 30000 });
   for (let i = 0; i < 30; i++) {
@@ -242,28 +251,32 @@ async function postInstagram(fpath, pubUrl, title, desc, c) {
   return `https://www.instagram.com/p/${pub.data.id}/`;
 }
 
-async function postTwitter(fpath, pubUrl, title, desc, c) {
+async function postTwitter(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+  const t = vtags(videoType);
   const client  = new TwitterApi({ appKey: c.api_key, appSecret: c.api_secret, accessToken: c.access_token, accessSecret: c.access_token_secret });
   const mediaId = await client.v1.uploadMedia(fpath, { mimeType: 'video/mp4' });
-  const tweet   = await client.v2.tweet({ text: `${title}\n\n#quiz #trivia`.slice(0,280), media: { media_ids: [mediaId] } });
+  const tweet   = await client.v2.tweet({ text: `${title}\n\n${t.str}`.slice(0,280), media: { media_ids: [mediaId] } });
   return `https://twitter.com/i/web/status/${tweet.data.id}`;
 }
 
-async function postTikTok(fpath, pubUrl, title, desc, c) {
+async function postTikTok(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+  const t = vtags(videoType);
   await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
-    { post_info: { title: `${title} #quiz`.slice(0,150), privacy_level: 'PUBLIC_TO_EVERYONE', disable_comment: false, disable_duet: false, disable_stitch: false },
+    { post_info: { title: `${title} ${t.str}`.slice(0,150), privacy_level: 'PUBLIC_TO_EVERYONE', disable_comment: false, disable_duet: false, disable_stitch: false },
       source_info: { source: 'URL', video_url: pubUrl } },
     { headers: { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json' }, timeout: 30000 });
   return 'https://www.tiktok.com/';
 }
 
-async function postFacebook(fpath, pubUrl, title, desc, c) {
+async function postFacebook(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+  const t = vtags(videoType);
   const r = await axios.post(`https://graph-video.facebook.com/v19.0/${c.page_id}/videos`, null,
-    { params: { file_url: pubUrl, title: title.slice(0,255), description: desc, access_token: c.page_access_token }, timeout: 60000 });
+    { params: { file_url: pubUrl, title: title.slice(0,255), description: `${desc}\n\n${t.str}`, access_token: c.page_access_token }, timeout: 60000 });
   return `https://www.facebook.com/video.php?v=${r.data.id}`;
 }
 
-async function postLinkedIn(fpath, pubUrl, title, desc, c) {
+async function postLinkedIn(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+  const t = vtags(videoType);
   const h = { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' };
   const reg = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload',
     { registerUploadRequest: { owner: c.person_urn, recipes: ['urn:li:digitalmediaRecipe:feedshare-video'],
@@ -275,7 +288,7 @@ async function postLinkedIn(fpath, pubUrl, title, desc, c) {
   const post = await axios.post('https://api.linkedin.com/v2/ugcPosts',
     { author: c.person_urn, lifecycleState: 'PUBLISHED',
       specificContent: { 'com.linkedin.ugc.ShareContent': {
-        shareCommentary: { text: `${title}\n\n${desc}\n\n#quiz`.slice(0,700) },
+        shareCommentary: { text: `${title}\n\n${desc}\n\n${t.str}`.slice(0,700) },
         shareMediaCategory: 'VIDEO',
         media: [{ status: 'READY', media: assetId, title: { text: title.slice(0,200) } }] } },
       visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } },
@@ -286,8 +299,8 @@ async function postLinkedIn(fpath, pubUrl, title, desc, c) {
 const POSTERS = { 'YouTube Shorts': postYouTube, 'Instagram Reels': postInstagram, 'X (Twitter)': postTwitter, 'TikTok': postTikTok, 'Facebook': postFacebook, 'LinkedIn': postLinkedIn };
 
 // ── Core runner ───────────────────────────────────────────────────────────────
-async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
-  console.log(`[POST] job#${jobId} → platforms: ${JSON.stringify(platforms)}, videoUrl: ${videoUrl}`);
+async function postToPlatforms(jobId, userId, videoUrl, question, platforms, videoType = 'quiz') {
+  console.log(`[POST] job#${jobId} → platforms: ${JSON.stringify(platforms)}, type: ${videoType}, videoUrl: ${videoUrl}`);
   // Stage video on Scheduler server so all platform APIs can reliably fetch it
   let staged = null;
   try {
@@ -313,7 +326,14 @@ async function postToPlatforms(jobId, userId, videoUrl, question, platforms) {
       console.log(`[POST] ${p} — uploading…`);
       const pid = db.prepare(`INSERT INTO postings (job_id,platform,status) VALUES (?,?,'running')`).run(jobId, p).lastInsertRowid;
       try {
-        const url = await POSTERS[p](staged.fpath, staged.pubUrl, question || 'Quiz Time!', `Quiz: ${question}`, creds);
+        const isBhakti = videoType === 'bhakti';
+        const title = isBhakti
+          ? (question || 'Spiritual Story').slice(0, 80)
+          : (question || 'Quiz Time!').slice(0, 80);
+        const desc  = isBhakti
+          ? `${question || ''}\n\nWatch this divine spiritual story. Share the light of devotion.`.slice(0, 300)
+          : `Quiz: ${question}`;
+        const url = await POSTERS[p](staged.fpath, staged.pubUrl, title, desc, creds, videoType);
         db.prepare(`UPDATE postings SET status='done',post_url=? WHERE id=?`).run(url, pid);
         console.log(`[POST] ${p} ✓ ${url}`);
       } catch (e) {
@@ -404,7 +424,7 @@ async function runSchedule(scheduleId) {
     db.prepare(`UPDATE jobs SET status='done',video_url=?,question=?,options=?,correct_idx=? WHERE id=?`)
       .run(videoUrl, question, JSON.stringify(options||[]), correctIndex??0, jobId);
     db.prepare(`UPDATE schedules SET last_run=datetime('now'),next_run=?,total_runs=total_runs+1 WHERE id=?`).run(nextRun(s.cron_expr), s.id);
-    if (platforms.length) postToPlatforms(jobId, s.user_id, videoUrl, question, platforms).catch(console.error);
+    if (platforms.length) postToPlatforms(jobId, s.user_id, videoUrl, question, platforms, s.video_type || 'quiz').catch(console.error);
   } catch (e) {
     db.prepare(`UPDATE jobs SET status='error',error=? WHERE id=?`).run(e.message?.slice(0,500), jobId);
     db.prepare(`UPDATE schedules SET total_errors=total_errors+1 WHERE id=?`).run(s.id);
