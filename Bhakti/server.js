@@ -16,7 +16,12 @@ const PORT = process.env.PORT || 3007;
 const VOICE_EN = 'en-IN-NeerjaExpressiveNeural';
 const VOICE_HI = 'hi-IN-SwaraNeural';
 
+const GROQ_API_KEY       = process.env.GROQ_API_KEY;
+const HIGGSFIELD_TOKEN   = process.env.HIGGSFIELD_TOKEN;
+const BACKEND_URL        = (process.env.BACKEND_URL || 'https://ai-bhakti-production.up.railway.app').replace(/\/$/, '');
+
 app.use(cors());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/out', express.static(path.join(__dirname, 'out')));
 
@@ -136,8 +141,11 @@ async function getAudioDuration(filePath) {
 
 // ─── Generate narration; returns [{display, tts, start, end}] ────────
 // display = original text for subtitles  |  tts = sanitized for audio
-async function generateNarration(storyText, audioOutPath) {
-  const voice    = isHindi(storyText) ? VOICE_HI : VOICE_EN;
+async function generateNarration(storyText, audioOutPath, forceVoice = null) {
+  // Prefer Hindi voice for Hindi text, but fall back to English if Hindi TTS fails
+  // (some hosting IPs are rate-limited by Microsoft for hi-IN voices)
+  const preferHindi = isHindi(storyText);
+  const voice       = forceVoice || (preferHindi ? VOICE_HI : VOICE_EN);
   const segments = makeSegments(storyText);
   console.log(`[bhakti] Narration: ${segments.length} segment(s), voice=${voice}`);
   segments.forEach((s, i) =>
@@ -189,70 +197,108 @@ async function generateNarration(storyText, audioOutPath) {
   }
 }
 
-// ─── ASS subtitle: karaoke word-level colour ──────────────────────────
-// ASS colour: &HAABBGGRR
-//   Gold    #F5C842 → &H0042C8F5  (highlighted / spoken word)
-//   Lavender#C3A0FF → &H00FFA0C3  (upcoming / unspoken words)
-//   Dark bg #1A0A2E → &H002E0A1A  (outline)
-function formatAssTime(s) {
-  const h  = Math.floor(s / 3600);
-  const m  = Math.floor((s % 3600) / 60);
-  const ss = Math.floor(s % 60);
-  const cs = Math.round((s % 1) * 100);
-  return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+// Wrapper: try Hindi voice first; if it fails fall back to English voice
+async function generateNarrationWithFallback(storyText, audioOutPath) {
+  const preferHindi = isHindi(storyText);
+  if (!preferHindi) return generateNarration(storyText, audioOutPath, VOICE_EN);
+  try {
+    return await generateNarration(storyText, audioOutPath, VOICE_HI);
+  } catch (err) {
+    console.warn(`[bhakti] Hindi voice failed (${err.message.slice(0, 80)}), falling back to English voice…`);
+    return generateNarration(storyText, audioOutPath, VOICE_EN);
+  }
 }
 
-// originalText = exact user input, never altered — used verbatim for CC.
-// timings      = [{start, end}] from audio generation, used only for timing.
-// Words from originalText are distributed across timing windows proportionally
-// by duration so karaoke colouring stays in sync with the audio.
-function generateASS(originalText, timings, format = '16:9') {
-  const portrait = format === '9:16';
-  const playResX = portrait ? 720  : 1280;
-  const playResY = portrait ? 1280 : 720;
-  const marginH  = portrait ? 40   : 80;
-  const marginV  = portrait ? 60   : 50;
+// ─── Single-shot TTS for song lyrics (no segmentation) ───────────────
+// Song lyrics can be long but we send as one call to avoid sequential
+// rate-limit hits from many small segment calls.
+// espeak-ng — fully offline TTS, works regardless of server IP
+async function runEspeakTts(text, outputPath, lang = 'hi') {
+  const wavOut = outputPath.replace(/\.mp3$/, '.wav');
+  await new Promise((resolve, reject) => {
+    // Use stdin to avoid UTF-8 file encoding issues on some systems
+    const proc = spawn('espeak-ng', ['-v', lang, '-w', wavOut]);
+    let stderr = '';
+    proc.stderr.on('data', d => (stderr += d.toString()));
+    proc.stdin.write(text, 'utf8');
+    proc.stdin.end();
+    proc.on('close', code => code === 0 ? resolve() : reject(new Error(`espeak-ng: ${stderr.slice(-300)}`)));
+    proc.on('error', reject);
+  });
+  await new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-y', '-i', wavOut, '-codec:a', 'libmp3lame', '-b:a', '128k', outputPath]);
+    let stderr = '';
+    ff.stderr.on('data', d => (stderr += d.toString()));
+    ff.on('close', code => {
+      try { fs.unlinkSync(wavOut); } catch {}
+      code === 0 ? resolve() : reject(new Error(`ffmpeg wav→mp3: ${stderr.slice(-200)}`));
+    });
+    ff.on('error', reject);
+  });
+}
 
-  const header = `[Script Info]
-ScriptType: v4.00+
-PlayResX: ${playResX}
-PlayResY: ${playResY}
-WrapStyle: 1
+// Google TTS fallback — works for Hindi from any server IP
+async function runGTts(text, outputPath, lang = 'hi') {
+  const tmpTxt = outputPath + '.gtts_in.txt';
+  fs.writeFileSync(tmpTxt, text, 'utf8');
+  await new Promise((resolve, reject) => {
+    const proc = spawn('python3', [
+      '-c',
+      `import sys; from gtts import gTTS; gTTS(open(sys.argv[1], encoding='utf-8').read(), lang=sys.argv[2]).save(sys.argv[3])`,
+      tmpTxt, lang, outputPath,
+    ]);
+    let stderr = '';
+    proc.stderr.on('data', d => (stderr += d.toString()));
+    proc.on('close', code => {
+      try { fs.unlinkSync(tmpTxt); } catch {}
+      code === 0 ? resolve() : reject(new Error(`gTTS(${lang}) failed: ${stderr.slice(-400)}`));
+    });
+    proc.on('error', reject);
+  });
+}
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Noto Sans,40,&H0042C8F5,&H00FFA0C3,&H002E0A1A,&HA0000000,1,0,0,0,100,100,0,0,1,2,1,2,${marginH},${marginH},${marginV},1
+async function generateSongNarration(lyricsText, audioOutPath) {
+  // Song lyrics are always Hindi bhakti — always keep Devanagari, never strip to ASCII
+  const tts = sanitizeForTts(lyricsText, true);
+  if (!tts.trim()) throw new Error('Lyrics are empty after sanitisation.');
+  console.log(`[song] TTS input: ${tts.length} chars, first20="${tts.slice(0, 20)}"`);
 
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`;
-
-  // ── Distribute original words across audio timing windows ──────────
-  const allWords = originalText.trim().split(/\s+/).filter(Boolean);
-  const totalDur = timings.reduce((s, t) => s + (t.end - t.start), 0);
-
-  const dialogues = [];
-  let wordIdx = 0;
-
-  for (let ti = 0; ti < timings.length; ti++) {
-    const { start, end } = timings[ti];
-    const segDur = end - start;
-    const isLast = ti === timings.length - 1;
-
-    // Words for this window = proportional slice; last window gets remainder
-    const segWordCount = isLast
-      ? allWords.length - wordIdx
-      : Math.max(1, Math.round((segDur / totalDur) * allWords.length));
-
-    const words = allWords.slice(wordIdx, wordIdx + segWordCount);
-    wordIdx += segWordCount;
-    if (!words.length) continue;
-
-    const csPerWord = Math.max(1, Math.round((segDur / words.length) * 100));
-    const karaoke   = words.map(w => `{\\k${csPerWord}}${w}`).join(' ');
-    dialogues.push(`Dialogue: 0,${formatAssTime(start)},${formatAssTime(end)},Default,,0,0,0,,${karaoke}`);
+  // Try Hindi edge-tts voices first (1 attempt only — these are typically blocked on Railway)
+  for (const voice of ['hi-IN-MadhurNeural', 'hi-IN-SwaraNeural']) {
+    try {
+      console.log(`[song] edge-tts, voice=${voice}`);
+      await runEdgeTts(tts, audioOutPath, voice, 1); // maxRetries=1: fail fast
+      const dur = await getAudioDuration(audioOutPath);
+      console.log(`[song] edge-tts done — ${dur.toFixed(1)}s`);
+      return dur;
+    } catch (err) {
+      console.warn(`[song] Voice ${voice} failed: ${err.message.slice(0, 80)}`);
+    }
   }
 
-  return [header, ...dialogues].join('\n');
+  // Fallback 1: espeak-ng — fully offline, works from any server IP
+  console.log('[song] Falling back to espeak-ng (offline, hi)…');
+  try {
+    await runEspeakTts(tts, audioOutPath, 'hi');
+    const dur = await getAudioDuration(audioOutPath);
+    console.log(`[song] espeak-ng done — ${dur.toFixed(1)}s`);
+    return dur;
+  } catch (err) {
+    console.warn(`[song] espeak-ng failed: ${err.message.slice(0, 200)}`);
+  }
+
+  // Fallback 2: Google TTS
+  console.log('[song] Falling back to gTTS (hi)…');
+  try {
+    await runGTts(tts, audioOutPath, 'hi');
+    const dur = await getAudioDuration(audioOutPath);
+    console.log(`[song] gTTS done — ${dur.toFixed(1)}s`);
+    return dur;
+  } catch (err) {
+    console.warn(`[song] gTTS(hi) failed: ${err.message.slice(0, 300)}`);
+  }
+
+  throw new Error('All TTS engines failed for song narration. Please try again later.');
 }
 
 // ─── xfade transitions pool (spiritual / cinematic) ──────────────────
@@ -272,18 +318,14 @@ function pickTransitions(count) {
   return out;
 }
 
-// ─── Video generation: varied xfade slideshow + original-text CC ─────
+// ─── Video generation: xfade slideshow, audio only — no subtitles ────
 async function generateVideo(storyText, imagePaths, outputPath, format = '16:9') {
   const tmpDir    = fs.mkdtempSync(path.join(os.tmpdir(), 'bhakti_vid_'));
   const audioPath = path.join(tmpDir, 'narration.mp3');
-  const assPath   = path.join(tmpDir, 'subs.ass');
 
   try {
-    const timings  = await generateNarration(storyText, audioPath);
+    const timings  = await generateNarrationWithFallback(storyText, audioPath);
     const totalDur = timings[timings.length - 1].end;
-
-    // Subtitles use exact original storyText — no alteration
-    fs.writeFileSync(assPath, generateASS(storyText, timings, format), 'utf8');
 
     const portrait   = format === '9:16';
     const W          = portrait ? 720  : 1280;
@@ -293,7 +335,6 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
     const imgDur     = n > 1 ? (totalDur + (n - 1) * TRANSITION) / n : totalDur;
 
     const scale      = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=#1a0a2e`;
-    const assLinux   = assPath.replace(/\\/g, '/');
 
     // Pick a unique random transition for each image pair
     const transitions = pickTransitions(n - 1);
@@ -301,7 +342,7 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
     const filterParts = [];
 
     if (n === 1) {
-      filterParts.push(`[0]${scale},fps=25[sv]`);
+      filterParts.push(`[0]${scale},fps=25[v]`);
     } else {
       for (let i = 0; i < n; i++) {
         filterParts.push(`[${i}]${scale},fps=25[s${i}]`);
@@ -309,7 +350,7 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
       let lastLabel = 's0';
       for (let i = 1; i < n; i++) {
         const offset   = (i * (imgDur - TRANSITION)).toFixed(3);
-        const outLabel = i === n - 1 ? 'sv' : `x${i}`;
+        const outLabel = i === n - 1 ? 'v' : `x${i}`;
         const tr       = transitions[i - 1];
         filterParts.push(
           `[${lastLabel}][s${i}]xfade=transition=${tr}:duration=${TRANSITION.toFixed(3)}:offset=${offset}[${outLabel}]`
@@ -317,9 +358,6 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
         lastLabel = outLabel;
       }
     }
-
-    // Embed ASS subtitles via libass
-    filterParts.push(`[sv]subtitles=${assLinux}[v]`);
 
     const inputArgs = [];
     for (const imgPath of imagePaths) {
@@ -349,6 +387,210 @@ async function generateVideo(storyText, imagePaths, outputPath, format = '16:9')
       );
       ff.on('error', reject);
     });
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// ─── Groq: generate Hindi bhakti song lyrics ─────────────────────────
+async function generateHindiLyrics(deity, theme, mood) {
+  if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY not configured on server.');
+  const subject = deity ? `deity/devta: ${deity}` : `theme: ${theme}`;
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a master Hindi bhakti poet. Write only in Hindi Devanagari script. Produce beautifully rhythmic, devotional song lyrics that can be sung as a bhajan or geet.',
+        },
+        {
+          role: 'user',
+          content: `Write a complete Hindi bhakti geet (song) about ${subject}.\nMood: ${mood || 'शांत, भक्तिमय, दिव्य'}.\n\nFormat (use these section labels in Hindi):\n- मुखड़ा (refrain, 2-4 lines) — repeat after each verse\n- अंतरा १ (verse 1, 4-6 lines)\n- मुखड़ा\n- अंतरा २ (verse 2, 4-6 lines)\n- मुखड़ा\n- अंतरा ३ (verse 3, 4-6 lines)\n- मुखड़ा\n\nWrite ONLY in Hindi Devanagari. Make the lyrics melodious, devotional and deeply spiritual.`,
+        },
+      ],
+      max_tokens: 1200,
+      temperature: 0.85,
+    }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Groq error ${resp.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  return data.choices[0].message.content.trim();
+}
+
+// ─── Higgsfield image-to-video (Seedance 2.0) ─────────────────────────
+// Animates a single image into a 5s cinematic clip using Higgsfield CLI.
+// Falls back to FFmpeg crop-pan if Higgsfield is unavailable.
+async function animateImageHighgsfield(imgPath, prompt, aspectRatio, outPath) {
+  console.log(`[song] Higgsfield Seedance 2.0 — animating image…`);
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env, HIGGSFIELD_TOKEN, HOME: '/root' };
+    // Write credentials file so CLI can authenticate
+    const credDir = '/root/.config/higgsfield';
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(`${credDir}/credentials.json`, JSON.stringify({
+      access_token: HIGGSFIELD_TOKEN,
+    }));
+    const proc = spawn('higgsfield', [
+      'generate', 'create', 'seedance_2_0',
+      '--prompt', prompt,
+      '--start-image', imgPath,
+      '--duration', '5',
+      '--aspect_ratio', aspectRatio,
+      '--wait', '--wait-timeout', '8m',
+    ], { env });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', d => (stdout += d.toString()));
+    proc.stderr.on('data', d => (stderr += d.toString()));
+    proc.on('close', code => {
+      if (code !== 0) return reject(new Error(`Higgsfield CLI: ${stderr.slice(-400)}`));
+      // stdout contains the result URL
+      const url = stdout.trim().split('\n').find(l => l.startsWith('http'));
+      if (!url) return reject(new Error(`Higgsfield: no URL in output: ${stdout.slice(-200)}`));
+      resolve(url);
+    });
+    proc.on('error', reject);
+  });
+}
+
+// FFmpeg fallback: fast crop-pan animation
+async function animateImageFfmpeg(imgPath, idx, durationSec, W, H, fps, outPath) {
+  const TYPES = ['pan-lr', 'pan-rl', 'pan-tb', 'pan-bt', 'diag', 'static'];
+  const type = TYPES[idx % TYPES.length];
+  const BW = Math.round(W * 1.2), BH = Math.round(H * 1.2);
+  const dx = BW - W, dy = BH - H;
+  const dur = durationSec.toFixed(3);
+  let vf;
+  switch (type) {
+    case 'pan-lr': vf = `scale=${BW}:${BH},crop=${W}:${H}:'min(${dx}\\,${dx}*n/(${fps}*${dur}))':${Math.round(dy/2)}`; break;
+    case 'pan-rl': vf = `scale=${BW}:${BH},crop=${W}:${H}:'max(0\\,${dx}-${dx}*n/(${fps}*${dur}))':${Math.round(dy/2)}`; break;
+    case 'pan-tb': vf = `scale=${BW}:${BH},crop=${W}:${H}:${Math.round(dx/2)}:'min(${dy}\\,${dy}*n/(${fps}*${dur}))'`; break;
+    case 'pan-bt': vf = `scale=${BW}:${BH},crop=${W}:${H}:${Math.round(dx/2)}:'max(0\\,${dy}-${dy}*n/(${fps}*${dur}))'`; break;
+    case 'diag':   vf = `scale=${BW}:${BH},crop=${W}:${H}:'min(${dx}\\,${dx}*n/(${fps}*${dur}))':'min(${dy}\\,${dy}*n/(${fps}*${dur}))'`; break;
+    default:       vf = `scale=${W}:${H},crop=${W}:${H}`; break;
+  }
+  await new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-loop', '1', '-i', imgPath, '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', fps.toString(), '-t', dur, '-y', outPath]);
+    let stderr = '';
+    ff.stderr.on('data', d => { stderr += d.toString(); if (stderr.length > 10000) stderr = stderr.slice(-5000); });
+    ff.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg animate: ${stderr.slice(-600)}`)));
+    ff.on('error', reject);
+  });
+}
+
+// ─── Full song video pipeline ──────────────────────────────────────────
+// 1. TTS lyrics → audio (espeak-ng offline fallback)
+// 2. Higgsfield Seedance 2.0 animates each image (falls back to FFmpeg crop-pan)
+// 3. Download clips → xfade concat → mux audio → final MP4
+async function generateSongVideo(lyricsText, imagePaths, outputPath, format = '9:16') {
+  const tmpDir    = fs.mkdtempSync(path.join(os.tmpdir(), 'bhakti_song_'));
+  const audioPath = path.join(tmpDir, 'song.mp3');
+
+  try {
+    // Step 1: TTS
+    console.log('[song] Generating TTS audio…');
+    const rawDur   = await generateSongNarration(lyricsText, audioPath);
+    const totalDur = Math.max(5.0, rawDur);
+    console.log(`[song] Audio: ${rawDur.toFixed(1)}s (effective: ${totalDur.toFixed(1)}s)`);
+
+    if (rawDur < totalDur) {
+      const padded = audioPath + '_pad.mp3';
+      await execAsync(`ffmpeg -y -i "${audioPath}" -af "apad=whole_dur=${totalDur}" "${padded}"`);
+      fs.renameSync(padded, audioPath);
+    }
+
+    const portrait    = format === '9:16';
+    const aspectRatio = portrait ? '9:16' : '16:9';
+    const W = portrait ? 720 : 1280, H = portrait ? 1280 : 720, FPS = 15;
+    const n = imagePaths.length;
+    const XFADE_DUR = n > 1 ? 0.8 : 0;
+    const imgDur    = n > 1 ? (totalDur + (n - 1) * XFADE_DUR) / n : totalDur;
+
+    // Step 2: Animate images — try Higgsfield, fallback to FFmpeg
+    const clipPaths = imagePaths.map((_, i) => path.join(tmpDir, `clip_${i}.mp4`));
+    const bhaktiPrompts = [
+      'Divine golden light, spiritual energy, petals falling, cinematic slow zoom, devotional atmosphere',
+      'Sacred temple, sunrise, sacred fire glow, ethereal mist, bhakti spiritual mood',
+      'Lotus flowers blooming, divine radiance, peaceful meditation, cinematic pan',
+      'Holy river, spiritual pilgrimage, golden hour light, devotional energy',
+    ];
+    const useHighgsfield = !!HIGGSFIELD_TOKEN;
+    console.log(`[song] Animating ${n} image(s) via ${useHighgsfield ? 'Higgsfield Seedance 2.0' : 'FFmpeg crop-pan'}…`);
+
+    if (useHighgsfield) {
+      // Higgsfield: animate each image in parallel, download clips
+      const videoUrls = await Promise.all(
+        imagePaths.map((imgPath, i) =>
+          animateImageHighgsfield(imgPath, bhaktiPrompts[i % bhaktiPrompts.length], aspectRatio, clipPaths[i])
+            .catch(err => {
+              console.warn(`[song] Higgsfield img ${i+1} failed: ${err.message.slice(0, 100)}, using FFmpeg fallback`);
+              return null; // signal FFmpeg fallback
+            })
+        )
+      );
+      // Download Higgsfield clips or fallback to FFmpeg
+      await Promise.all(
+        imagePaths.map(async (imgPath, i) => {
+          if (videoUrls[i]) {
+            // Download Higgsfield MP4 clip
+            console.log(`[song] Downloading Higgsfield clip ${i+1}…`);
+            await execAsync(`curl -fsSL -o "${clipPaths[i]}" "${videoUrls[i]}"`);
+          } else {
+            await animateImageFfmpeg(imgPath, i, imgDur, W, H, FPS, clipPaths[i]);
+          }
+        })
+      );
+    } else {
+      await Promise.all(imagePaths.map((imgPath, i) => animateImageFfmpeg(imgPath, i, imgDur, W, H, FPS, clipPaths[i])));
+    }
+
+    // Step 3: Xfade concat + mux audio
+    console.log('[song] Compositing final video…');
+    if (n === 1) {
+      await new Promise((resolve, reject) => {
+        const ff = spawn('ffmpeg', [
+          '-i', clipPaths[0], '-i', audioPath,
+          '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-map', '0:v', '-map', '1:a', '-shortest', '-y', outputPath,
+        ]);
+        let stderr = '';
+        ff.stderr.on('data', d => (stderr += d.toString()));
+        ff.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg mux: ${stderr.slice(-800)}`)));
+        ff.on('error', reject);
+      });
+    } else {
+      const XFADE_POOL = ['fade', 'dissolve', 'wipeleft', 'wiperight', 'wipeup', 'circleopen', 'radial', 'smoothleft'];
+      const inputArgs = clipPaths.flatMap(p => ['-i', p]);
+      const filterParts = [];
+      let lastLabel = '0:v';
+      for (let i = 1; i < n; i++) {
+        const offset = (i * (imgDur - XFADE_DUR)).toFixed(3);
+        const outLbl = i === n - 1 ? 'vout' : `v${i}`;
+        filterParts.push(`[${lastLabel}][${i}:v]xfade=transition=${XFADE_POOL[i % XFADE_POOL.length]}:duration=${XFADE_DUR}:offset=${offset}[${outLbl}]`);
+        lastLabel = outLbl;
+      }
+      await new Promise((resolve, reject) => {
+        const ff = spawn('ffmpeg', [
+          ...inputArgs, '-i', audioPath,
+          '-filter_complex', filterParts.join(';'),
+          '-map', '[vout]', '-map', `${n}:a`,
+          '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+          '-shortest', '-y', outputPath,
+        ]);
+        let stderr = '';
+        ff.stderr.on('data', d => (stderr += d.toString()));
+        ff.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg xfade: ${stderr.slice(-1200)}`)));
+        ff.on('error', reject);
+      });
+    }
+
+    console.log(`[song] Done → ${outputPath}`);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -392,7 +634,10 @@ app.post(
         const outFile = path.join(outDir, `bhakti_${ts}.mp4`);
         console.log(`[bhakti] Video ${i + 1}/${stories.length}… (format: ${format})`);
         await generateVideo(stories[i], imagePaths, outFile, format);
-        videos.push({ url: `/out/bhakti_${ts}.mp4`, story: i + 1 });
+        videos.push({
+          url:   `/out/bhakti_${ts}.mp4`,
+          story: i + 1,
+        });
         if (i < stories.length - 1) await new Promise(r => setTimeout(r, 3000));
       }
       cleanup();
@@ -405,6 +650,57 @@ app.post(
   }
 );
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti' }));
+// POST /api/generate-lyrics — Groq generates Hindi bhakti song lyrics
+app.post('/api/generate-lyrics', async (req, res) => {
+  try {
+    const { deity, theme, mood } = req.body || {};
+    if (!deity && !theme) return res.status(400).json({ error: 'Provide deity or theme.' });
+    const lyrics = await generateHindiLyrics(deity, theme, mood);
+    res.json({ lyrics });
+  } catch (err) {
+    console.error('[bhakti] Lyrics error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/generate-song-video — lyrics + images → Higgsfield animated song video
+app.post(
+  '/api/generate-song-video',
+  upload.fields([{ name: 'images', maxCount: 10 }]),
+  async (req, res) => {
+    const lyrics     = req.body.lyrics || '';
+    const imageFiles = req.files?.images || [];
+    const cleanup    = () => imageFiles.forEach(f => { try { fs.unlinkSync(f.path); } catch {} });
+
+    if (!lyrics.trim()) { cleanup(); return res.status(400).json({ error: 'No lyrics provided.' }); }
+    if (!imageFiles.length) { cleanup(); return res.status(400).json({ error: 'Upload at least one image.' }); }
+
+    const format  = ['9:16', '16:9'].includes(req.body.format) ? req.body.format : '9:16';
+    const EXT_MAP = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/bmp': '.bmp' };
+    const imagePaths = imageFiles.map(f => {
+      const ext     = EXT_MAP[f.mimetype] || '.jpg';
+      const newPath = f.path + ext;
+      fs.renameSync(f.path, newPath);
+      return newPath;
+    });
+
+    const outDir  = path.join(__dirname, 'out');
+    fs.mkdirSync(outDir, { recursive: true });
+    const ts      = Date.now();
+    const outFile = path.join(outDir, `song_${ts}.mp4`);
+
+    try {
+      await generateSongVideo(lyrics, imagePaths, outFile, format);
+      cleanup();
+      res.json({ videoUrl: `/out/song_${ts}.mp4` });
+    } catch (err) {
+      console.error('[bhakti] Song video error:', err.message);
+      cleanup();
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-v2', hasToken: !!HIGGSFIELD_TOKEN }));
 
 app.listen(PORT, () => console.log(`aiBhakti listening on port ${PORT}`));
