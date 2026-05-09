@@ -20,25 +20,89 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY;
 const HIGGSFIELD_TOKEN   = process.env.HIGGSFIELD_TOKEN;
 const BACKEND_URL        = (process.env.BACKEND_URL || 'https://ai-bhakti-production.up.railway.app').replace(/\/$/, '');
 
-// ─── Bootstrap Higgsfield CLI at startup (handles Dockerfile cache misses) ──
-const HF_BIN = '/usr/local/bin/higgsfield';
-const HF_URL = 'https://github.com/higgsfield-ai/cli/releases/download/v0.1.34/hf_0.1.34_linux_amd64.tar.gz';
-(async () => {
-  if (fs.existsSync(HF_BIN)) {
-    console.log('[hf] Higgsfield CLI already installed');
-    return;
-  }
-  if (process.platform !== 'linux') return; // skip on non-linux (dev)
+// ─── Higgsfield REST API (pure Node.js — no CLI needed) ───────────────
+const HF_API = 'https://fnf.higgsfield.ai/agents';
+let _hfToken = HIGGSFIELD_TOKEN || '';
+let _hfRefresh = process.env.HIGGSFIELD_REFRESH_TOKEN || '';
+
+async function hfRefreshToken() {
+  if (!_hfRefresh) return;
   try {
-    console.log('[hf] Installing Higgsfield CLI…');
-    await execAsync(`curl -fsSL "${HF_URL}" | tar -xz -C /usr/local/bin higgsfield`);
-    await execAsync(`ln -sf /usr/local/bin/higgsfield /usr/local/bin/hf`);
-    const { stdout } = await execAsync('higgsfield version');
-    console.log('[hf] Installed:', stdout.trim());
-  } catch (err) {
-    console.warn('[hf] Could not install Higgsfield CLI:', err.message.slice(0, 200));
+    const resp = await fetch(`${HF_API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: _hfRefresh }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.access_token) { _hfToken = data.access_token; console.log('[hf] Token refreshed'); }
+    }
+  } catch {}
+}
+
+async function hfFetch(path, opts = {}) {
+  const doRequest = async () => fetch(`${HF_API}${path}`, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${_hfToken}`, ...(opts.headers || {}) },
+  });
+  let resp = await doRequest();
+  if (resp.status === 401) { await hfRefreshToken(); resp = await doRequest(); }
+  return resp;
+}
+
+// Upload an image file to Higgsfield, return the upload UUID
+async function hfUploadImage(imgPath) {
+  // Step 1: create upload slot
+  const slotResp = await hfFetch('/uploads?type=image', { method: 'POST' });
+  if (!slotResp.ok) throw new Error(`HF upload slot: ${slotResp.status} ${await slotResp.text()}`);
+  const { id: uploadId, upload_url } = await slotResp.json();
+  // Step 2: PUT binary to the pre-signed URL
+  const imgBuf = fs.readFileSync(imgPath);
+  const ext = path.extname(imgPath).toLowerCase();
+  const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.bmp': 'image/bmp' }[ext] || 'image/jpeg';
+  const putResp = await fetch(upload_url, { method: 'PUT', body: imgBuf, headers: { 'Content-Type': mime } });
+  if (!putResp.ok) throw new Error(`HF upload PUT: ${putResp.status}`);
+  console.log(`[hf] Uploaded image → ${uploadId}`);
+  return uploadId;
+}
+
+// Create a Seedance 2.0 image-to-video job, poll until done, return result URL
+async function hfGenerateVideo(prompt, uploadId, aspectRatio = '9:16', durationSec = 5) {
+  const body = {
+    job_set_type: 'seedance_2_0',
+    params: {
+      prompt,
+      aspect_ratio: aspectRatio,
+      duration: durationSec,
+      generate_audio: false,
+      medias: [{ role: 'start_image', id: uploadId }],
+    },
+  };
+  const createResp = await hfFetch('/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!createResp.ok) throw new Error(`HF create job: ${createResp.status} ${await createResp.text()}`);
+  const job = await createResp.json();
+  const jobId = job.id || (Array.isArray(job) && job[0]);
+  if (!jobId) throw new Error(`HF create job: no id in response: ${JSON.stringify(job).slice(0, 200)}`);
+  console.log(`[hf] Job created: ${jobId}`);
+
+  // Poll every 5s for up to 8 min
+  const deadline = Date.now() + 8 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 5000));
+    const pollResp = await hfFetch(`/jobs/${jobId}`);
+    if (!pollResp.ok) continue;
+    const status = await pollResp.json();
+    const s = status.status;
+    console.log(`[hf] Job ${jobId}: ${s}`);
+    if (s === 'completed') return status.result_url;
+    if (s === 'failed' || s === 'error') throw new Error(`HF job ${jobId} failed: ${JSON.stringify(status).slice(0, 200)}`);
   }
-})();
+  throw new Error(`HF job ${jobId} timed out after 8 min`);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -443,40 +507,15 @@ async function generateHindiLyrics(deity, theme, mood) {
   return data.choices[0].message.content.trim();
 }
 
-// ─── Higgsfield image-to-video (Seedance 2.0) ─────────────────────────
-// Animates a single image into a 5s cinematic clip using Higgsfield CLI.
-// Falls back to FFmpeg crop-pan if Higgsfield is unavailable.
-async function animateImageHighgsfield(imgPath, prompt, aspectRatio, outPath) {
-  console.log(`[song] Higgsfield Seedance 2.0 — animating image…`);
-  return new Promise((resolve, reject) => {
-    const env = { ...process.env, HIGGSFIELD_TOKEN, HOME: '/root' };
-    // Write credentials file so CLI can authenticate
-    const credDir = '/root/.config/higgsfield';
-    fs.mkdirSync(credDir, { recursive: true });
-    fs.writeFileSync(`${credDir}/credentials.json`, JSON.stringify({
-      access_token: HIGGSFIELD_TOKEN,
-    }));
-    const proc = spawn('higgsfield', [
-      'generate', 'create', 'seedance_2_0',
-      '--prompt', prompt,
-      '--start-image', imgPath,
-      '--duration', '5',
-      '--aspect_ratio', aspectRatio,
-      '--wait', '--wait-timeout', '8m',
-    ], { env });
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', d => (stdout += d.toString()));
-    proc.stderr.on('data', d => (stderr += d.toString()));
-    proc.on('close', code => {
-      if (code !== 0) return reject(new Error(`Higgsfield CLI: ${stderr.slice(-400)}`));
-      // stdout contains the result URL
-      const url = stdout.trim().split('\n').find(l => l.startsWith('http'));
-      if (!url) return reject(new Error(`Higgsfield: no URL in output: ${stdout.slice(-200)}`));
-      resolve(url);
-    });
-    proc.on('error', reject);
-  });
+// ─── Higgsfield image-to-video (Seedance 2.0 via REST API) ───────────
+// No CLI required — uses pure Node.js fetch calls.
+async function animateImageHighgsfield(imgPath, prompt, aspectRatio) {
+  console.log(`[song] Higgsfield Seedance 2.0 — uploading image…`);
+  const uploadId = await hfUploadImage(imgPath);
+  console.log(`[song] Higgsfield — creating video job…`);
+  const resultUrl = await hfGenerateVideo(prompt, uploadId, aspectRatio, 5);
+  console.log(`[song] Higgsfield — video ready: ${resultUrl}`);
+  return resultUrl;
 }
 
 // FFmpeg fallback: fast crop-pan animation
@@ -558,9 +597,12 @@ async function generateSongVideo(lyricsText, imagePaths, outputPath, format = '9
       await Promise.all(
         imagePaths.map(async (imgPath, i) => {
           if (videoUrls[i]) {
-            // Download Higgsfield MP4 clip
+            // Download Higgsfield MP4 clip using fetch
             console.log(`[song] Downloading Higgsfield clip ${i+1}…`);
-            await execAsync(`curl -fsSL -o "${clipPaths[i]}" "${videoUrls[i]}"`);
+            const dlResp = await fetch(videoUrls[i]);
+            if (!dlResp.ok) throw new Error(`Failed to download HF clip: ${dlResp.status}`);
+            const buf = Buffer.from(await dlResp.arrayBuffer());
+            fs.writeFileSync(clipPaths[i], buf);
           } else {
             await animateImageFfmpeg(imgPath, i, imgDur, W, H, FPS, clipPaths[i]);
           }
@@ -721,6 +763,6 @@ app.post(
   }
 );
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-v2', hasToken: !!HIGGSFIELD_TOKEN }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-rest-v1', hasToken: !!HIGGSFIELD_TOKEN }));
 
 app.listen(PORT, () => console.log(`aiBhakti listening on port ${PORT}`));
