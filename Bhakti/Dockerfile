@@ -1,7 +1,6 @@
 FROM node:20-bookworm-slim
-ARG NOCACHE=0
-# Using NOCACHE in a RUN instruction ensures Docker invalidates cache when it changes
-RUN echo "Build cache bust: ${NOCACHE}"
+# FORCE_REBUILD: 2026-05-08T14:30:00Z — bhakti drone music + singing voice
+RUN echo "Force rebuild 2026-05-08T14:30:00Z"
 
 # ── System deps: Python, FFmpeg, fonts, espeak-ng, curl
 RUN apt-get update && apt-get install -y \
