@@ -1,5 +1,7 @@
 FROM node:20-bookworm-slim
-ARG NOCACHE
+ARG NOCACHE=0
+# Using NOCACHE in a RUN instruction ensures Docker invalidates cache when it changes
+RUN echo "Build cache bust: ${NOCACHE}"
 
 # ── System deps: Python, FFmpeg, fonts, espeak-ng, curl
 RUN apt-get update && apt-get install -y \
