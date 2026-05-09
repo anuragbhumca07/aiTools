@@ -766,3 +766,4 @@ app.post(
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-rest-v1', hasToken: !!HIGGSFIELD_TOKEN }));
 
 app.listen(PORT, () => console.log(`aiBhakti listening on port ${PORT}`));
+// DEPLOY_TS: 1778310043
