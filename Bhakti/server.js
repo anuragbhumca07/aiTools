@@ -74,7 +74,7 @@ async function hfGenerateVideo(prompt, uploadId, aspectRatio = '9:16', durationS
       prompt,
       aspect_ratio: aspectRatio,
       duration: durationSec,
-      generate_audio: false,
+      generate_audio: true,
       medias: [{ role: 'start_image', id: uploadId }],
     },
   };
@@ -301,7 +301,10 @@ async function runEspeakTts(text, outputPath, lang = 'hi') {
   const wavOut = outputPath.replace(/\.mp3$/, '.wav');
   await new Promise((resolve, reject) => {
     // Use stdin to avoid UTF-8 file encoding issues on some systems
-    const proc = spawn('espeak-ng', ['-v', lang, '-w', wavOut]);
+    // -p 65: higher pitch (more melodic/feminine, default 50)
+    // -s 115: slower speed (more musical pacing, default 175)
+    // -a 160: slightly louder amplitude
+    const proc = spawn('espeak-ng', ['-v', `${lang}+f3`, '-p', '65', '-s', '115', '-a', '160', '-w', wavOut]);
     let stderr = '';
     proc.stderr.on('data', d => (stderr += d.toString()));
     proc.stdin.write(text, 'utf8');
@@ -338,6 +341,48 @@ async function runGTts(text, outputPath, lang = 'hi') {
       code === 0 ? resolve() : reject(new Error(`gTTS(${lang}) failed: ${stderr.slice(-400)}`));
     });
     proc.on('error', reject);
+  });
+}
+
+// ─── Bhakti tanpura drone music using FFmpeg sine generators ─────────
+// Creates a spiritual tanpura-like drone (SA, PA, SA octaves) with echo
+// entirely offline — no network required.
+async function generateBhaktiDrone(durationSec, outputPath) {
+  const dur = Math.ceil(durationSec) + 2; // generate slightly longer, trim at end
+  // Tanpura frequencies: low SA (C3), low PA (G3), SA (C4), PA (G4), high SA (C5)
+  const tones = [
+    [130.81, 0.55],  // C3 — low SA (foundation)
+    [196.00, 0.40],  // G3 — low PA
+    [261.63, 0.70],  // C4 — SA (main)
+    [392.00, 0.38],  // G4 — PA
+    [523.25, 0.30],  // C5 — high SA (shimmer)
+  ];
+  const inputs = tones.flatMap(([freq]) => ['-f', 'lavfi', '-i', `sine=frequency=${freq}:duration=${dur}`]);
+  const volChain = tones.map(([, v], i) => `[${i}]volume=${v}[a${i}]`).join(';');
+  const labels   = tones.map((_, i) => `[a${i}]`).join('');
+  const fadeStart = Math.max(0.5, durationSec - 2.0).toFixed(1);
+  const filterComplex = [
+    volChain,
+    `${labels}amix=inputs=${tones.length}:normalize=0[m]`,
+    `[m]aecho=0.65:0.75:250|550|1100:0.55|0.38|0.22[e]`,
+    `[e]lowpass=f=2000[l]`,
+    `[l]afade=t=in:st=0:d=1.5,afade=t=out:st=${fadeStart}:d=2.0[out]`,
+  ].join(';');
+
+  return new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', [
+      ...inputs,
+      '-filter_complex', filterComplex,
+      '-map', '[out]',
+      '-t', durationSec.toString(),
+      '-y', outputPath,
+    ]);
+    let stderr = '';
+    ff.stderr.on('data', d => (stderr += d.toString()));
+    ff.on('close', code =>
+      code === 0 ? resolve() : reject(new Error(`Bhakti drone gen failed: ${stderr.slice(-500)}`))
+    );
+    ff.on('error', reject);
   });
 }
 
@@ -571,6 +616,34 @@ async function generateSongVideo(lyricsText, imagePaths, outputPath, format = '9
     const XFADE_DUR = n > 1 ? 0.8 : 0;
     const imgDur    = n > 1 ? (totalDur + (n - 1) * XFADE_DUR) / n : totalDur;
 
+    // Step 1b: Generate bhakti tanpura drone music and mix with TTS voice
+    console.log('[song] Generating bhakti tanpura drone music…');
+    const dronePath    = path.join(tmpDir, 'drone.mp3');
+    const mixedPath    = path.join(tmpDir, 'mixed.mp3');
+    try {
+      await generateBhaktiDrone(totalDur, dronePath);
+      // Mix: TTS voice at 1.0 + tanpura drone at 0.45 (music prominent but lyrics audible)
+      await new Promise((resolve, reject) => {
+        const ff = spawn('ffmpeg', [
+          '-i', audioPath,
+          '-i', dronePath,
+          '-filter_complex',
+          `[0]volume=1.0[v];[1]volume=0.45[d];[v][d]amix=inputs=2:normalize=0[mx];[mx]apad=whole_dur=${totalDur}[a]`,
+          '-map', '[a]',
+          '-t', totalDur.toString(),
+          '-y', mixedPath,
+        ]);
+        let stderr = '';
+        ff.stderr.on('data', d => (stderr += d.toString()));
+        ff.on('close', code => code === 0 ? resolve() : reject(new Error(`Audio mix failed: ${stderr.slice(-400)}`)));
+        ff.on('error', reject);
+      });
+      console.log('[song] TTS + drone mix done');
+    } catch (err) {
+      console.warn(`[song] Drone/mix failed: ${err.message.slice(0, 120)} — using plain TTS`);
+      fs.copyFileSync(audioPath, mixedPath); // fallback: plain TTS audio
+    }
+
     // Step 2: Animate images — try Higgsfield, fallback to FFmpeg
     const clipPaths = imagePaths.map((_, i) => path.join(tmpDir, `clip_${i}.mp4`));
     const bhaktiPrompts = [
@@ -612,12 +685,12 @@ async function generateSongVideo(lyricsText, imagePaths, outputPath, format = '9
       await Promise.all(imagePaths.map((imgPath, i) => animateImageFfmpeg(imgPath, i, imgDur, W, H, FPS, clipPaths[i])));
     }
 
-    // Step 3: Xfade concat + mux audio
+    // Step 3: Xfade concat + mux audio (use mixed audio with drone)
     console.log('[song] Compositing final video…');
     if (n === 1) {
       await new Promise((resolve, reject) => {
         const ff = spawn('ffmpeg', [
-          '-i', clipPaths[0], '-i', audioPath,
+          '-i', clipPaths[0], '-i', mixedPath,
           '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
           '-map', '0:v', '-map', '1:a', '-shortest', '-y', outputPath,
         ]);
@@ -639,7 +712,7 @@ async function generateSongVideo(lyricsText, imagePaths, outputPath, format = '9
       }
       await new Promise((resolve, reject) => {
         const ff = spawn('ffmpeg', [
-          ...inputArgs, '-i', audioPath,
+          ...inputArgs, '-i', mixedPath,
           '-filter_complex', filterParts.join(';'),
           '-map', '[vout]', '-map', `${n}:a`,
           '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
@@ -766,4 +839,4 @@ app.post(
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-rest-v1', hasToken: !!HIGGSFIELD_TOKEN }));
 
 app.listen(PORT, () => console.log(`aiBhakti listening on port ${PORT}`));
-// DEPLOY_TS: 1778310043
+// DEPLOY_TS: 1778360001 — bhakti drone music + singing voice params
