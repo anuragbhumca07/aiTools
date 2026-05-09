@@ -20,6 +20,26 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY;
 const HIGGSFIELD_TOKEN   = process.env.HIGGSFIELD_TOKEN;
 const BACKEND_URL        = (process.env.BACKEND_URL || 'https://ai-bhakti-production.up.railway.app').replace(/\/$/, '');
 
+// ─── Bootstrap Higgsfield CLI at startup (handles Dockerfile cache misses) ──
+const HF_BIN = '/usr/local/bin/higgsfield';
+const HF_URL = 'https://github.com/higgsfield-ai/cli/releases/download/v0.1.34/hf_0.1.34_linux_amd64.tar.gz';
+(async () => {
+  if (fs.existsSync(HF_BIN)) {
+    console.log('[hf] Higgsfield CLI already installed');
+    return;
+  }
+  if (process.platform !== 'linux') return; // skip on non-linux (dev)
+  try {
+    console.log('[hf] Installing Higgsfield CLI…');
+    await execAsync(`curl -fsSL "${HF_URL}" | tar -xz -C /usr/local/bin higgsfield`);
+    await execAsync(`ln -sf /usr/local/bin/higgsfield /usr/local/bin/hf`);
+    const { stdout } = await execAsync('higgsfield version');
+    console.log('[hf] Installed:', stdout.trim());
+  } catch (err) {
+    console.warn('[hf] Could not install Higgsfield CLI:', err.message.slice(0, 200));
+  }
+})();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
