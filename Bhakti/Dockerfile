@@ -1,4 +1,5 @@
 FROM node:20-bookworm-slim
+ARG NOCACHE
 
 # ── System deps: Python, FFmpeg, fonts, espeak-ng, curl
 RUN apt-get update && apt-get install -y \
