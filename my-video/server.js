@@ -200,6 +200,25 @@ function runEdgeTts(text, outputPath) {
   });
 }
 
+async function runEdgeTtsWithRetry(text, outputPath, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await runEdgeTts(text, outputPath);
+      return;
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      await new Promise(r => setTimeout(r, attempt * 2000));
+    }
+  }
+}
+
+// Run async tasks in sequential batches of batchSize to avoid rate limiting
+async function runInBatches(tasks, batchSize) {
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    await Promise.all(tasks.slice(i, i + batchSize).map(fn => fn()));
+  }
+}
+
 async function getMp3Duration(filePath) {
   const fp = filePath.replace(/\\/g, '/');
   const { stdout } = await execAsync(`python -c "from mutagen.mp3 import MP3; print(MP3(r'${fp}').info.length)"`, { timeout: 10000 });
@@ -379,6 +398,134 @@ app.post('/api/generate-custom', async (req, res) => {
     if (!question || !Array.isArray(options) || options.length !== 4 || correctIndex == null)
       return res.status(400).json({ success: false, error: 'Provide question, 4 options, and correctIndex.' });
     res.json({ success: true, ...(await generateVideo(question.trim(), options.map(o => o.trim()), +correctIndex, format)) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Core: generate a BULK video (up to 50 questions) ─────────────
+async function generateBulkVideo(questions, format = '16:9') {
+  const ts = getTimestamp();
+  const outDir = path.join(__dirname, 'out');
+  fs.mkdirSync(outDir, { recursive: true });
+
+  const bundleDir = await getBundleDir();
+  const voiceDir = path.join(bundleDir, 'public', 'voice');
+  fs.mkdirSync(voiceDir, { recursive: true });
+
+  // Build per-question voice file paths
+  const voiceMeta = questions.map((q, i) => {
+    const qts = `${ts}_q${i}`;
+    return {
+      qts,
+      qAbs: path.join(voiceDir, `q_${qts}.mp3`),
+      oAbs: path.join(voiceDir, `o_${qts}.mp3`),
+      aAbs: path.join(voiceDir, `a_${qts}.mp3`),
+      optText: `A, ${q.options[0]}. B, ${q.options[1]}. C, ${q.options[2]}. D, ${q.options[3]}.`,
+      ansText: `The answer is ${q.options[q.correctIndex]}. You are correct! Amazing! You are a superstar!`,
+    };
+  });
+
+  // Generate all voice files in batches of 15 (5 questions × 3 voices) to avoid rate-limiting
+  console.log(`[bulk:${ts}] Generating ${questions.length * 3} voice files…`);
+  const voiceTasks = voiceMeta.flatMap((m, i) => [
+    () => runEdgeTtsWithRetry(questions[i].question, m.qAbs),
+    () => runEdgeTtsWithRetry(m.optText, m.oAbs),
+    () => runEdgeTtsWithRetry(m.ansText, m.aAbs),
+  ]);
+  await runInBatches(voiceTasks, 15);
+
+  // Get all MP3 durations
+  console.log(`[bulk:${ts}] Measuring durations…`);
+  const durations = await Promise.all(
+    voiceMeta.map(m => Promise.all([getMp3Duration(m.qAbs), getMp3Duration(m.oAbs), getMp3Duration(m.aAbs)]))
+  );
+
+  // Build Remotion inputProps with per-question startFrame offsets
+  const FPS = 30;
+  let startFrame = 0;
+  const questionProps = questions.map((q, i) => {
+    const [qDur, oDur, aDur] = durations[i];
+    const questionSeconds = Math.ceil(qDur) + 1;
+    const optionsSeconds  = Math.ceil(oDur) + 1;
+    const timerSeconds    = 5;
+    const answerSeconds   = Math.ceil(aDur) + 2;
+    const totalSec = questionSeconds + optionsSeconds + timerSeconds + answerSeconds;
+
+    const props = {
+      question:        q.question,
+      options:         q.options,
+      correctIndex:    q.correctIndex,
+      questionSeconds,
+      optionsSeconds,
+      timerSeconds,
+      answerSeconds,
+      questionVoice:   `voice/q_${voiceMeta[i].qts}.mp3`,
+      optionsVoice:    `voice/o_${voiceMeta[i].qts}.mp3`,
+      answerVoice:     `voice/a_${voiceMeta[i].qts}.mp3`,
+      startFrame,
+    };
+    startFrame += totalSec * FPS;
+    return props;
+  });
+
+  const totalFrames = startFrame;
+  const inputProps  = { questions: questionProps, format };
+  const videoName   = `bulk_quiz_${ts}.mp4`;
+  const videoPath   = path.join(outDir, videoName);
+
+  console.log(`[bulk:${ts}] Selecting composition… (${questions.length} questions, ${totalFrames} frames)`);
+  const composition = await _selectComposition({
+    serveUrl: bundleDir,
+    id: 'BulkQuizVideo',
+    inputProps,
+    chromiumOptions: CHROMIUM_OPTIONS,
+  });
+
+  console.log(`[bulk:${ts}] Rendering bulk video…`);
+  try {
+    await _renderMedia({
+      composition,
+      serveUrl: bundleDir,
+      codec: 'h264',
+      outputLocation: videoPath,
+      inputProps,
+      concurrency: 1,
+      frameRange: [0, totalFrames - 1],
+      chromiumOptions: CHROMIUM_OPTIONS,
+    });
+  } finally {
+    for (const m of voiceMeta) {
+      for (const f of [m.qAbs, m.oAbs, m.aAbs]) {
+        try { fs.unlinkSync(f); } catch {}
+      }
+    }
+  }
+
+  console.log(`[bulk:${ts}] Done → out/${videoName}`);
+  const base = process.env.BACKEND_URL || 'https://quiz-video-generator-production.up.railway.app';
+  return {
+    videoUrl: `${base}/videos/${videoName}`,
+    filename: videoName,
+    questions: questions.map(q => ({ question: q.question, options: q.options, correctIndex: q.correctIndex })),
+  };
+}
+
+// POST /api/generate-bulk — up to 50 questions → one combined MP4
+app.post('/api/generate-bulk', async (req, res) => {
+  try {
+    const { questions, format = '16:9' } = req.body || {};
+    if (!Array.isArray(questions) || questions.length === 0)
+      return res.status(400).json({ success: false, error: 'Provide a non-empty questions array.' });
+    if (questions.length > 50)
+      return res.status(400).json({ success: false, error: 'Maximum 50 questions per bulk video.' });
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || q.correctIndex == null)
+        return res.status(400).json({ success: false, error: `Question ${i + 1}: missing question, 4 options, or correctIndex.` });
+    }
+    res.json({ success: true, ...(await generateBulkVideo(questions, format)) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });

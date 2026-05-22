@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>aiBhakti — Spiritual Story Video Generator</title>
+  <title>aiBhakti — Spiritual Story &amp; Song Video Generator</title>
   <style>
     /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -226,6 +226,69 @@
     .video-wrap { display: none; margin-top: 12px; }
     .video-wrap.open { display: block; }
     .video-wrap video { width: 100%; border-radius: 8px; background: #000; max-height: 480px; }
+
+    /* ── Mode toggle ── */
+    .mode-row {
+      display: flex; gap: 10px; margin-bottom: 32px;
+      background: var(--surface); border-radius: 14px; padding: 6px;
+    }
+    .mode-btn {
+      flex: 1; padding: 13px 10px; border: none; border-radius: 10px;
+      background: transparent; color: var(--muted);
+      font-size: .95rem; font-weight: 700; cursor: pointer;
+      transition: all .22s; font-family: inherit; letter-spacing: .3px;
+    }
+    .mode-btn.active {
+      background: linear-gradient(135deg, var(--purple), var(--saffron));
+      color: #fff; box-shadow: 0 4px 18px rgba(155,89,240,.35);
+    }
+
+    /* ── Deity chips ── */
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .chip {
+      padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.04); color: var(--muted);
+      font-size: .83rem; font-weight: 600; cursor: pointer; transition: all .18s;
+      font-family: inherit;
+    }
+    .chip:hover { border-color: var(--purple); color: var(--lavender); }
+    .chip.sel   { background: rgba(155,89,240,.2); border-color: var(--purple); color: var(--lavender); }
+
+    /* ── Lyrics textarea ── */
+    .lyrics-area {
+      width: 100%; min-height: 260px; resize: vertical;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 14px;
+      font-size: .95rem; line-height: 1.8; font-family: 'Segoe UI', system-ui, sans-serif;
+      transition: border-color .2s;
+    }
+    .lyrics-area:focus { outline: none; border-color: var(--purple); }
+
+    /* ── Small secondary button ── */
+    .btn-sm {
+      padding: 10px 22px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, var(--purple), #5b21b6);
+      color: #fff; font-size: .88rem; font-weight: 700;
+      cursor: pointer; transition: opacity .2s; font-family: inherit;
+    }
+    .btn-sm:hover:not(:disabled) { opacity: .82; }
+    .btn-sm:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Song steps ── */
+    .step-tag {
+      display: inline-block; font-size: .7rem; font-weight: 800; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--gold); background: rgba(245,200,66,.1);
+      border: 1px solid rgba(245,200,66,.25); border-radius: 20px;
+      padding: 3px 11px; margin-bottom: 10px;
+    }
+
+    /* ── Higgsfield badge ── */
+    .hf-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .75rem; font-weight: 700; color: var(--muted);
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px; margin-left: 10px;
+    }
   </style>
 </head>
 <body>
@@ -235,11 +298,19 @@
     <a href="https://aitools-hub-c5g.pages.dev" style="position:absolute;top:18px;left:20px;font-size:.78rem;color:var(--muted);text-decoration:none;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 13px;transition:color .2s" onmouseover="this.style.color='#c3a0ff'" onmouseout="this.style.color=''">← AI Hub</a>
     <div class="om">ॐ</div>
     <h1>aiBhakti</h1>
-    <p>Transform spiritual stories into beautiful narrated videos — with your images as a divine slideshow.</p>
+    <p>Generate spiritual story videos or AI-composed Hindi bhakti songs — animated with Higgsfield.</p>
   </header>
 
   <div id="errorBox"></div>
 
+  <!-- Mode toggle -->
+  <div class="mode-row">
+    <button type="button" class="mode-btn active" id="mode-story" onclick="setMode('story')">📖 Story Video</button>
+    <button type="button" class="mode-btn"        id="mode-song"  onclick="setMode('song')">🎵 Song Video <span class="hf-badge">✦ Cinematic</span></button>
+  </div>
+
+  <!-- ══════════════ STORY MODE ══════════════ -->
+  <div id="storyMode">
   <form id="bhaktiForm">
 
     <!-- Story input -->
@@ -297,6 +368,92 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
   <!-- Results -->
   <div id="results"></div>
 
+  </div><!-- /#storyMode -->
+
+  <!-- ══════════════ SONG MODE ══════════════ -->
+  <div id="songMode" style="display:none">
+
+    <!-- Step 1: Song details -->
+    <div class="card">
+      <div class="step-tag">Step 1 — Song Details</div>
+      <div class="card-title">Choose Deity or Theme</div>
+      <div class="chip-row" id="deity-chips">
+        <button class="chip" onclick="selectDeity('हनुमान जी')">🐒 हनुमान</button>
+        <button class="chip" onclick="selectDeity('श्री कृष्ण')">🪈 कृष्ण</button>
+        <button class="chip" onclick="selectDeity('श्री राम')">🏹 राम</button>
+        <button class="chip" onclick="selectDeity('माँ दुर्गा')">🌺 दुर्गा</button>
+        <button class="chip" onclick="selectDeity('भगवान गणेश')">🐘 गणेश</button>
+        <button class="chip" onclick="selectDeity('भगवान शिव')">🔱 शिव</button>
+        <button class="chip" onclick="selectDeity('माँ लक्ष्मी')">🪷 लक्ष्मी</button>
+        <button class="chip" onclick="selectDeity('भगवान विष्णु')">🌸 विष्णु</button>
+        <button class="chip" onclick="selectDeity('माँ सरस्वती')">🎵 सरस्वती</button>
+        <button class="chip" onclick="selectDeity('श्री साईं बाबा')">🕯️ साईं बाबा</button>
+      </div>
+
+      <label for="songTheme" style="margin-top:4px">Or type a custom theme / deity name:</label>
+      <input type="text" id="songTheme" placeholder="e.g. भगवान राधा कृष्ण, आरती, भक्ति…"
+        style="margin-bottom:14px" oninput="clearDeityChips()"/>
+
+      <div class="card-title" style="margin-top:4px">Mood</div>
+      <div class="chip-row" id="mood-chips">
+        <button class="chip sel" onclick="selectMood('शांत और भक्तिमय', this)">🕊️ शांत</button>
+        <button class="chip" onclick="selectMood('उत्साहपूर्ण और जयकारी', this)">🎺 जयकारी</button>
+        <button class="chip" onclick="selectMood('ध्यान और मंत्र', this)">🧘 ध्यान</button>
+        <button class="chip" onclick="selectMood('करुणामय और विनम्र', this)">🙏 करुणामय</button>
+        <button class="chip" onclick="selectMood('प्रेम और श्रद्धा', this)">💛 प्रेम</button>
+      </div>
+
+      <button class="btn-sm" id="lyricsBtn" onclick="generateLyrics()">✨ Generate Hindi Lyrics</button>
+    </div>
+
+    <!-- Step 2: Lyrics (appears after generation) -->
+    <div class="card" id="lyricsCard" style="display:none">
+      <div class="step-tag">Step 2 — Lyrics (Edit if needed)</div>
+      <div class="card-title" style="margin-bottom:10px">Hindi Bhakti Song Lyrics</div>
+      <textarea class="lyrics-area" id="lyricsText" placeholder="Lyrics will appear here…"></textarea>
+      <p class="hint" style="margin-top:8px">You can edit the lyrics before generating the video. The text will be spoken via Hindi TTS voice.</p>
+    </div>
+
+    <!-- Step 3: Images for Higgsfield animation -->
+    <div class="card" id="songImgCard" style="display:none">
+      <div class="step-tag">Step 3 — Upload Images</div>
+      <div class="card-title">Images for Higgsfield Animation</div>
+      <label>Each image will be animated into a cinematic 5-second clip by Higgsfield AI, then looped to match your song duration.</label>
+      <div class="upload-zone" id="songDropZone" style="margin-top:12px">
+        <input type="file" id="songImageInput" accept="image/*" multiple/>
+        <div class="upload-icon">🖼️</div>
+        <div class="upload-label">Click or drag & drop images here</div>
+        <div class="upload-sub">JPG, PNG, WEBP · up to 10 images · max 50 MB each</div>
+      </div>
+      <div class="preview-grid" id="songPreviewGrid"></div>
+      <div class="preview-count" id="songPreviewCount"></div>
+    </div>
+
+    <!-- Step 4: Format + Generate -->
+    <div class="card" id="songFmtCard" style="display:none">
+      <div class="step-tag">Step 4 — Format &amp; Generate</div>
+      <div class="card-title">Video Format</div>
+      <div style="display:flex;gap:10px;margin-bottom:18px">
+        <button type="button" class="fmt-btn" id="sfmt169" onclick="setSongFmt('16:9')">📺 16:9 Landscape</button>
+        <button type="button" class="fmt-btn fmt-on" id="sfmt916" onclick="setSongFmt('9:16')">📱 9:16 Portrait / Reels</button>
+      </div>
+      <button class="btn-generate" id="songGenBtn" onclick="createSongVideo()">
+        🎬 Create Bhakti Song Video
+      </button>
+    </div>
+
+    <!-- Song progress -->
+    <div id="songProgressArea" style="display:none;text-align:center;padding:28px 0">
+      <div class="spinner"></div>
+      <div id="songProgressText" style="color:var(--lavender);font-size:.9rem;margin-top:12px">Generating your song video…</div>
+      <div style="color:var(--muted);font-size:.78rem;margin-top:8px">⏱ Rendering cinematic animation — may take 1-2 minutes</div>
+    </div>
+
+    <!-- Song results -->
+    <div id="songResults"></div>
+
+  </div><!-- /#songMode -->
+
 </div><!-- /page -->
 
 <script>
@@ -306,7 +463,15 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     : 'https://ai-bhakti-production.up.railway.app';
   const SOCIAL_UPLOADER = 'https://social-media-uploader.pages.dev';
 
-  // ── Format selection ─────────────────────────────────────────────
+  // ── Mode toggle ──────────────────────────────────────────────────
+  function setMode(m) {
+    document.getElementById('storyMode').style.display = m === 'story' ? '' : 'none';
+    document.getElementById('songMode').style.display  = m === 'song'  ? '' : 'none';
+    document.getElementById('mode-story').classList.toggle('active', m === 'story');
+    document.getElementById('mode-song').classList.toggle('active',  m === 'song');
+  }
+
+  // ── Story mode: Format selection ─────────────────────────────────
   let selectedFmt = '16:9';
   function setFmt(f) {
     selectedFmt = f;
@@ -314,9 +479,8 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     document.getElementById('fmt916').classList.toggle('fmt-on', f === '9:16');
   }
 
-  // ── Image management ───────────────────────────────────────────
+  // ── Story mode: Image management ────────────────────────────────
   let selectedFiles = [];
-
   const dropZone    = document.getElementById('dropZone');
   const imageInput  = document.getElementById('imageInput');
   const previewGrid = document.getElementById('previewGrid');
@@ -324,13 +488,10 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
 
   dropZone.addEventListener('click', () => imageInput.click());
   imageInput.addEventListener('change', e => addFiles(e.target.files));
-
   dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
   dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    addFiles(e.dataTransfer.files);
+    e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(e.dataTransfer.files);
   });
 
   function addFiles(fileList) {
@@ -341,46 +502,34 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     }
     renderPreviews();
   }
-
-  function removeFile(idx) {
-    selectedFiles.splice(idx, 1);
-    renderPreviews();
-  }
-
+  function removeFile(idx) { selectedFiles.splice(idx, 1); renderPreviews(); }
   function renderPreviews() {
     previewGrid.innerHTML = '';
     selectedFiles.forEach((f, i) => {
-      const url  = URL.createObjectURL(f);
       const item = document.createElement('div');
       item.className = 'preview-item';
-      item.innerHTML = `
-        <img src="${url}" alt="img${i+1}"/>
-        <button class="remove-btn" type="button" onclick="removeFile(${i})">✕</button>
-      `;
+      item.innerHTML = `<img src="${URL.createObjectURL(f)}" alt="img${i+1}"/>
+        <button class="remove-btn" type="button" onclick="removeFile(${i})">✕</button>`;
       previewGrid.appendChild(item);
     });
     previewCount.textContent = selectedFiles.length
-      ? `${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} selected`
-      : '';
+      ? `${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} selected` : '';
   }
 
-  // ── Form submit ────────────────────────────────────────────────
+  // ── Story form submit ────────────────────────────────────────────
   document.getElementById('bhaktiForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const errorBox   = document.getElementById('errorBox');
-    const results    = document.getElementById('results');
+    const errorBox    = document.getElementById('errorBox');
+    const results     = document.getElementById('results');
     const progressArea = document.getElementById('progressArea');
     const generateBtn  = document.getElementById('generateBtn');
-
-    errorBox.style.display = 'none';
-    results.innerHTML = '';
+    errorBox.style.display = 'none'; results.innerHTML = '';
 
     const storyText = document.getElementById('storiesInput').value.trim();
     if (!storyText) { showError('Please enter at least one story.'); return; }
     if (!selectedFiles.length) { showError('Please upload at least one image.'); return; }
 
     const storyCount = storyText.split(/\n\s*---\s*\n/).filter(s => s.trim()).length;
-
     generateBtn.disabled = true;
     progressArea.style.display = 'block';
     document.getElementById('progressText').textContent =
@@ -389,24 +538,18 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     const formData = new FormData();
     formData.append('stories', storyText);
     formData.append('format', selectedFmt);
-    for (const file of selectedFiles) {
-      formData.append('images', file);
-    }
+    for (const file of selectedFiles) formData.append('images', file);
 
     try {
       const resp = await fetch(`${API_BASE}/api/generate`, { method: 'POST', body: formData });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Server error');
-
       renderResults(data.videos, storyText);
-    } catch (err) {
-      showError(err.message);
-    } finally {
-      generateBtn.disabled = false;
-      progressArea.style.display = 'none';
-    }
+    } catch (err) { showError(err.message); }
+    finally { generateBtn.disabled = false; progressArea.style.display = 'none'; }
   });
 
+  // ── Shared video player ──────────────────────────────────────────
   let _playingId = null;
   function togglePlay(id, videoUrl) {
     const wrap = document.getElementById('vwrap-' + id);
@@ -415,15 +558,12 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
       if (prev) { prev.classList.remove('open'); prev.querySelector('video').pause(); }
     }
     if (wrap.classList.contains('open')) {
-      wrap.classList.remove('open');
-      wrap.querySelector('video').pause();
-      _playingId = null;
+      wrap.classList.remove('open'); wrap.querySelector('video').pause(); _playingId = null;
     } else {
       wrap.classList.add('open');
       const vid = wrap.querySelector('video');
-      vid.src = videoUrl;
-      vid.play();
-      _playingId = id;
+      if (!vid.src) vid.src = videoUrl;
+      vid.play(); _playingId = id;
     }
   }
 
@@ -431,33 +571,186 @@ In the silence of dawn, the great sage Narada meditated beneath the Peepal tree.
     const stories = storyText.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
     const results  = document.getElementById('results');
     results.innerHTML = `<div class="card-title" style="margin-bottom:16px;font-size:.85rem;letter-spacing:1px;font-weight:700;color:var(--gold)">
-      ✨ ${videos.length} Video${videos.length > 1 ? 's' : ''} Ready
-    </div>`;
-
+      ✨ ${videos.length} Video${videos.length > 1 ? 's' : ''} Ready</div>`;
     videos.forEach((v, i) => {
-      const videoUrl   = `${API_BASE}${v.url}`;
-      const topic      = (stories[i] || stories[0] || 'Bhakti Story').slice(0, 120);
-      const socialUrl  = `${SOCIAL_UPLOADER}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
-      const filename   = `bhakti_story${v.story}.mp4`;
-      const pid        = `v${i}`;
-
+      const videoUrl  = `${API_BASE}${v.url}`;
+      const topic     = (stories[i] || stories[0] || 'Bhakti Story').slice(0, 120);
+      const socialUrl = `${SOCIAL_UPLOADER}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
+      const pid       = `v${i}`;
       const item = document.createElement('div');
       item.className = 'result-item';
       item.innerHTML = `
         <div class="result-label">Story ${v.story}</div>
         <div class="result-actions">
           <button class="btn-action btn-play" onclick="togglePlay('${pid}','${videoUrl}')">▶ Play</button>
-          <a class="btn-action btn-dl" href="${videoUrl}" download="${filename}">⬇ Download MP4</a>
+          <a class="btn-action btn-dl" href="${videoUrl}" download="bhakti_story${v.story}.mp4">⬇ Download MP4</a>
           <a class="btn-action btn-soc" href="${socialUrl}" target="_blank">⬆ Upload to Social Media</a>
         </div>
-        <div class="video-wrap" id="vwrap-${pid}">
-          <video controls preload="none"></video>
-        </div>
-      `;
+        <div class="video-wrap" id="vwrap-${pid}"><video controls preload="none"></video></div>`;
       results.appendChild(item);
     });
-
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Song Mode ────────────────────────────────────────────────────
+  let selectedDeity = '';
+  let selectedMood  = 'शांत और भक्तिमय';
+  let songFmt       = '9:16';
+  let songFiles     = [];
+
+  function selectDeity(d) {
+    selectedDeity = d;
+    document.getElementById('songTheme').value = '';
+    document.querySelectorAll('#deity-chips .chip').forEach(c => c.classList.toggle('sel', c.textContent.includes(d.split(' ')[1] || d)));
+  }
+  function clearDeityChips() {
+    selectedDeity = '';
+    document.querySelectorAll('#deity-chips .chip').forEach(c => c.classList.remove('sel'));
+  }
+  function selectMood(m, el) {
+    selectedMood = m;
+    document.querySelectorAll('#mood-chips .chip').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+  function setSongFmt(f) {
+    songFmt = f;
+    document.getElementById('sfmt169').classList.toggle('fmt-on', f === '16:9');
+    document.getElementById('sfmt916').classList.toggle('fmt-on', f === '9:16');
+  }
+
+  // Song image upload
+  const songDropZone  = document.getElementById('songDropZone');
+  const songImgInput  = document.getElementById('songImageInput');
+  songDropZone.addEventListener('click', () => songImgInput.click());
+  songImgInput.addEventListener('change', e => addSongFiles(e.target.files));
+  songDropZone.addEventListener('dragover',  e => { e.preventDefault(); songDropZone.classList.add('dragover'); });
+  songDropZone.addEventListener('dragleave', () => songDropZone.classList.remove('dragover'));
+  songDropZone.addEventListener('drop', e => {
+    e.preventDefault(); songDropZone.classList.remove('dragover'); addSongFiles(e.dataTransfer.files);
+  });
+  function addSongFiles(fileList) {
+    for (const f of fileList) {
+      if (!f.type.startsWith('image/')) continue;
+      if (songFiles.length >= 10) break;
+      songFiles.push(f);
+    }
+    renderSongPreviews();
+    // Show steps 3 & 4 once images are added
+    if (songFiles.length > 0) {
+      document.getElementById('songFmtCard').style.display = '';
+    }
+  }
+  function removeSongFile(idx) { songFiles.splice(idx, 1); renderSongPreviews(); }
+  function renderSongPreviews() {
+    const grid = document.getElementById('songPreviewGrid');
+    const count = document.getElementById('songPreviewCount');
+    grid.innerHTML = '';
+    songFiles.forEach((f, i) => {
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      item.innerHTML = `<img src="${URL.createObjectURL(f)}" alt="img${i+1}"/>
+        <button class="remove-btn" type="button" onclick="removeSongFile(${i})">✕</button>`;
+      grid.appendChild(item);
+    });
+    count.textContent = songFiles.length ? `${songFiles.length} image${songFiles.length > 1 ? 's' : ''} selected` : '';
+    if (songFiles.length === 0) document.getElementById('songFmtCard').style.display = 'none';
+  }
+
+  // Generate lyrics via Groq
+  async function generateLyrics() {
+    const deity = selectedDeity || document.getElementById('songTheme').value.trim();
+    if (!deity) { showError('Please select a deity or enter a theme first.'); return; }
+
+    const btn = document.getElementById('lyricsBtn');
+    btn.disabled = true; btn.textContent = '✨ Generating…';
+    document.getElementById('errorBox').style.display = 'none';
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/generate-lyrics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deity, theme: deity, mood: selectedMood }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Server error');
+
+      document.getElementById('lyricsText').value = data.lyrics;
+      document.getElementById('lyricsCard').style.display = '';
+      document.getElementById('songImgCard').style.display = '';
+      document.getElementById('lyricsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '✨ Generate Hindi Lyrics';
+    }
+  }
+
+  // Create song video via Higgsfield pipeline
+  async function createSongVideo() {
+    const lyrics = document.getElementById('lyricsText').value.trim();
+    if (!lyrics) { showError('Please generate or enter lyrics first.'); return; }
+    if (!songFiles.length) { showError('Please upload at least one image.'); return; }
+
+    const btn      = document.getElementById('songGenBtn');
+    const progress = document.getElementById('songProgressArea');
+    const progText = document.getElementById('songProgressText');
+    btn.disabled   = true;
+    progress.style.display = 'block';
+    progText.textContent   = `Step 1/3: Generating Hindi TTS audio…`;
+    document.getElementById('songResults').innerHTML = '';
+    document.getElementById('errorBox').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('lyrics', lyrics);
+    formData.append('format', songFmt);
+    for (const f of songFiles) formData.append('images', f);
+
+    // Simulate step progression (actual steps happen server-side)
+    const steps = [
+      'Step 1/3: Generating Hindi TTS voice…',
+      'Step 2/3: Higgsfield animating images (2-3 min per image)…',
+      'Step 3/3: Mixing audio + rendering final video…',
+    ];
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+      progText.textContent = steps[stepIdx];
+    }, 30000);
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/generate-song-video`, { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Server error');
+      renderSongResult(data.videoUrl, lyrics);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      clearInterval(stepTimer);
+      btn.disabled = false;
+      progress.style.display = 'none';
+    }
+  }
+
+  function renderSongResult(relUrl, lyrics) {
+    const videoUrl  = `${API_BASE}${relUrl}`;
+    const topic     = (lyrics.split('\n')[0] || 'Bhakti Song').slice(0, 120);
+    const socialUrl = `${SOCIAL_UPLOADER}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;
+    const pid       = 'song-' + Date.now();
+    const container = document.getElementById('songResults');
+    container.innerHTML = `<div class="card-title" style="margin-bottom:16px;font-size:.85rem;letter-spacing:1px;font-weight:700;color:var(--gold)">
+      🎵 Bhakti Song Video Ready</div>`;
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.innerHTML = `
+      <div class="result-label">✦ Higgsfield Animated Song Video</div>
+      <div class="result-actions">
+        <button class="btn-action btn-play" onclick="togglePlay('${pid}','${videoUrl}')">▶ Play</button>
+        <a class="btn-action btn-dl" href="${videoUrl}" download="bhakti_song.mp4">⬇ Download MP4</a>
+        <a class="btn-action btn-soc" href="${socialUrl}" target="_blank">⬆ Upload to Social Media</a>
+      </div>
+      <div class="video-wrap" id="vwrap-${pid}"><video controls preload="none"></video></div>`;
+    container.appendChild(item);
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function showError(msg) {

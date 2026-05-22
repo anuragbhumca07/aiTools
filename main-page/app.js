@@ -175,6 +175,39 @@ document.querySelectorAll('.tool-card:not(.soon)').forEach(card => {
   });
 });
 
+/* ── PM2 live/offline status badges ── */
+async function refreshServiceStatus() {
+  try {
+    const r = await fetch('http://localhost:3099/api/status');
+    if (!r.ok) return;
+    const services = await r.json();
+    const statusByPort = {};
+    for (const svc of services) statusByPort[svc.port] = svc.status;
+
+    let liveCount = 0;
+    document.querySelectorAll('.tool-card:not(.soon)').forEach(card => {
+      const href = card.getAttribute('href') || '';
+      const port = parseInt(href.split(':').pop());
+      const badge = card.querySelector('.card-badge');
+      if (!badge || !port) return;
+      const online = statusByPort[port] === 'online';
+      if (online) {
+        liveCount++;
+        badge.className = 'card-badge live';
+        badge.textContent = '● LIVE';
+      } else {
+        badge.className = 'card-badge offline';
+        badge.textContent = '○ OFFLINE';
+      }
+    });
+
+    const statEl = document.getElementById('statTools');
+    if (statEl) statEl.textContent = liveCount;
+  } catch {}
+}
+refreshServiceStatus();
+setInterval(refreshServiceStatus, 10000);
+
 /* ── Stagger card entrance animation ── */
 const cards = document.querySelectorAll('.tool-card');
 cards.forEach((card, i) => {

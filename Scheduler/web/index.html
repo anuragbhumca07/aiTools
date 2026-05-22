@@ -359,7 +359,7 @@ a.hl:hover{text-decoration:underline}
         <label>Story Text <span style="color:var(--muted);font-weight:400;font-size:.74rem">(separate multiple stories with --- on its own line)</span></label>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
           <input type="file" id="f-story-file" accept=".txt" onchange="onStoryFileChange()" style="display:none"/>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-story-file').click()">📂 Browse .txt File</button>
+          <label for="f-story-file" class="btn btn-ghost btn-sm" style="cursor:pointer">📂 Browse .txt File</label>
           <span id="story-file-status" style="font-size:.78rem;color:var(--muted)">No file selected</span>
         </div>
         <textarea id="f-story-text" rows="6" spellcheck="false"
@@ -370,7 +370,7 @@ a.hl:hover{text-decoration:underline}
         <label>Slideshow Images <span style="color:var(--muted);font-weight:400;font-size:.74rem">(uploaded after saving — up to 20 images per schedule)</span></label>
         <div style="display:flex;gap:8px;align-items:center;margin:6px 0 4px">
           <input type="file" id="f-bhakti-imgs" accept="image/*" multiple style="display:none" onchange="onBhaktiImgChange()"/>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-bhakti-imgs').click()">🖼 Select Images</button>
+          <label for="f-bhakti-imgs" class="btn btn-ghost btn-sm" style="cursor:pointer">🖼 Select Images</label>
           <span id="bhakti-img-status" style="font-size:.78rem;color:var(--muted)">No images selected</span>
         </div>
         <div id="bhakti-img-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
@@ -417,7 +417,7 @@ a.hl:hover{text-decoration:underline}
           <label>Question List <span style="color:var(--muted);font-weight:400;font-size:.74rem">(.txt file or paste directly)</span></label>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
             <input type="file" id="f-qfile" accept=".txt" onchange="onQFileChange()" style="display:none"/>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('f-qfile').click()">📂 Browse .txt File</button>
+            <label for="f-qfile" class="btn btn-ghost btn-sm" style="cursor:pointer">📂 Browse .txt File</label>
             <span id="ql-status" style="font-size:.78rem;color:var(--muted)">No file selected</span>
           </div>
           <textarea id="f-qtext" rows="7" spellcheck="false" placeholder="Paste questions here…" style="font-size:.74rem;font-family:monospace;resize:vertical" oninput="onQTextChange()"></textarea>
@@ -776,7 +776,7 @@ function renderCard(s) {
       ${!s.active?'<span class="badge b-pause">⏸ Paused</span>':''}
     </div>
     <div class="times">
-      <div class="tbox"><div class="tbox-l">Last Run</div><div class="tbox-v">${s.last_run?timeAgo(s.last_run):'Never'}</div></div>
+      <div class="tbox"><div class="tbox-l">Last Run</div><div class="tbox-v">${s.last_run?fmtHHMM(s.last_run):'Never'}</div></div>
       <div class="tbox"><div class="tbox-l">Next Run</div><div class="tbox-v">${s.next_run?fmtDate(s.next_run):'—'}</div></div>
     </div>
     ${pls.length
@@ -821,7 +821,7 @@ async function loadActivity() {
           ${postSummary?`<div style="font-size:.66rem;margin-top:2px">${postSummary}</div>`:''}
         </div>
         <div>${j.video_url?`<a href="${j.video_url}" target="_blank" class="btn btn-ghost btn-sm">▶</a>`:j.status==='running'?'<span class="spinner"></span>':''}</div>
-        <div class="atime">${timeAgo(j.created_at)}</div>
+        <div class="atime">${fmtHHMM(j.created_at)}</div>
       </div>`;
     }).join('');
   } catch {}
@@ -1270,11 +1270,13 @@ function toast(msg,type='info'){
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function sid2(s){return s.replace(/[^a-z0-9]/gi,'_').toLowerCase();}
-function timeAgo(iso){
-  const d=(Date.now()-new Date(iso))/1000;
-  if(d<60)return`${~~d}s ago`;if(d<3600)return`${~~(d/60)}m ago`;if(d<86400)return`${~~(d/3600)}h ago`;return`${~~(d/86400)}d ago`;
-}
 function fmtDate(iso){if(!iso)return'—';return new Date(iso).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'});}
+// Always show "Dec 4, 2:30 PM" — date + time, never relative seconds
+function fmtHHMM(iso){
+  if(!iso)return'—';
+  const d=new Date(iso.includes('T')||iso.includes('Z')?iso:iso.replace(' ','T')+'Z');
+  return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+}
 
 // Enter key for auth
 document.getElementById('auth-password').addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});

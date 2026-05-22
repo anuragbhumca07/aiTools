@@ -277,7 +277,8 @@ header h1 {
   padding: 3px 10px; border-radius: 20px;
   margin-bottom: 10px;
 }
-.card-badge.live { background: rgba(0,200,83,.15); color: var(--green); border: 1px solid rgba(0,200,83,.25); }
+.card-badge.live    { background: rgba(0,200,83,.15);  color: var(--green); border: 1px solid rgba(0,200,83,.25); }
+.card-badge.offline { background: rgba(239,68,68,.12); color: #f87171;      border: 1px solid rgba(239,68,68,.25); }
 .soon-badge { background: rgba(245,166,35,.12); color: var(--gold); border: 1px solid rgba(245,166,35,.2); }
 
 .tool-name {

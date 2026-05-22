@@ -29,14 +29,9 @@ test.describe('aiBhakti', () => {
   });
 
   test('API rejects missing story', async ({ request }) => {
-    const form = new FormData();
-    // no stories field
-    const blob = new Blob(['fake'], { type: 'image/jpeg' });
-    form.append('images', blob, 'test.jpg');
     const resp = await request.post(`${BASE_URL}/api/generate`, { multipart: {
       images: { name: 'test.jpg', mimeType: 'image/bmp', buffer: Buffer.from('fake') },
     }});
-    // should fail with 400
     expect(resp.status()).toBe(400);
   });
 
@@ -48,7 +43,7 @@ test.describe('aiBhakti', () => {
         stories: SHORT_STORY,
         images:  { name: 'test.jpg', mimeType: 'image/bmp', buffer: imageBuffer },
       },
-      timeout: 120_000,   // video generation can take up to 2 min
+      timeout: 120_000,
     });
 
     console.log('Status:', resp.status());
@@ -60,12 +55,11 @@ test.describe('aiBhakti', () => {
     expect(body.videos.length).toBe(1);
     expect(body.videos[0].url).toMatch(/\.mp4$/);
 
-    // Verify the MP4 file is actually accessible and non-empty
     const videoUrl = `${BASE_URL}${body.videos[0].url}`;
     const videoResp = await request.get(videoUrl);
     expect(videoResp.ok()).toBeTruthy();
     const videoBuffer = await videoResp.body();
-    expect(videoBuffer.length).toBeGreaterThan(50_000); // at least 50 KB for a real video
+    expect(videoBuffer.length).toBeGreaterThan(50_000);
     console.log(`Video size: ${(videoBuffer.length / 1024).toFixed(1)} KB — PASS`);
   });
 

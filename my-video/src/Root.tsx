@@ -2,6 +2,7 @@ import { Composition } from "remotion";
 import { HelloWorld, myCompSchema } from "./HelloWorld";
 import { Logo, myCompSchema2 } from "./HelloWorld/Logo";
 import { QuizVideo, quizSchema, type QuizProps } from "./QuizVideo";
+import { BulkQuizVideo, bulkQuizSchema, type BulkQuizProps } from "./BulkQuizVideo";
 
 // Each <Composition> is an entry in the sidebar!
 
@@ -59,6 +60,42 @@ export const RemotionRoot: React.FC = () => {
           format: "16:9" as const,
         }}
         calculateMetadata={async ({ props }: { props: QuizProps }) => {
+          const portrait = (props.format ?? "16:9") === "9:16";
+          return {
+            width: portrait ? 540 : 1280,
+            height: portrait ? 960 : 720,
+          };
+        }}
+      />
+
+      {/* Bulk Quiz Video — up to 50 questions in one video */}
+      <Composition
+        id="BulkQuizVideo"
+        component={BulkQuizVideo}
+        durationInFrames={50 * 120 * FPS}   // max: 50 questions × 120s each
+        fps={FPS}
+        width={1280}
+        height={720}
+        schema={bulkQuizSchema}
+        defaultProps={{
+          questions: [
+            {
+              question: "What is the largest planet in our solar system?",
+              options: ["Earth", "Saturn", "Jupiter", "Mars"] as [string, string, string, string],
+              correctIndex: 2,
+              questionSeconds: QUESTION_SECONDS,
+              optionsSeconds: OPTIONS_SECONDS,
+              timerSeconds: TIMER_SECONDS,
+              answerSeconds: ANSWER_SECONDS,
+              questionVoice: "voice/question.mp3",
+              optionsVoice: "voice/options.mp3",
+              answerVoice: "voice/answer.mp3",
+              startFrame: 0,
+            },
+          ],
+          format: "16:9" as const,
+        }}
+        calculateMetadata={async ({ props }: { props: BulkQuizProps }) => {
           const portrait = (props.format ?? "16:9") === "9:16";
           return {
             width: portrait ? 540 : 1280,

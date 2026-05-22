@@ -563,28 +563,29 @@ async function animateImageHighgsfield(imgPath, prompt, aspectRatio) {
   return resultUrl;
 }
 
-// FFmpeg fallback: fast crop-pan animation
+// FFmpeg fallback: simple static scale (reliable, no pan expression hang)
 async function animateImageFfmpeg(imgPath, idx, durationSec, W, H, fps, outPath) {
-  const TYPES = ['pan-lr', 'pan-rl', 'pan-tb', 'pan-bt', 'diag', 'static'];
-  const type = TYPES[idx % TYPES.length];
-  const BW = Math.round(W * 1.2), BH = Math.round(H * 1.2);
-  const dx = BW - W, dy = BH - H;
   const dur = durationSec.toFixed(3);
-  let vf;
-  switch (type) {
-    case 'pan-lr': vf = `scale=${BW}:${BH},crop=${W}:${H}:'min(${dx}\\,${dx}*n/(${fps}*${dur}))':${Math.round(dy/2)}`; break;
-    case 'pan-rl': vf = `scale=${BW}:${BH},crop=${W}:${H}:'max(0\\,${dx}-${dx}*n/(${fps}*${dur}))':${Math.round(dy/2)}`; break;
-    case 'pan-tb': vf = `scale=${BW}:${BH},crop=${W}:${H}:${Math.round(dx/2)}:'min(${dy}\\,${dy}*n/(${fps}*${dur}))'`; break;
-    case 'pan-bt': vf = `scale=${BW}:${BH},crop=${W}:${H}:${Math.round(dx/2)}:'max(0\\,${dy}-${dy}*n/(${fps}*${dur}))'`; break;
-    case 'diag':   vf = `scale=${BW}:${BH},crop=${W}:${H}:'min(${dx}\\,${dx}*n/(${fps}*${dur}))':'min(${dy}\\,${dy}*n/(${fps}*${dur}))'`; break;
-    default:       vf = `scale=${W}:${H},crop=${W}:${H}`; break;
-  }
+  // Simple scale to target size, pad to fill, then encode as video
+  // Avoid complex eval expressions (they can hang on some Railway FFmpeg builds)
+  const vf = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=#1a0a2e,setsar=1`;
+  console.log(`[song] FFmpeg animate img ${idx+1}: ${W}x${H} for ${dur}s`);
   await new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', ['-loop', '1', '-i', imgPath, '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', fps.toString(), '-t', dur, '-y', outPath]);
+    const ff = spawn('ffmpeg', [
+      '-loop', '1', '-framerate', fps.toString(), '-i', imgPath,
+      '-vf', vf,
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      '-t', dur,
+      '-movflags', '+faststart',
+      '-y', outPath,
+    ]);
     let stderr = '';
     ff.stderr.on('data', d => { stderr += d.toString(); if (stderr.length > 10000) stderr = stderr.slice(-5000); });
     ff.on('close', code => code === 0 ? resolve() : reject(new Error(`FFmpeg animate: ${stderr.slice(-600)}`)));
     ff.on('error', reject);
+    // Safety timeout: kill FFmpeg if it hangs for more than 90s
+    const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('FFmpeg animate timed out after 90s')); }, 90000);
+    ff.on('close', () => clearTimeout(timer));
   });
 }
 
@@ -839,4 +840,4 @@ app.post(
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aiBhakti', version: 'higgsfield-rest-v1', hasToken: !!HIGGSFIELD_TOKEN }));
 
 app.listen(PORT, () => console.log(`aiBhakti listening on port ${PORT}`));
-// DEPLOY_TS: 1778360001 — bhakti drone music + singing voice params
+// DEPLOY_TS: 1778380001 — simple FFmpeg animate, no pan expr, 90s timeout

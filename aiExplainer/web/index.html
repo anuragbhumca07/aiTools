@@ -353,7 +353,7 @@
 
 <!-- AI Hub Auth Bar -->
 <div id="hub-bar">
-  <a href="https://aitools-hub-c5g.pages.dev">← AI Hub</a>
+  <a href="http://localhost:3000">← AI Hub</a>
   <div style="display:flex;align-items:center;gap:10px">
     <div id="hub-guest-bar">
       <button class="hub-signin-pill" onclick="openHubAuth()">Sign In</button>
@@ -382,7 +382,7 @@
     </div>
     <button class="hub-signin-btn" id="hub-signin-btn" onclick="hubSignIn()">Sign In</button>
     <div class="hub-err" id="hub-auth-err"></div>
-    <p style="text-align:center;margin-top:12px;font-size:.77rem;color:var(--muted)">No account? <a href="https://aitools-hub-c5g.pages.dev" target="_blank" style="color:var(--cyan)">Create one at AI Hub ↗</a></p>
+    <p style="text-align:center;margin-top:12px;font-size:.77rem;color:var(--muted)">No account? <a href="http://localhost:3000" target="_blank" style="color:var(--cyan)">Create one at AI Hub ↗</a></p>
   </div>
 </div>
 
@@ -602,7 +602,7 @@ Examples:
     }
   }
 
-  const SOCIAL_URL = 'https://social-media-uploader-production.up.railway.app';
+  const SOCIAL_URL = 'http://localhost:3005';
 
   function buildSocialUrl(videoUrl, topic) {
     return `${SOCIAL_URL}?video=${encodeURIComponent(videoUrl)}&topic=${encodeURIComponent(topic)}`;

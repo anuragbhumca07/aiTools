@@ -1,0 +1,1023 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2FTrade-With-Claude%2Fcbt-framework
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=Trade-With-Claude%2Fcbt-framework
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e62]:
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e66]:
+          - img [ref=e67]
+          - link "Trade-With-Claude" [ref=e70] [cursor=pointer]:
+            - /url: /Trade-With-Claude
+          - generic [ref=e71]: /
+          - strong [ref=e72]:
+            - link "cbt-framework" [ref=e73] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework
+          - generic [ref=e74]: Public
+        - generic [ref=e75]:
+          - list:
+            - listitem [ref=e76]:
+              - link "You must be signed in to change notification settings" [ref=e77] [cursor=pointer]:
+                - /url: /login?return_to=%2FTrade-With-Claude%2Fcbt-framework
+                - img [ref=e78]
+                - text: Notifications
+            - listitem [ref=e80]:
+              - link "Fork 9" [ref=e81] [cursor=pointer]:
+                - /url: /login?return_to=%2FTrade-With-Claude%2Fcbt-framework
+                - img [ref=e82]
+                - text: Fork
+                - generic "9" [ref=e84]
+            - listitem [ref=e85]:
+              - link "You must be signed in to star a repository" [ref=e87] [cursor=pointer]:
+                - /url: /login?return_to=%2FTrade-With-Claude%2Fcbt-framework
+                - img [ref=e88]
+                - text: Star
+                - generic "22 users starred this repository" [ref=e90]: "22"
+      - navigation "Repository" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "Code" [ref=e94] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework
+              - img [ref=e95]
+              - generic [ref=e97]: Code
+          - listitem [ref=e98]:
+            - link "Issues" [ref=e99] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/issues
+              - img [ref=e100]
+              - generic [ref=e103]: Issues
+          - listitem [ref=e104]:
+            - link "Pull requests" [ref=e105] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/pulls
+              - img [ref=e106]
+              - generic [ref=e108]: Pull requests
+          - listitem [ref=e109]:
+            - link "Discussions" [ref=e110] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/discussions
+              - img [ref=e111]
+              - generic [ref=e113]: Discussions
+          - listitem [ref=e114]:
+            - link "Actions" [ref=e115] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/actions
+              - img [ref=e116]
+              - generic [ref=e118]: Actions
+          - listitem [ref=e119]:
+            - link "Projects" [ref=e120] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/projects
+              - img [ref=e121]
+              - generic [ref=e123]: Projects
+          - listitem [ref=e124]:
+            - link "Security and quality" [ref=e125] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/security
+              - img [ref=e126]
+              - generic [ref=e128]: Security and quality
+          - listitem [ref=e129]:
+            - link "Insights" [ref=e130] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/pulse
+              - img [ref=e131]
+              - generic [ref=e133]: Insights
+    - generic [ref=e146]:
+      - heading "Trade-With-Claude/cbt-framework" [level=1] [ref=e148]
+      - generic [ref=e149]:
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - button "main branch" [ref=e156] [cursor=pointer]:
+                - generic [ref=e157]:
+                  - generic [ref=e159]:
+                    - img [ref=e161]
+                    - generic [ref=e164]: main
+                  - generic:
+                    - img
+              - generic [ref=e165]:
+                - link "Go to Branches page" [ref=e166] [cursor=pointer]:
+                  - /url: /Trade-With-Claude/cbt-framework/branches
+                  - img [ref=e167]
+                - link "Go to Tags page" [ref=e169] [cursor=pointer]:
+                  - /url: /Trade-With-Claude/cbt-framework/tags
+                  - img [ref=e170]
+            - generic [ref=e172]:
+              - generic [ref=e176]:
+                - img [ref=e178]
+                - combobox "Go to file" [ref=e180]
+              - button "Code" [ref=e181] [cursor=pointer]:
+                - generic [ref=e182]:
+                  - generic:
+                    - img
+                  - generic [ref=e183]: Code
+                  - generic:
+                    - img
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - heading "Folders and files" [level=2] [ref=e186]
+              - table "Folders and files" [ref=e187]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e188]:
+                  - 'row "Latest commit Trade-With-Claude claude commits by Trade-With-Claude and commits by claude feat: add Prop Firm Challenge Mode (v1.3.0) Open commit details Commit 47a8cc8 · Feb 20, 20263 months ago History 4 Commits" [ref=e189]':
+                    - 'cell "Latest commit Trade-With-Claude claude commits by Trade-With-Claude and commits by claude feat: add Prop Firm Challenge Mode (v1.3.0) Open commit details Commit 47a8cc8 · Feb 20, 20263 months ago History 4 Commits" [ref=e190]':
+                      - generic [ref=e191]:
+                        - heading "Latest commit" [level=2] [ref=e192]
+                        - generic [ref=e193]:
+                          - generic [ref=e194]:
+                            - generic [ref=e196]:
+                              - img "Trade-With-Claude" [ref=e197]
+                              - img "claude" [ref=e198]
+                            - link "commits by Trade-With-Claude" [ref=e200] [cursor=pointer]:
+                              - /url: /Trade-With-Claude/cbt-framework/commits?author=Trade-With-Claude
+                              - text: Trade-With-Claude
+                            - generic [ref=e201]: and
+                            - link "commits by claude" [ref=e203] [cursor=pointer]:
+                              - /url: /Trade-With-Claude/cbt-framework/commits?author=claude
+                              - text: claude
+                          - generic [ref=e204]:
+                            - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e207] [cursor=pointer]':
+                              - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                            - button "Open commit details" [ref=e208] [cursor=pointer]:
+                              - img [ref=e209]
+                        - generic [ref=e211]:
+                          - generic [ref=e213]:
+                            - link "Commit 47a8cc8" [ref=e214] [cursor=pointer]:
+                              - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                              - text: 47a8cc8
+                            - text: ·
+                            - generic "Feb 20, 2026, 7:16 AM EST" [ref=e215]: Feb 20, 20263 months ago
+                          - generic [ref=e216]:
+                            - heading "History" [level=2] [ref=e217]
+                            - link "4 Commits" [ref=e218] [cursor=pointer]:
+                              - /url: /Trade-With-Claude/cbt-framework/commits/main/
+                              - generic [ref=e219]:
+                                - generic:
+                                  - img
+                                - generic [ref=e220]: 4 Commits
+                  - row ".github/workflows, (Directory) Initial release v1.0.0 Feb 2, 20263 months ago" [ref=e221]:
+                    - cell ".github/workflows, (Directory)" [ref=e222]:
+                      - generic [ref=e223]:
+                        - img [ref=e224]
+                        - link ".github/workflows, (Directory)" [ref=e229] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/.github/workflows
+                          - text: .github/workflows
+                    - cell "Initial release v1.0.0" [ref=e230]:
+                      - link "Initial release v1.0.0" [ref=e233] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/64cc3af1a5e42fb73318822617c7c06260e5a02a
+                    - cell "Feb 2, 20263 months ago" [ref=e234]:
+                      - generic [ref=e235]: Feb 2, 20263 months ago
+                  - row "agents, (Directory) v1.2.5 - MCP data servers, fast engine, EDA, live trading & more Feb 20, 20263 months ago" [ref=e236]:
+                    - cell "agents, (Directory)" [ref=e237]:
+                      - generic [ref=e238]:
+                        - img [ref=e239]
+                        - link "agents, (Directory)" [ref=e244] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/agents
+                          - text: agents
+                    - cell "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e245]:
+                      - link "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e248] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/c22e1560f359f7e0bd94db49304a2e224c2d43af
+                    - cell "Feb 20, 20263 months ago" [ref=e249]:
+                      - generic [ref=e250]: Feb 20, 20263 months ago
+                  - row "bin, (Directory) Improve discoverability - README rewrite, repo URL fix, GitHub topics Feb 20, 20263 months ago" [ref=e251]:
+                    - cell "bin, (Directory)" [ref=e252]:
+                      - generic [ref=e253]:
+                        - img [ref=e254]
+                        - link "bin, (Directory)" [ref=e259] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/bin
+                          - text: bin
+                    - cell "Improve discoverability - README rewrite, repo URL fix, GitHub topics" [ref=e260]:
+                      - link "Improve discoverability - README rewrite, repo URL fix, GitHub topics" [ref=e263] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/e79673507f2f90d74de70cf763995fc2353acc3b
+                    - cell "Feb 20, 20263 months ago" [ref=e264]:
+                      - generic [ref=e265]: Feb 20, 20263 months ago
+                  - 'row "commands/cbt, (Directory) feat: add Prop Firm Challenge Mode (v1.3.0) Feb 20, 20263 months ago" [ref=e266]':
+                    - cell "commands/cbt, (Directory)" [ref=e267]:
+                      - generic [ref=e268]:
+                        - img [ref=e269]
+                        - link "commands/cbt, (Directory)" [ref=e274] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/commands/cbt
+                          - text: commands/cbt
+                    - 'cell "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e275]':
+                      - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e278] [cursor=pointer]':
+                        - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                    - cell "Feb 20, 20263 months ago" [ref=e279]:
+                      - generic [ref=e280]: Feb 20, 20263 months ago
+                  - 'row "engine, (Directory) feat: add Prop Firm Challenge Mode (v1.3.0) Feb 20, 20263 months ago" [ref=e281]':
+                    - cell "engine, (Directory)" [ref=e282]:
+                      - generic [ref=e283]:
+                        - img [ref=e284]
+                        - link "engine, (Directory)" [ref=e289] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/engine
+                          - text: engine
+                    - 'cell "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e290]':
+                      - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e293] [cursor=pointer]':
+                        - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                    - cell "Feb 20, 20263 months ago" [ref=e294]:
+                      - generic [ref=e295]: Feb 20, 20263 months ago
+                  - row "hooks, (Directory) v1.2.5 - MCP data servers, fast engine, EDA, live trading & more Feb 20, 20263 months ago" [ref=e296]:
+                    - cell "hooks, (Directory)" [ref=e297]:
+                      - generic [ref=e298]:
+                        - img [ref=e299]
+                        - link "hooks, (Directory)" [ref=e304] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/hooks
+                          - text: hooks
+                    - cell "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e305]:
+                      - link "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e308] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/c22e1560f359f7e0bd94db49304a2e224c2d43af
+                    - cell "Feb 20, 20263 months ago" [ref=e309]:
+                      - generic [ref=e310]: Feb 20, 20263 months ago
+                  - row "package, (Directory) v1.2.5 - MCP data servers, fast engine, EDA, live trading & more Feb 20, 20263 months ago" [ref=e311]:
+                    - cell "package, (Directory)" [ref=e312]:
+                      - generic [ref=e313]:
+                        - img [ref=e314]
+                        - link "package, (Directory)" [ref=e319] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/package
+                          - text: package
+                    - cell "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e320]:
+                      - link "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e323] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/c22e1560f359f7e0bd94db49304a2e224c2d43af
+                    - cell "Feb 20, 20263 months ago" [ref=e324]:
+                      - generic [ref=e325]: Feb 20, 20263 months ago
+                  - row "references, (Directory) v1.2.5 - MCP data servers, fast engine, EDA, live trading & more Feb 20, 20263 months ago" [ref=e326]:
+                    - cell "references, (Directory)" [ref=e327]:
+                      - generic [ref=e328]:
+                        - img [ref=e329]
+                        - link "references, (Directory)" [ref=e334] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/references
+                          - text: references
+                    - cell "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e335]:
+                      - link "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e338] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/c22e1560f359f7e0bd94db49304a2e224c2d43af
+                    - cell "Feb 20, 20263 months ago" [ref=e339]:
+                      - generic [ref=e340]: Feb 20, 20263 months ago
+                  - 'row "templates, (Directory) feat: add Prop Firm Challenge Mode (v1.3.0) Feb 20, 20263 months ago" [ref=e341]':
+                    - cell "templates, (Directory)" [ref=e342]:
+                      - generic [ref=e343]:
+                        - img [ref=e344]
+                        - link "templates, (Directory)" [ref=e349] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/tree/main/templates
+                          - text: templates
+                    - 'cell "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e350]':
+                      - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e353] [cursor=pointer]':
+                        - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                    - cell "Feb 20, 20263 months ago" [ref=e354]:
+                      - generic [ref=e355]: Feb 20, 20263 months ago
+                  - row ".gitignore, (File) Initial release v1.0.0 Feb 2, 20263 months ago" [ref=e356]:
+                    - cell ".gitignore, (File)" [ref=e357]:
+                      - generic [ref=e358]:
+                        - img [ref=e359]
+                        - link ".gitignore, (File)" [ref=e364] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/.gitignore
+                          - text: .gitignore
+                    - cell "Initial release v1.0.0" [ref=e365]:
+                      - link "Initial release v1.0.0" [ref=e368] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/64cc3af1a5e42fb73318822617c7c06260e5a02a
+                    - cell "Feb 2, 20263 months ago" [ref=e369]:
+                      - generic [ref=e370]: Feb 2, 20263 months ago
+                  - 'row "CHANGELOG.md, (File) feat: add Prop Firm Challenge Mode (v1.3.0) Feb 20, 20263 months ago" [ref=e371]':
+                    - cell "CHANGELOG.md, (File)" [ref=e372]:
+                      - generic [ref=e373]:
+                        - img [ref=e374]
+                        - link "CHANGELOG.md, (File)" [ref=e379] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/CHANGELOG.md
+                          - text: CHANGELOG.md
+                    - 'cell "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e380]':
+                      - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e383] [cursor=pointer]':
+                        - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                    - cell "Feb 20, 20263 months ago" [ref=e384]:
+                      - generic [ref=e385]: Feb 20, 20263 months ago
+                  - row "CONTRIBUTING.md, (File) Initial release v1.0.0 Feb 2, 20263 months ago" [ref=e386]:
+                    - cell "CONTRIBUTING.md, (File)" [ref=e387]:
+                      - generic [ref=e388]:
+                        - img [ref=e389]
+                        - link "CONTRIBUTING.md, (File)" [ref=e394] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/CONTRIBUTING.md
+                          - text: CONTRIBUTING.md
+                    - cell "Initial release v1.0.0" [ref=e395]:
+                      - link "Initial release v1.0.0" [ref=e398] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/64cc3af1a5e42fb73318822617c7c06260e5a02a
+                    - cell "Feb 2, 20263 months ago" [ref=e399]:
+                      - generic [ref=e400]: Feb 2, 20263 months ago
+                  - row "LICENSE, (File) Initial release v1.0.0 Feb 2, 20263 months ago" [ref=e401]:
+                    - cell "LICENSE, (File)" [ref=e402]:
+                      - generic [ref=e403]:
+                        - img [ref=e404]
+                        - link "LICENSE, (File)" [ref=e409] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/LICENSE
+                          - text: LICENSE
+                    - cell "Initial release v1.0.0" [ref=e410]:
+                      - link "Initial release v1.0.0" [ref=e413] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/64cc3af1a5e42fb73318822617c7c06260e5a02a
+                    - cell "Feb 2, 20263 months ago" [ref=e414]:
+                      - generic [ref=e415]: Feb 2, 20263 months ago
+                  - row "README.md, (File) Improve discoverability - README rewrite, repo URL fix, GitHub topics Feb 20, 20263 months ago" [ref=e416]:
+                    - cell "README.md, (File)" [ref=e417]:
+                      - generic [ref=e418]:
+                        - img [ref=e419]
+                        - link "README.md, (File)" [ref=e424] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/README.md
+                          - text: README.md
+                    - cell "Improve discoverability - README rewrite, repo URL fix, GitHub topics" [ref=e425]:
+                      - link "Improve discoverability - README rewrite, repo URL fix, GitHub topics" [ref=e428] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/e79673507f2f90d74de70cf763995fc2353acc3b
+                    - cell "Feb 20, 20263 months ago" [ref=e429]:
+                      - generic [ref=e430]: Feb 20, 20263 months ago
+                  - row "cbt-framework-1.2.2.tgz, (File) v1.2.5 - MCP data servers, fast engine, EDA, live trading & more Feb 20, 20263 months ago" [ref=e431]:
+                    - cell "cbt-framework-1.2.2.tgz, (File)" [ref=e432]:
+                      - generic [ref=e433]:
+                        - img [ref=e434]
+                        - link "cbt-framework-1.2.2.tgz, (File)" [ref=e439] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/cbt-framework-1.2.2.tgz
+                          - text: cbt-framework-1.2.2.tgz
+                    - cell "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e440]:
+                      - link "v1.2.5 - MCP data servers, fast engine, EDA, live trading & more" [ref=e443] [cursor=pointer]:
+                        - /url: /Trade-With-Claude/cbt-framework/commit/c22e1560f359f7e0bd94db49304a2e224c2d43af
+                    - cell "Feb 20, 20263 months ago" [ref=e444]:
+                      - generic [ref=e445]: Feb 20, 20263 months ago
+                  - 'row "package.json, (File) feat: add Prop Firm Challenge Mode (v1.3.0) Feb 20, 20263 months ago" [ref=e446]':
+                    - cell "package.json, (File)" [ref=e447]:
+                      - generic [ref=e448]:
+                        - img [ref=e449]
+                        - link "package.json, (File)" [ref=e454] [cursor=pointer]:
+                          - /url: /Trade-With-Claude/cbt-framework/blob/main/package.json
+                          - text: package.json
+                    - 'cell "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e455]':
+                      - 'link "feat: add Prop Firm Challenge Mode (v1.3.0)" [ref=e458] [cursor=pointer]':
+                        - /url: /Trade-With-Claude/cbt-framework/commit/47a8cc816ee7246d22dfaaca048ec131d09cbce7
+                    - cell "Feb 20, 20263 months ago" [ref=e459]:
+                      - generic [ref=e460]: Feb 20, 20263 months ago
+            - generic [ref=e462]:
+              - generic [ref=e463]:
+                - heading "Repository files navigation" [level=2] [ref=e464]
+                - navigation "Repository files" [ref=e465]:
+                  - list [ref=e466]:
+                    - listitem [ref=e467]:
+                      - link "README" [ref=e468] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e470]
+                        - generic [ref=e472]: README
+                    - listitem [ref=e473]:
+                      - link "Contributing" [ref=e474] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e476]
+                        - generic [ref=e478]: Contributing
+                    - listitem [ref=e479]:
+                      - link "MIT license" [ref=e480] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e482]
+                        - generic [ref=e484]: MIT license
+                - button "Outline" [ref=e485] [cursor=pointer]:
+                  - img [ref=e486]
+              - article [ref=e489]:
+                - paragraph
+                - generic [ref=e490]:
+                  - heading "CBT Framework" [level=1] [ref=e491]
+                  - 'link "Permalink: CBT Framework" [ref=e492] [cursor=pointer]':
+                    - /url: "#cbt-framework"
+                    - img [ref=e493]
+                - paragraph [ref=e495]:
+                  - strong [ref=e496]: From trading idea to live bot in one conversation.
+                  - text: The AI-powered backtesting framework for
+                  - link "Claude Code" [ref=e497] [cursor=pointer]:
+                    - /url: https://claude.ai/claude-code
+                  - text: .
+                - paragraph [ref=e498]:
+                  - link "npm version" [ref=e499] [cursor=pointer]:
+                    - /url: https://badge.fury.io/js/cbt-framework
+                    - img "npm version" [ref=e500]
+                  - 'link "License: MIT" [ref=e501] [cursor=pointer]':
+                    - /url: https://opensource.org/licenses/MIT
+                    - 'img "License: MIT" [ref=e502]'
+                  - link "GitHub stars" [ref=e503] [cursor=pointer]:
+                    - /url: https://github.com/Trade-With-Claude/cbt-framework/stargazers
+                    - img "GitHub stars" [ref=e504]
+                - paragraph
+                - separator [ref=e505]
+                - generic [ref=e506]:
+                  - heading "Why CBT?" [level=2] [ref=e507]
+                  - 'link "Permalink: Why CBT?" [ref=e508] [cursor=pointer]':
+                    - /url: "#why-cbt"
+                    - img [ref=e509]
+                - paragraph [ref=e511]:
+                  - text: "Most traders waste weeks writing boilerplate, debugging data pipelines, and manually tracking experiments. CBT Framework automates the boring parts so you can focus on what matters:"
+                  - strong [ref=e512]: your edge
+                  - text: .
+                - table [ref=e514]:
+                  - rowgroup [ref=e515]:
+                    - row "Without CBT With CBT" [ref=e516]:
+                      - columnheader "Without CBT" [ref=e517]
+                      - columnheader "With CBT" [ref=e518]
+                  - rowgroup [ref=e519]:
+                    - row "Write backtest engine from scratch /cbt:build generates it" [ref=e520]:
+                      - cell "Write backtest engine from scratch" [ref=e521]
+                      - cell "/cbt:build generates it" [ref=e522]:
+                        - code [ref=e523]: /cbt:build
+                        - text: generates it
+                    - row "Manually track experiments in spreadsheets /cbt:compare does it automatically" [ref=e524]:
+                      - cell "Manually track experiments in spreadsheets" [ref=e525]
+                      - cell "/cbt:compare does it automatically" [ref=e526]:
+                        - code [ref=e527]: /cbt:compare
+                        - text: does it automatically
+                    - row "Guess at parameter optimization /cbt:optimize runs walk-forward analysis" [ref=e528]:
+                      - cell "Guess at parameter optimization" [ref=e529]
+                      - cell "/cbt:optimize runs walk-forward analysis" [ref=e530]:
+                        - code [ref=e531]: /cbt:optimize
+                        - text: runs walk-forward analysis
+                    - row "Copy-paste code to go live /cbt:live deploys to 4 exchanges" [ref=e532]:
+                      - cell "Copy-paste code to go live" [ref=e533]
+                      - cell "/cbt:live deploys to 4 exchanges" [ref=e534]:
+                        - code [ref=e535]: /cbt:live
+                        - text: deploys to 4 exchanges
+                    - row "Lose context between sessions /cbt:clear saves everything" [ref=e536]:
+                      - cell "Lose context between sessions" [ref=e537]
+                      - cell "/cbt:clear saves everything" [ref=e538]:
+                        - code [ref=e539]: /cbt:clear
+                        - text: saves everything
+                    - row "Google library docs constantly MCP servers give Claude real-time docs + market data" [ref=e540]:
+                      - cell "Google library docs constantly" [ref=e541]
+                      - cell "MCP servers give Claude real-time docs + market data" [ref=e542]
+                - generic [ref=e543]:
+                  - heading "Install in 30 Seconds" [level=2] [ref=e544]
+                  - 'link "Permalink: Install in 30 Seconds" [ref=e545] [cursor=pointer]':
+                    - /url: "#install-in-30-seconds"
+                    - img [ref=e546]
+                - generic [ref=e548]:
+                  - generic [ref=e549]: npx cbt-framework
+                  - button "Copy code to clipboard" [ref=e551] [cursor=pointer]:
+                    - img [ref=e552]
+                - paragraph [ref=e555]:
+                  - text: That's it. This installs
+                  - strong [ref=e556]: 21 commands
+                  - text: ","
+                  - strong [ref=e557]: 4 AI agents
+                  - text: ", templates for 4 exchanges, and optionally sets up MCP servers for market data and macroeconomic research."
+                - generic [ref=e558]:
+                  - heading "Requirements" [level=3] [ref=e559]
+                  - 'link "Permalink: Requirements" [ref=e560] [cursor=pointer]':
+                    - /url: "#requirements"
+                    - img [ref=e561]
+                - list [ref=e563]:
+                  - listitem [ref=e564]:
+                    - link "Claude Code" [ref=e565] [cursor=pointer]:
+                      - /url: https://claude.ai/claude-code
+                    - text: CLI
+                  - listitem [ref=e566]: Node.js 16+
+                  - listitem [ref=e567]: Python 3.8+
+                - generic [ref=e568]:
+                  - heading "The Full Workflow" [level=2] [ref=e569]
+                  - 'link "Permalink: The Full Workflow" [ref=e570] [cursor=pointer]':
+                    - /url: "#the-full-workflow"
+                    - img [ref=e571]
+                - generic [ref=e573]:
+                  - code [ref=e575]: /cbt:new my_strategy Create strategy (pick YOLO mode + engine) | /cbt:discover Define your edge through guided Q&A | /cbt:research Validate with literature + GitHub code | /cbt:eda Explore data with Seaborn visualizations | /cbt:config + /cbt:plan Configure params + create build plan | /cbt:build Generate strategy code (follows the plan) | /cbt:run Execute backtest | /cbt:deep-analyze Forensic analysis + statistical tests /cbt:plot Signal visualization on candlestick charts | /cbt:optimize Parameter optimization (sweep/grid/walk-forward) | /cbt:iterate One-change-at-a-time improvement loop | /cbt:report Auto-generated living report | /cbt:live Deploy to Bybit, Binance, Kraken, Hyperliquid /cbt:export Standalone package for sharing
+                  - button "Copy code to clipboard" [ref=e577] [cursor=pointer]:
+                    - img [ref=e578]
+                - generic [ref=e581]:
+                  - heading "Quick Start" [level=2] [ref=e582]
+                  - 'link "Permalink: Quick Start" [ref=e583] [cursor=pointer]':
+                    - /url: "#quick-start"
+                    - img [ref=e584]
+                - generic [ref=e586]:
+                  - generic [ref=e587]:
+                    - generic [ref=e588]: "# 1. Install"
+                    - text: npx cbt-framework
+                    - generic [ref=e589]: "# 2. Open Claude Code in your project folder"
+                    - text: claude
+                    - generic [ref=e590]: "# 3. Start building"
+                    - text: /cbt:new btc_momentum /cbt:discover /cbt:research /cbt:eda /cbt:plan /cbt:build /cbt:run /cbt:deep-analyze
+                  - button "Copy code to clipboard" [ref=e592] [cursor=pointer]:
+                    - img [ref=e593]
+                - generic [ref=e596]:
+                  - heading "Example Session" [level=2] [ref=e597]
+                  - 'link "Permalink: Example Session" [ref=e598] [cursor=pointer]':
+                    - /url: "#example-session"
+                    - img [ref=e599]
+                - generic [ref=e601]:
+                  - code [ref=e603]: "> /cbt:new btc_momentum Mode: YOLO | Engine: fast > /cbt:discover Strategy defined. Type: momentum. Data: 5M rows. > /cbt:eda 12 Seaborn plots generated. Key finding: strong hourly seasonality. > /cbt:build All steps complete. Baseline: Sharpe 1.45 > /cbt:deep-analyze Monte Carlo 95%: positive. Rolling Sharpe: stable. > /cbt:optimize walkforward IS Sharpe: 1.8, OOS Sharpe: 1.5. Robust. > /cbt:live setup Exchange: Bybit. Paper trading started."
+                  - button "Copy code to clipboard" [ref=e605] [cursor=pointer]:
+                    - img [ref=e606]
+                - generic [ref=e609]:
+                  - heading "All 21 Commands" [level=2] [ref=e610]
+                  - 'link "Permalink: All 21 Commands" [ref=e611] [cursor=pointer]':
+                    - /url: "#all-21-commands"
+                    - img [ref=e612]
+                - generic [ref=e614]:
+                  - heading "Setup" [level=3] [ref=e615]
+                  - 'link "Permalink: Setup" [ref=e616] [cursor=pointer]':
+                    - /url: "#setup"
+                    - img [ref=e617]
+                - table [ref=e620]:
+                  - rowgroup [ref=e621]:
+                    - row "Command What it does" [ref=e622]:
+                      - columnheader "Command" [ref=e623]
+                      - columnheader "What it does" [ref=e624]
+                  - rowgroup [ref=e625]:
+                    - row "/cbt:new <name> Create strategy (YOLO mode + engine choice)" [ref=e626]:
+                      - cell "/cbt:new <name>" [ref=e627]:
+                        - code [ref=e628]: /cbt:new <name>
+                      - cell "Create strategy (YOLO mode + engine choice)" [ref=e629]
+                    - row "/cbt:status Show state, mode, engine, progress" [ref=e630]:
+                      - cell "/cbt:status" [ref=e631]:
+                        - code [ref=e632]: /cbt:status
+                      - cell "Show state, mode, engine, progress" [ref=e633]
+                    - row "/cbt:help Show all commands" [ref=e634]:
+                      - cell "/cbt:help" [ref=e635]:
+                        - code [ref=e636]: /cbt:help
+                      - cell "Show all commands" [ref=e637]
+                    - row "/cbt:update Update to latest version" [ref=e638]:
+                      - cell "/cbt:update" [ref=e639]:
+                        - code [ref=e640]: /cbt:update
+                      - cell "Update to latest version" [ref=e641]
+                    - row "/cbt:clear Save context + prepare for reset" [ref=e642]:
+                      - cell "/cbt:clear" [ref=e643]:
+                        - code [ref=e644]: /cbt:clear
+                      - cell "Save context + prepare for reset" [ref=e645]
+                - generic [ref=e646]:
+                  - heading "Build" [level=3] [ref=e647]
+                  - 'link "Permalink: Build" [ref=e648] [cursor=pointer]':
+                    - /url: "#build"
+                    - img [ref=e649]
+                - table [ref=e652]:
+                  - rowgroup [ref=e653]:
+                    - row "Command What it does" [ref=e654]:
+                      - columnheader "Command" [ref=e655]
+                      - columnheader "What it does" [ref=e656]
+                  - rowgroup [ref=e657]:
+                    - row "/cbt:discover Strategy Q&A + data scale + project type" [ref=e658]:
+                      - cell "/cbt:discover" [ref=e659]:
+                        - code [ref=e660]: /cbt:discover
+                      - cell "Strategy Q&A + data scale + project type" [ref=e661]
+                    - row "/cbt:research Literature, implementations, risk analysis" [ref=e662]:
+                      - cell "/cbt:research" [ref=e663]:
+                        - code [ref=e664]: /cbt:research
+                      - cell "Literature, implementations, risk analysis" [ref=e665]
+                    - row "/cbt:eda Exploratory data analysis with Seaborn plots" [ref=e666]:
+                      - cell "/cbt:eda" [ref=e667]:
+                        - code [ref=e668]: /cbt:eda
+                      - cell "Exploratory data analysis with Seaborn plots" [ref=e669]
+                    - row "/cbt:config Configure backtest parameters" [ref=e670]:
+                      - cell "/cbt:config" [ref=e671]:
+                        - code [ref=e672]: /cbt:config
+                      - cell "Configure backtest parameters" [ref=e673]
+                    - row "/cbt:plan Create step-by-step build plan" [ref=e674]:
+                      - cell "/cbt:plan" [ref=e675]:
+                        - code [ref=e676]: /cbt:plan
+                      - cell "Create step-by-step build plan" [ref=e677]
+                    - row "/cbt:build Generate code (plan-aware, engine-aware)" [ref=e678]:
+                      - cell "/cbt:build" [ref=e679]:
+                        - code [ref=e680]: /cbt:build
+                      - cell "Generate code (plan-aware, engine-aware)" [ref=e681]
+                - generic [ref=e682]:
+                  - heading "Run & Analyze" [level=3] [ref=e683]
+                  - 'link "Permalink: Run & Analyze" [ref=e684] [cursor=pointer]':
+                    - /url: "#run--analyze"
+                    - img [ref=e685]
+                - table [ref=e688]:
+                  - rowgroup [ref=e689]:
+                    - row "Command What it does" [ref=e690]:
+                      - columnheader "Command" [ref=e691]
+                      - columnheader "What it does" [ref=e692]
+                  - rowgroup [ref=e693]:
+                    - row "/cbt:run Execute backtest" [ref=e694]:
+                      - cell "/cbt:run" [ref=e695]:
+                        - code [ref=e696]: /cbt:run
+                      - cell "Execute backtest" [ref=e697]
+                    - row "/cbt:analyze Quick text-based analysis" [ref=e698]:
+                      - cell "/cbt:analyze" [ref=e699]:
+                        - code [ref=e700]: /cbt:analyze
+                      - cell "Quick text-based analysis" [ref=e701]
+                    - row "/cbt:deep-analyze Forensic analysis with Seaborn + stats tests" [ref=e702]:
+                      - cell "/cbt:deep-analyze" [ref=e703]:
+                        - code [ref=e704]: /cbt:deep-analyze
+                      - cell "Forensic analysis with Seaborn + stats tests" [ref=e705]
+                    - row "/cbt:plot Signal/indicator/equity visualization" [ref=e706]:
+                      - cell "/cbt:plot" [ref=e707]:
+                        - code [ref=e708]: /cbt:plot
+                      - cell "Signal/indicator/equity visualization" [ref=e709]
+                    - row "/cbt:compare Compare experiments side by side" [ref=e710]:
+                      - cell "/cbt:compare" [ref=e711]:
+                        - code [ref=e712]: /cbt:compare
+                      - cell "Compare experiments side by side" [ref=e713]
+                - generic [ref=e714]:
+                  - heading "Optimize & Report" [level=3] [ref=e715]
+                  - 'link "Permalink: Optimize & Report" [ref=e716] [cursor=pointer]':
+                    - /url: "#optimize--report"
+                    - img [ref=e717]
+                - table [ref=e720]:
+                  - rowgroup [ref=e721]:
+                    - row "Command What it does" [ref=e722]:
+                      - columnheader "Command" [ref=e723]
+                      - columnheader "What it does" [ref=e724]
+                  - rowgroup [ref=e725]:
+                    - row "/cbt:optimize Parameter sweep, grid search, walk-forward" [ref=e726]:
+                      - cell "/cbt:optimize" [ref=e727]:
+                        - code [ref=e728]: /cbt:optimize
+                      - cell "Parameter sweep, grid search, walk-forward" [ref=e729]
+                    - row "/cbt:iterate Guided one-change-at-a-time loop" [ref=e730]:
+                      - cell "/cbt:iterate" [ref=e731]:
+                        - code [ref=e732]: /cbt:iterate
+                      - cell "Guided one-change-at-a-time loop" [ref=e733]
+                    - row "/cbt:observe Save observations and hypotheses" [ref=e734]:
+                      - cell "/cbt:observe" [ref=e735]:
+                        - code [ref=e736]: /cbt:observe
+                      - cell "Save observations and hypotheses" [ref=e737]
+                    - row "/cbt:report Auto-generated living project report" [ref=e738]:
+                      - cell "/cbt:report" [ref=e739]:
+                        - code [ref=e740]: /cbt:report
+                      - cell "Auto-generated living project report" [ref=e741]
+                - generic [ref=e742]:
+                  - heading "Deploy" [level=3] [ref=e743]
+                  - 'link "Permalink: Deploy" [ref=e744] [cursor=pointer]':
+                    - /url: "#deploy"
+                    - img [ref=e745]
+                - table [ref=e748]:
+                  - rowgroup [ref=e749]:
+                    - row "Command What it does" [ref=e750]:
+                      - columnheader "Command" [ref=e751]
+                      - columnheader "What it does" [ref=e752]
+                  - rowgroup [ref=e753]:
+                    - row "/cbt:live Deploy to Bybit, Binance, Kraken, or Hyperliquid" [ref=e754]:
+                      - cell "/cbt:live" [ref=e755]:
+                        - code [ref=e756]: /cbt:live
+                      - cell "Deploy to Bybit, Binance, Kraken, or Hyperliquid" [ref=e757]
+                    - row "/cbt:export Standalone package (zip, git, Docker)" [ref=e758]:
+                      - cell "/cbt:export" [ref=e759]:
+                        - code [ref=e760]: /cbt:export
+                      - cell "Standalone package (zip, git, Docker)" [ref=e761]
+                - generic [ref=e762]:
+                  - heading "Dual Engine" [level=2] [ref=e763]
+                  - 'link "Permalink: Dual Engine" [ref=e764] [cursor=pointer]':
+                    - /url: "#dual-engine"
+                    - img [ref=e765]
+                - paragraph [ref=e767]: "Choose your engine when creating a strategy:"
+                - generic [ref=e768]:
+                  - heading "pandas (default)" [level=3] [ref=e769]
+                  - 'link "Permalink: pandas (default)" [ref=e770] [cursor=pointer]':
+                    - /url: "#pandas-default"
+                    - img [ref=e771]
+                - paragraph [ref=e773]: Standard pandas + numpy. Best for datasets under 1M rows. Simple and debuggable.
+                - generic [ref=e774]:
+                  - heading "Fast Engine (Polars + NumPy + Numba)" [level=3] [ref=e775]
+                  - 'link "Permalink: Fast Engine (Polars + NumPy + Numba)" [ref=e776] [cursor=pointer]':
+                    - /url: "#fast-engine-polars--numpy--numba"
+                    - img [ref=e777]
+                - paragraph [ref=e779]: "For large datasets (1M+ rows):"
+                - list [ref=e780]:
+                  - listitem [ref=e781]:
+                    - strong [ref=e782]: Polars
+                    - text: for data loading (lazy evaluation, zero-copy)
+                  - listitem [ref=e783]:
+                    - strong [ref=e784]: NumPy
+                    - text: arrays for feature engineering
+                  - listitem [ref=e785]:
+                    - strong [ref=e786]: Numba
+                    - code [ref=e787]: "@njit"
+                    - text: for compiled backtest loops
+                  - listitem [ref=e788]: No pandas in the hot path
+                - generic [ref=e789]:
+                  - generic [ref=e790]:
+                    - generic [ref=e791]: "# Optional: install fast engine dependencies"
+                    - text: pip install polars numba numpy
+                  - button "Copy code to clipboard" [ref=e793] [cursor=pointer]:
+                    - img [ref=e794]
+                - generic [ref=e797]:
+                  - heading "MCP Servers (Data Superpowers)" [level=2] [ref=e798]
+                  - 'link "Permalink: MCP Servers (Data Superpowers)" [ref=e799] [cursor=pointer]':
+                    - /url: "#mcp-servers-data-superpowers"
+                    - img [ref=e800]
+                - paragraph [ref=e802]: "CBT Framework can set up 3 free MCP servers during installation to give Claude access to external data:"
+                - table [ref=e804]:
+                  - rowgroup [ref=e805]:
+                    - row "Server What it does API Key" [ref=e806]:
+                      - columnheader "Server" [ref=e807]
+                      - columnheader "What it does" [ref=e808]
+                      - columnheader "API Key" [ref=e809]
+                  - rowgroup [ref=e810]:
+                    - row "Context7 Up-to-date library docs (pandas, ccxt, polars...) None needed" [ref=e811]:
+                      - cell "Context7" [ref=e812]:
+                        - strong [ref=e813]: Context7
+                      - cell "Up-to-date library docs (pandas, ccxt, polars...)" [ref=e814]
+                      - cell "None needed" [ref=e815]
+                    - row "Alpha Vantage Stocks, forex, crypto + macro indicators (CPI, GDP, rates) Free key" [ref=e816]:
+                      - cell "Alpha Vantage" [ref=e817]:
+                        - strong [ref=e818]: Alpha Vantage
+                      - cell "Stocks, forex, crypto + macro indicators (CPI, GDP, rates)" [ref=e819]
+                      - cell "Free key" [ref=e820]:
+                        - link "Free key" [ref=e821] [cursor=pointer]:
+                          - /url: https://www.alphavantage.co/support/#api-key
+                    - row "FRED 840,000+ economic time series from the Federal Reserve Free key" [ref=e822]:
+                      - cell "FRED" [ref=e823]:
+                        - strong [ref=e824]: FRED
+                      - cell "840,000+ economic time series from the Federal Reserve" [ref=e825]
+                      - cell "Free key" [ref=e826]:
+                        - link "Free key" [ref=e827] [cursor=pointer]:
+                          - /url: https://fred.stlouisfed.org/docs/api/api_key.html
+                - paragraph [ref=e828]: This means Claude can pull real market data and macroeconomic indicators while building and analyzing your strategies.
+                - generic [ref=e829]:
+                  - heading "Live Trading" [level=2] [ref=e830]
+                  - 'link "Permalink: Live Trading" [ref=e831] [cursor=pointer]':
+                    - /url: "#live-trading"
+                    - img [ref=e832]
+                - generic [ref=e834]:
+                  - heading "Supported Exchanges" [level=3] [ref=e835]
+                  - 'link "Permalink: Supported Exchanges" [ref=e836] [cursor=pointer]':
+                    - /url: "#supported-exchanges"
+                    - img [ref=e837]
+                - list [ref=e839]:
+                  - listitem [ref=e840]:
+                    - strong [ref=e841]: Bybit
+                    - text: "- USDT perpetuals, inverse, spot"
+                  - listitem [ref=e842]:
+                    - strong [ref=e843]: Binance
+                    - text: "- Spot, USDT-M, COIN-M futures"
+                  - listitem [ref=e844]:
+                    - strong [ref=e845]: Kraken
+                    - text: "- Spot, futures"
+                  - listitem [ref=e846]:
+                    - strong [ref=e847]: Hyperliquid
+                    - text: "- Decentralized perpetuals"
+                - generic [ref=e848]:
+                  - heading "Safety Features" [level=3] [ref=e849]
+                  - 'link "Permalink: Safety Features" [ref=e850] [cursor=pointer]':
+                    - /url: "#safety-features"
+                    - img [ref=e851]
+                - list [ref=e853]:
+                  - listitem [ref=e854]: Paper trading mode by default
+                  - listitem [ref=e855]: Kill switch with configurable drawdown threshold
+                  - listitem [ref=e856]: Max position size limits
+                  - listitem [ref=e857]: API rate limiting
+                  - listitem [ref=e858]:
+                    - text: Credentials in
+                    - code [ref=e859]: .env
+                    - text: (never hardcoded)
+                - generic [ref=e860]:
+                  - heading "Notifications" [level=3] [ref=e861]
+                  - 'link "Permalink: Notifications" [ref=e862] [cursor=pointer]':
+                    - /url: "#notifications"
+                    - img [ref=e863]
+                - list [ref=e865]:
+                  - listitem [ref=e866]: Discord (webhook)
+                  - listitem [ref=e867]: Telegram (bot API)
+                  - listitem [ref=e868]: SMS (Twilio)
+                  - listitem [ref=e869]: Email (SMTP)
+                - generic [ref=e870]:
+                  - heading "Project Structure" [level=2] [ref=e871]
+                  - 'link "Permalink: Project Structure" [ref=e872] [cursor=pointer]':
+                    - /url: "#project-structure"
+                    - img [ref=e873]
+                - generic [ref=e875]:
+                  - code [ref=e877]: "strategies/<name>/ ├── Data/ # Datasets ├── IDEA.md # Initial notes ├── DISCOVERY.md # Strategy spec from /cbt:discover ├── RESEARCH.md # Research findings ├── EDA.md # Exploratory analysis ├── BUILD_PLAN.md # Build steps from /cbt:plan ├── REPORT.md # Living report ├── DEEP_ANALYSIS.md # Forensic analysis ├── config.yaml # Backtest config ├── src/ # Generated source code ├── strategy.py # Main strategy ├── backtest.py # Runner ├── experiments/ # All backtest runs ├── observations/ # Iteration notes ├── plots/ # Visualizations │ ├── eda/ # EDA plots │ └── deep_analyze/ # Analysis plots ├── trades/ # Trade logs └── .cbt/ ├── state.yaml # Framework state └── handoff.md # Session handoff"
+                  - button "Copy code to clipboard" [ref=e879] [cursor=pointer]:
+                    - img [ref=e880]
+                - generic [ref=e883]:
+                  - heading "Best Practices" [level=2] [ref=e884]
+                  - 'link "Permalink: Best Practices" [ref=e885] [cursor=pointer]':
+                    - /url: "#best-practices"
+                    - img [ref=e886]
+                - list [ref=e888]:
+                  - listitem [ref=e889]:
+                    - strong [ref=e890]: Lookahead Prevention
+                    - text: "- Always"
+                    - code [ref=e891]: .shift(1)
+                    - text: your indicators
+                  - listitem [ref=e892]:
+                    - strong [ref=e893]: One Change Per Iteration
+                    - text: "- Change only one thing at a time when optimizing"
+                  - listitem [ref=e894]:
+                    - strong [ref=e895]: Paper Trade First
+                    - text: "- Always validate before going live"
+                  - listitem [ref=e896]:
+                    - strong [ref=e897]: Use EDA
+                    - text: "- Let the data inform your strategy before building"
+                  - listitem [ref=e898]:
+                    - strong [ref=e899]: Kill Bad Ideas Fast
+                    - text: "- Define kill criteria upfront, abandon if met"
+                - generic [ref=e900]:
+                  - heading "Contributing" [level=2] [ref=e901]
+                  - 'link "Permalink: Contributing" [ref=e902] [cursor=pointer]':
+                    - /url: "#contributing"
+                    - img [ref=e903]
+                - paragraph [ref=e905]: Contributions are welcome! Feel free to open issues or submit PRs.
+                - generic [ref=e906]:
+                  - heading "License" [level=2] [ref=e907]
+                  - 'link "Permalink: License" [ref=e908] [cursor=pointer]':
+                    - /url: "#license"
+                    - img [ref=e909]
+                - paragraph [ref=e911]:
+                  - text: MIT License - see
+                  - link "LICENSE" [ref=e912] [cursor=pointer]:
+                    - /url: /Trade-With-Claude/cbt-framework/blob/main/LICENSE
+                  - text: for details.
+                - separator [ref=e913]
+                - paragraph [ref=e914]:
+                  - strong [ref=e915]: If CBT Framework helps your trading, give it a star!
+                  - link "Star on GitHub" [ref=e916] [cursor=pointer]:
+                    - /url: https://github.com/Trade-With-Claude/cbt-framework
+        - generic [ref=e920]:
+          - generic [ref=e923]:
+            - heading "About" [level=2] [ref=e924]
+            - paragraph [ref=e925]: AI-powered backtesting framework for Claude Code - from idea to live trading in one workflow. 21 commands, 4 exchanges, macro data via MCP.
+            - generic [ref=e926]:
+              - img [ref=e927]
+              - link "www.npmjs.com/package/cbt-framework" [ref=e930] [cursor=pointer]:
+                - /url: https://www.npmjs.com/package/cbt-framework
+            - heading "Topics" [level=3] [ref=e931]
+            - generic [ref=e933]:
+              - link "python" [ref=e934] [cursor=pointer]:
+                - /url: /topics/python
+              - link "crypto" [ref=e935] [cursor=pointer]:
+                - /url: /topics/crypto
+              - link "bitcoin" [ref=e936] [cursor=pointer]:
+                - /url: /topics/bitcoin
+              - link "trading" [ref=e937] [cursor=pointer]:
+                - /url: /topics/trading
+              - link "mcp" [ref=e938] [cursor=pointer]:
+                - /url: /topics/mcp
+              - link "cryptocurrency" [ref=e939] [cursor=pointer]:
+                - /url: /topics/cryptocurrency
+              - link "strategy" [ref=e940] [cursor=pointer]:
+                - /url: /topics/strategy
+              - link "quantitative-finance" [ref=e941] [cursor=pointer]:
+                - /url: /topics/quantitative-finance
+              - link "algorithmic-trading" [ref=e942] [cursor=pointer]:
+                - /url: /topics/algorithmic-trading
+              - link "backtest" [ref=e943] [cursor=pointer]:
+                - /url: /topics/backtest
+              - link "backtesting" [ref=e944] [cursor=pointer]:
+                - /url: /topics/backtesting
+              - link "claude" [ref=e945] [cursor=pointer]:
+                - /url: /topics/claude
+              - link "defi" [ref=e946] [cursor=pointer]:
+                - /url: /topics/defi
+              - link "live-trading" [ref=e947] [cursor=pointer]:
+                - /url: /topics/live-trading
+              - link "polars" [ref=e948] [cursor=pointer]:
+                - /url: /topics/polars
+              - link "ai-trading" [ref=e949] [cursor=pointer]:
+                - /url: /topics/ai-trading
+              - link "claude-code" [ref=e950] [cursor=pointer]:
+                - /url: /topics/claude-code
+            - heading "Resources" [level=3] [ref=e951]
+            - link "Readme" [ref=e953] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e954]
+              - text: Readme
+            - heading "License" [level=3] [ref=e956]
+            - link "MIT license" [ref=e958] [cursor=pointer]:
+              - /url: "#MIT-1-ov-file"
+              - img [ref=e959]
+              - text: MIT license
+            - heading "Contributing" [level=3] [ref=e961]
+            - link "Contributing" [ref=e963] [cursor=pointer]:
+              - /url: "#contributing-ov-file"
+              - img [ref=e964]
+              - text: Contributing
+            - link "Activity" [ref=e967] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/activity
+              - img [ref=e968]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e970]
+            - link "22 stars" [ref=e972] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/stargazers
+              - img [ref=e973]
+              - strong [ref=e975]: "22"
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e976]
+            - link "0 watching" [ref=e978] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/watchers
+              - img [ref=e979]
+              - strong [ref=e981]: "0"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e982]
+            - link "9 forks" [ref=e984] [cursor=pointer]:
+              - /url: /Trade-With-Claude/cbt-framework/forks
+              - img [ref=e985]
+              - strong [ref=e987]: "9"
+              - text: forks
+            - link "Report repository" [ref=e989] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2FTrade-With-Claude%2Fcbt-framework&report=Trade-With-Claude+%28user%29
+          - generic [ref=e991]:
+            - heading "Releases" [level=2] [ref=e992]:
+              - link "Releases" [ref=e993] [cursor=pointer]:
+                - /url: /Trade-With-Claude/cbt-framework/releases
+            - generic [ref=e994]: No releases published
+          - generic [ref=e996]:
+            - heading "Packages" [level=2] [ref=e997]:
+              - link "Packages" [ref=e998] [cursor=pointer]:
+                - /url: /users/Trade-With-Claude/packages?repo_name=cbt-framework
+            - generic [ref=e999]: No packages published
+          - generic [ref=e1001]:
+            - heading "Contributors 2" [level=2] [ref=e1002]:
+              - link "Contributors 2" [ref=e1003] [cursor=pointer]:
+                - /url: /Trade-With-Claude/cbt-framework/graphs/contributors
+                - text: Contributors
+                - generic "2" [ref=e1004]
+            - list [ref=e1005]:
+              - listitem [ref=e1006]:
+                - link "@Trade-With-Claude" [ref=e1007] [cursor=pointer]:
+                  - /url: https://github.com/Trade-With-Claude
+                  - img "@Trade-With-Claude" [ref=e1008]
+                - link "Trade-With-Claude" [ref=e1010] [cursor=pointer]:
+                  - /url: https://github.com/Trade-With-Claude
+                  - strong [ref=e1011]: Trade-With-Claude
+              - listitem [ref=e1012]:
+                - link "@claude" [ref=e1013] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - img "@claude" [ref=e1014]
+                - link "claude Claude" [ref=e1016] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - strong [ref=e1017]: claude
+                  - text: Claude
+          - generic [ref=e1019]:
+            - heading "Languages" [level=2] [ref=e1020]
+            - list [ref=e1025]:
+              - listitem [ref=e1026]:
+                - link "Python 88.8%" [ref=e1027] [cursor=pointer]:
+                  - /url: /Trade-With-Claude/cbt-framework/search?l=python
+                  - img [ref=e1028]
+                  - generic [ref=e1030]: Python
+                  - generic [ref=e1031]: 88.8%
+              - listitem [ref=e1032]:
+                - link "JavaScript 11.2%" [ref=e1033] [cursor=pointer]:
+                  - /url: /Trade-With-Claude/cbt-framework/search?l=javascript
+                  - img [ref=e1034]
+                  - generic [ref=e1036]: JavaScript
+                  - generic [ref=e1037]: 11.2%
+  - contentinfo [ref=e1039]:
+    - heading "Footer" [level=2] [ref=e1040]
+    - generic [ref=e1041]:
+      - generic [ref=e1042]:
+        - link "GitHub Homepage" [ref=e1043] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e1044]
+        - generic [ref=e1046]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e1047]:
+        - heading "Footer navigation" [level=3] [ref=e1048]
+        - list "Footer navigation" [ref=e1049]:
+          - listitem [ref=e1050]:
+            - link "Terms" [ref=e1051] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e1052]:
+            - link "Privacy" [ref=e1053] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e1054]:
+            - link "Security" [ref=e1055] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e1056]:
+            - link "Status" [ref=e1057] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e1058]:
+            - link "Community" [ref=e1059] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e1060]:
+            - link "Docs" [ref=e1061] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e1062]:
+            - link "Contact" [ref=e1063] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e1064]:
+            - button "Manage cookies" [ref=e1066] [cursor=pointer]
+          - listitem [ref=e1067]:
+            - button "Do not share my personal information" [ref=e1069] [cursor=pointer]

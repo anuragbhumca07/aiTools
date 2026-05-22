@@ -6,3 +6,24 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# CBT framework (npm-installed tool — don't commit the whole package)
+CBT/*.tgz
+CBT/package/
+CBT/.github/
+CBT/.gitignore
+
+# CBT algo runtime artifacts
+CBT/Strategy/algo1/data/
+CBT/Strategy/algo1/logs/
+
+# misc recordings / generated outputs
+misc/recordings/
+misc/graphify-cache/
+misc/graphify-out/
+tests/*.m4a
+tests/*.bmp
+tests/*.wav
+tests/*.mp4
+tests/*.png
+tests/temp/

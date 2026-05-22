@@ -12,6 +12,8 @@ const { google } = require('googleapis');
 const { TwitterApi } = require('twitter-api-v2');
 const FormData   = require('form-data');
 const multer     = require('multer');
+const { exec }   = require('child_process');
+const execAsync  = require('util').promisify(exec);
 
 const app  = express();
 const PORT = process.env.PORT || 3003;
@@ -209,6 +211,17 @@ async function stageVideo(videoUrl) {
   return { fpath, pubUrl };
 }
 
+// Extract a thumbnail JPEG from the staged MP4 using FFmpeg (free, no network call)
+async function extractThumbnail(videoPath) {
+  const thumbPath = videoPath.replace(/\.mp4$/, '_thumb.jpg');
+  const pubUrl    = `${BASE_URL}/serve/${path.basename(thumbPath)}`;
+  // Seek to 1 second in (or 0 if video is shorter), grab one frame
+  await execAsync(`ffmpeg -y -ss 1 -i "${videoPath}" -vframes 1 -q:v 2 "${thumbPath}"`);
+  // Auto-delete alongside the video (3 hours)
+  setTimeout(() => { try { fs.unlinkSync(thumbPath); } catch {} }, 3 * 60 * 60 * 1000);
+  return { thumbPath, thumbPubUrl: pubUrl };
+}
+
 // ── Hashtag sets per video type ───────────────────────────────────────────────
 const TAGS = {
   quiz:   { yt: ['quiz','trivia','shorts','education'],   str: '#quiz #trivia #shorts #education', cat: '27' },
@@ -217,7 +230,7 @@ const TAGS = {
 function vtags(videoType) { return TAGS[videoType] || TAGS.quiz; }
 
 // ── Platform Posters (all receive { fpath, pubUrl } staged video) ─────────────
-async function postYouTube(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postYouTube(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null) {
   if (!c.refresh_token) throw new Error('YouTube not authorized — click "Authorize with Google" in Credentials first');
   const t = vtags(videoType);
   const oauth2 = new google.auth.OAuth2(c.client_id, c.client_secret, `${BASE_URL}/auth/youtube/callback`);
@@ -231,14 +244,22 @@ async function postYouTube(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
     },
     media: { body: fs.createReadStream(fpath) },
   });
-  return `https://youtube.com/shorts/${r.data.id}`;
+  const videoId = r.data.id;
+  if (thumbPath) {
+    try {
+      await yt.thumbnails.set({ videoId, media: { mimeType: 'image/jpeg', body: fs.createReadStream(thumbPath) } });
+    } catch (e) { console.warn('[YouTube] Thumbnail upload failed:', e.message); }
+  }
+  return `https://youtube.com/shorts/${videoId}`;
 }
 
-async function postInstagram(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postInstagram(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null, thumbPubUrl = null) {
   const t = vtags(videoType);
   const caption = `${title}\n\n${desc}\n\n${t.str}`;
+  const params  = { video_url: pubUrl, media_type: 'REELS', caption, access_token: c.access_token };
+  if (thumbPubUrl) params.cover_url = thumbPubUrl;
   const con = await axios.post(`https://graph.facebook.com/v19.0/${c.instagram_account_id}/media`, null,
-    { params: { video_url: pubUrl, media_type: 'REELS', caption, access_token: c.access_token }, timeout: 30000 });
+    { params, timeout: 30000 });
   for (let i = 0; i < 30; i++) {
     await sleep(10000);
     const s = await axios.get(`https://graph.facebook.com/v19.0/${con.data.id}`,
@@ -251,7 +272,7 @@ async function postInstagram(fpath, pubUrl, title, desc, c, videoType = 'quiz') 
   return `https://www.instagram.com/p/${pub.data.id}/`;
 }
 
-async function postTwitter(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postTwitter(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null, thumbPubUrl = null) {
   const t = vtags(videoType);
   const client  = new TwitterApi({ appKey: c.api_key, appSecret: c.api_secret, accessToken: c.access_token, accessSecret: c.access_token_secret });
   const mediaId = await client.v1.uploadMedia(fpath, { mimeType: 'video/mp4' });
@@ -259,23 +280,25 @@ async function postTwitter(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
   return `https://twitter.com/i/web/status/${tweet.data.id}`;
 }
 
-async function postTikTok(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postTikTok(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null, thumbPubUrl = null) {
   const t = vtags(videoType);
   await axios.post('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
     { post_info: { title: `${title} ${t.str}`.slice(0,150), privacy_level: 'PUBLIC_TO_EVERYONE', disable_comment: false, disable_duet: false, disable_stitch: false },
-      source_info: { source: 'URL', video_url: pubUrl } },
+      source_info: { source: 'URL', video_url: pubUrl, cover_frame_index: 0 } },
     { headers: { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json' }, timeout: 30000 });
   return 'https://www.tiktok.com/';
 }
 
-async function postFacebook(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postFacebook(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null, thumbPubUrl = null) {
   const t = vtags(videoType);
+  const params = { file_url: pubUrl, title: title.slice(0,255), description: `${desc}\n\n${t.str}`, access_token: c.page_access_token };
+  if (thumbPubUrl) params.thumb_url = thumbPubUrl;
   const r = await axios.post(`https://graph-video.facebook.com/v19.0/${c.page_id}/videos`, null,
-    { params: { file_url: pubUrl, title: title.slice(0,255), description: `${desc}\n\n${t.str}`, access_token: c.page_access_token }, timeout: 60000 });
+    { params, timeout: 60000 });
   return `https://www.facebook.com/video.php?v=${r.data.id}`;
 }
 
-async function postLinkedIn(fpath, pubUrl, title, desc, c, videoType = 'quiz') {
+async function postLinkedIn(fpath, pubUrl, title, desc, c, videoType = 'quiz', thumbPath = null, thumbPubUrl = null) {
   const t = vtags(videoType);
   const h = { Authorization: `Bearer ${c.access_token}`, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' };
   const reg = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload',
@@ -314,6 +337,14 @@ async function postToPlatforms(jobId, userId, videoUrl, question, platforms, vid
     }
     return;
   }
+  // Extract thumbnail using FFmpeg — non-fatal if it fails
+  let thumbPath = null, thumbPubUrl = null;
+  try {
+    const thumb = await extractThumbnail(staged.fpath);
+    thumbPath   = thumb.thumbPath;
+    thumbPubUrl = thumb.thumbPubUrl;
+    console.log(`[POST] Thumbnail at ${thumbPubUrl}`);
+  } catch (e) { console.warn('[POST] Thumbnail extraction skipped:', e.message); }
   try {
     for (const p of platforms) {
       if (!POSTERS[p]) { console.warn(`[POST] Unknown platform: ${p}`); continue; }
@@ -333,7 +364,7 @@ async function postToPlatforms(jobId, userId, videoUrl, question, platforms, vid
         const desc  = isBhakti
           ? `${question || ''}\n\nWatch this divine spiritual story. Share the light of devotion.`.slice(0, 300)
           : `Quiz: ${question}`;
-        const url = await POSTERS[p](staged.fpath, staged.pubUrl, title, desc, creds, videoType);
+        const url = await POSTERS[p](staged.fpath, staged.pubUrl, title, desc, creds, videoType, thumbPath, thumbPubUrl);
         db.prepare(`UPDATE postings SET status='done',post_url=? WHERE id=?`).run(url, pid);
         console.log(`[POST] ${p} ✓ ${url}`);
       } catch (e) {

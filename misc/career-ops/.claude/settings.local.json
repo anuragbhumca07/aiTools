@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/anura/.gemini//**)",
+      "Read(//c/Users/anura/.gemini/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k: ''''***'''' if ''''token'''' in k.lower\\(\\) or ''''secret'''' in k.lower\\(\\) else v for k,v in d.items\\(\\) if not isinstance\\(v, dict\\)}, indent=2\\)\\)\")",
+      "Bash(python3:*)",
+      "Bash(gemini --version)",
+      "Bash(npx @google/gemini-cli --version)",
+      "Bash(npx @google/gemini-cli --help)",
+      "Read(//c/Users/anura/OneDrive/Desktop/aiTools/**)",
+      "Read(//c/Users/anura/OneDrive/Desktop/aiTools/.gemini/**)",
+      "Bash(npx @google/gemini-cli -m gemini-2.5-pro --help)",
+      "Bash(npx @google/gemini-cli -m gemini-2.5-pro -p \"say hi\" --output-format json)",
+      "Bash(node:*)",
+      "Bash(npx @google/gemini-cli -m gemini-2.5-pro -p \"say hi in one word\" --output-format json)",
+      "Bash(find /c/Users/anura/AppData -path */gemini-cli* -name settings*)",
+      "Bash(npx @google/gemini-cli -p \"say hi in one word\" --output-format json)",
+      "Bash(find /c/Users/anura/AppData/Local/npm-cache/_npx/d07ada7b4a99c96e/node_modules/@google/gemini-cli -name *.js -o -name *.ts)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

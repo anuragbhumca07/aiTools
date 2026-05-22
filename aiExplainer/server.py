@@ -410,6 +410,16 @@ def render_video(topic: str, steps: list) -> str:
 # Routes
 # ---------------------------------------------------------------------------
 
+WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
+
+@app.route("/")
+def index():
+    return send_from_directory(WEB_DIR, "index.html")
+
+@app.route("/<path:filename>")
+def static_web(filename):
+    return send_from_directory(WEB_DIR, filename)
+
 @app.route("/health")
 def health():
     return jsonify({"ok": True, "tts": TTS_AVAILABLE})

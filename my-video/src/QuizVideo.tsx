@@ -308,7 +308,7 @@ export const QuizVideo: React.FC<QuizProps> = (props) => {
 
       {/* Phase 1: question voice */}
       {questionVoice && (
-        <Sequence from={0} durationInFrames={qF}>
+        <Sequence durationInFrames={qF}>
           <Audio src={staticFile(questionVoice)} volume={1} />
         </Sequence>
       )}
@@ -338,7 +338,7 @@ export const QuizVideo: React.FC<QuizProps> = (props) => {
       )}
 
       {/* ── Visuals ────────────────────────────────────── */}
-      <Sequence from={0} durationInFrames={qF}>
+      <Sequence durationInFrames={qF}>
         <QuestionPhase question={question} options={options} />
       </Sequence>
       <Sequence from={qF} durationInFrames={oF}>

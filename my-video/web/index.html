@@ -297,6 +297,33 @@
     .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .result-actions .btn { width: auto; flex: 1; min-width: 120px; padding: 12px 18px; font-size: .9rem; }
 
+    /* ── Bulk card full-width ── */
+    .card-bulk { margin-top: 24px; }
+    .bulk-count-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .bulk-badge {
+      display: inline-block; padding: 4px 14px;
+      background: rgba(245,166,35,.12); border: 1px solid rgba(245,166,35,.3);
+      border-radius: 20px; font-size: .82rem; font-weight: 700; color: var(--gold);
+    }
+    .btn-bulk {
+      background: linear-gradient(135deg, #7c3aed, #f5a623);
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(124,58,237,.35);
+    }
+    .btn-bulk:hover:not(:disabled) { box-shadow: 0 8px 32px rgba(124,58,237,.5); transform: translateY(-2px); }
+
+    /* ── Bulk result card in gallery ── */
+    .result-card.bulk-card .question-display strong { font-size: 1.05rem; }
+    .bulk-q-list { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+    .bulk-q-item {
+      background: rgba(255,255,255,.04); border-radius: 8px;
+      padding: 6px 10px; font-size: .83rem; color: var(--muted);
+    }
+    .bulk-q-item span { color: var(--cyan); font-weight: 700; margin-right: 6px; }
+
     /* ── Toast ── */
     #toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
@@ -476,6 +503,63 @@ Answer: B</textarea>
 
   </div><!-- .grid -->
 
+  <!-- Bulk Quiz Video Creator (full width) -->
+  <div class="card card-bulk" id="card-bulk">
+    <div class="loading-overlay" id="loading-bulk">
+      <div class="spinner"></div>
+      <div class="loading-steps" id="steps-bulk">
+        <div class="step" data-step="0">⏳ Starting generation...</div>
+        <div class="step" data-step="1">🎙️ Generating all voice files...</div>
+        <div class="step" data-step="2">🎬 Rendering combined video...</div>
+        <div class="step" data-step="3">✅ Finalising...</div>
+      </div>
+      <div class="loading-progress" id="bulk-progress">This may take several minutes for large batches.</div>
+    </div>
+
+    <div class="card-icon">📚</div>
+    <h2>Bulk Quiz Video Creator</h2>
+    <p>Submit up to <strong style="color:var(--gold)">50 questions</strong> at once and get a single combined quiz video. Each question follows the same Q → Options → Timer → Answer format. Paste one block per question, separated by a blank line.</p>
+
+    <!-- Format toggle -->
+    <div class="format-toggle">
+      <label>Format:</label>
+      <button class="fmt-btn selected" id="bfmt-169" onclick="selectFormat('bulk','16:9',this)">📺 16:9 Landscape</button>
+      <button class="fmt-btn" id="bfmt-916" onclick="selectFormat('bulk','9:16',this)">📱 9:16 Portrait</button>
+    </div>
+
+    <div class="form-group">
+      <label>Questions — <span style="color:var(--gold);font-size:.82rem">max 50 per bulk video</span></label>
+      <textarea id="b-textarea" rows="14" spellcheck="false" oninput="updateBulkCount()">Q: What is the capital of France?
+A: London
+B: Berlin
+C: Paris
+D: Madrid
+Answer: C
+
+Q: How many planets are in our solar system?
+A: 7
+B: 8
+C: 9
+D: 10
+Answer: B
+
+Q: What is the chemical symbol for gold?
+A: Go
+B: Gl
+C: Gd
+D: Au
+Answer: D</textarea>
+    </div>
+
+    <div class="bulk-count-bar">
+      <span id="bulk-count-label" style="font-size:.82rem;color:var(--muted)">3 questions ready</span>
+      <span class="bulk-badge" id="bulk-cost-badge">⚡ Cost: 30 credits</span>
+      <button class="btn btn-bulk" id="btn-bulk" onclick="generateBulk()" style="width:auto;flex:0 0 auto;padding:14px 32px">
+        📚 Generate Bulk Video
+      </button>
+    </div>
+  </div>
+
   <!-- Gallery -->
   <div id="gallery">
     <div id="gallery-title">🎉 Generated Videos</div>
@@ -505,12 +589,17 @@ Answer: B</textarea>
   let selectedSubcategory = null;
   let randomFormat = '16:9';
   let customFormat = '16:9';
+  let bulkFormat   = '16:9';
 
   function selectFormat(card, fmt, btnEl) {
     if (card === 'random') {
       randomFormat = fmt;
       document.getElementById('rfmt-169').classList.toggle('selected', fmt === '16:9');
       document.getElementById('rfmt-916').classList.toggle('selected', fmt === '9:16');
+    } else if (card === 'bulk') {
+      bulkFormat = fmt;
+      document.getElementById('bfmt-169').classList.toggle('selected', fmt === '16:9');
+      document.getElementById('bfmt-916').classList.toggle('selected', fmt === '9:16');
     } else {
       customFormat = fmt;
       document.getElementById('cfmt-169').classList.toggle('selected', fmt === '16:9');
@@ -819,6 +908,113 @@ Answer: B</textarea>
       progressEl.textContent = '';
     }
   }
+
+  // ── Bulk Quiz ────────────────────────────────────────────────────
+  function updateBulkCount() {
+    const rawText = document.getElementById('b-textarea').value;
+    const labelEl = document.getElementById('bulk-count-label');
+    const costEl  = document.getElementById('bulk-cost-badge');
+    if (!rawText.trim()) {
+      labelEl.textContent = '0 questions ready';
+      costEl.textContent  = '⚡ Cost: 0 credits';
+      return;
+    }
+    const blocks = rawText.trim().split(/\n\s*\n/).filter(b => b.trim());
+    const { questions } = parseQuestions(rawText);
+    const valid = Math.min(questions.length, 50);
+    const cost  = valid * 10;
+    if (blocks.length > 50) {
+      labelEl.textContent  = `${blocks.length} blocks found (first 50 will be used)`;
+      labelEl.style.color  = 'var(--gold)';
+    } else {
+      labelEl.textContent  = `${valid} question${valid !== 1 ? 's' : ''} ready`;
+      labelEl.style.color  = 'var(--muted)';
+    }
+    costEl.textContent = `⚡ Cost: ${cost} credits`;
+  }
+
+  function buildBulkResultCard({ videoUrl, filename, questions: qs }) {
+    const cardId  = 'rc-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const videoId = 'vid-' + cardId;
+
+    const listHtml = qs.slice(0, 6).map((q, i) =>
+      `<div class="bulk-q-item"><span>Q${i+1}.</span>${escHtml(q.question)}</div>`
+    ).join('') + (qs.length > 6 ? `<div class="bulk-q-item" style="color:var(--muted);font-style:italic">…and ${qs.length - 6} more question${qs.length - 6 > 1 ? 's' : ''}</div>` : '');
+
+    const firstQ = qs[0] ? qs[0].question : 'Bulk Quiz';
+    const socialUrl = buildSocialUrl(videoUrl, `${qs.length}-Question Bulk Quiz`);
+
+    const card = document.createElement('div');
+    card.className = 'result-card bulk-card';
+    card.style.gridColumn = '1 / -1';  // span full gallery width
+    card.innerHTML = `
+      <div class="question-display">
+        <strong>📚 Bulk Quiz — ${qs.length} Question${qs.length !== 1 ? 's' : ''}</strong>
+        <div class="bulk-q-list">${listHtml}</div>
+      </div>
+      <video id="${videoId}" controls></video>
+      <div class="result-actions">
+        <button class="btn btn-play"     onclick="playVideo('${videoId}', '${escAttr(videoUrl)}')">▶ Play</button>
+        <button class="btn btn-download" onclick="downloadVideo('${escAttr(videoUrl)}', '${escAttr(filename)}')">⬇ Download</button>
+        <button class="btn btn-social"   data-social-url="${socialUrl}" onclick="openSocialWithSSO(this)">⬆ Upload to Social Media</button>
+      </div>
+    `;
+    return card;
+  }
+
+  async function generateBulk() {
+    if (!_hubUser) { openHubAuth(generateBulk); return; }
+    const rawText = document.getElementById('b-textarea').value;
+    const { questions, errors } = parseQuestions(rawText);
+
+    if (errors.length > 0)  { showToast('⚠️ ' + errors[0]); return; }
+    if (questions.length === 0) { showToast('⚠️ No valid question blocks found.'); return; }
+    if (questions.length > 50) questions.splice(50);
+
+    const btn     = document.getElementById('btn-bulk');
+    const overlay = document.getElementById('loading-bulk');
+    const stepsEl = document.getElementById('steps-bulk');
+    const progEl  = document.getElementById('bulk-progress');
+    btn.disabled  = true;
+    overlay.classList.add('active');
+    progEl.textContent = `Generating ${questions.length} questions — this may take several minutes…`;
+    const finish = animateSteps(stepsEl, Math.max(90000, questions.length * 8000));
+
+    try {
+      const cost = questions.length * 10;
+      try { await _deductCredits(cost); } catch(ce) {
+        showToast('❌ ' + ce.message);
+        overlay.classList.remove('active');
+        btn.disabled = false;
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/generate-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions, format: bulkFormat }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      finish();
+
+      const grid    = document.getElementById('gallery-grid');
+      const titleEl = document.getElementById('gallery-title');
+      const card    = buildBulkResultCard(data);
+      grid.prepend(card);
+      titleEl.classList.add('visible');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showToast(`✅ Bulk video with ${questions.length} questions ready!`);
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    } finally {
+      overlay.classList.remove('active');
+      btn.disabled = false;
+      progEl.textContent = '';
+    }
+  }
+
+  // initialise bulk count
+  updateBulkCount();
 
   // ── AI Hub Auth + Credits ────────────────────────────────────────
   const _SB_URL = 'https://dhdzftmlrkuwcsgmgihe.supabase.co';

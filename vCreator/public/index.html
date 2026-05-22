@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>vCreator — Motivational Video Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #080818;
+      --surface: #0f0f2a;
+      --card:    #141432;
+      --border:  rgba(120,160,255,.18);
+      --accent:  #7c4dff;
+      --cyan:    #00e5ff;
+      --gold:    #ffd700;
+      --orange:  #ff8c00;
+      --text:    #e8eaff;
+      --muted:   #6870a0;
+      --radius:  14px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Ambient glow background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 30% -10%, rgba(124,77,255,.22) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 90%, rgba(0,229,255,.10) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 60% 50%, rgba(255,215,0,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .page {
+      position: relative; z-index: 1;
+      max-width: 860px; margin: 0 auto; padding: 40px 20px 80px;
+    }
+
+    /* ── Hub link ── */
+    .hub-link {
+      position: absolute; top: 20px; left: 24px;
+      font-size: .78rem; color: var(--muted); text-decoration: none;
+      border: 1px solid rgba(255,255,255,.12); border-radius: 20px;
+      padding: 5px 13px; transition: color .2s, border-color .2s;
+      white-space: nowrap;
+    }
+    .hub-link:hover { color: var(--cyan); border-color: rgba(0,229,255,.35); }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 48px; padding-top: 16px; }
+    .logo-icon { font-size: 3rem; line-height: 1; margin-bottom: 10px;
+      filter: drop-shadow(0 0 20px rgba(124,77,255,.7)) drop-shadow(0 0 40px rgba(0,229,255,.3)); }
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--cyan), var(--accent), var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { margin-top: 10px; color: var(--muted); font-size: .95rem; max-width: 520px; margin-inline: auto; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: .72rem; font-weight: 700; letter-spacing: 1.6px;
+      text-transform: uppercase; color: var(--cyan); margin-bottom: 14px;
+      opacity: .85;
+    }
+
+    label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 7px; }
+    .hint { font-size: .74rem; color: var(--muted); margin-top: 6px; opacity: .7; }
+
+    /* ── Textarea ── */
+    textarea {
+      width: 100%; min-height: 180px; resize: vertical;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 14px;
+      font-size: .92rem; line-height: 1.6; font-family: inherit;
+      transition: border-color .2s;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,77,255,.15); }
+    textarea::placeholder { color: var(--muted); opacity: .55; }
+
+    /* ── File upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px; padding: 20px 24px;
+      text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-top: 14px;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(124,77,255,.07);
+    }
+    .upload-zone input { display: none; }
+    .upload-zone-label { font-size: .88rem; color: var(--cyan); font-weight: 600; }
+    .upload-zone-sub   { font-size: .76rem; color: var(--muted); margin-top: 3px; }
+    .upload-filename   { font-size: .8rem; color: var(--gold); margin-top: 6px; }
+
+    /* ── Pills (format + music) ── */
+    .pill-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill {
+      flex: 1; min-width: 100px; padding: 10px 16px;
+      border: 1px solid var(--border); border-radius: 30px;
+      background: rgba(255,255,255,.03); color: var(--muted);
+      cursor: pointer; font-size: .85rem; font-weight: 600;
+      text-align: center; transition: all .2s; white-space: nowrap;
+      user-select: none;
+    }
+    .pill.active {
+      background: rgba(124,77,255,.18);
+      border-color: rgba(124,77,255,.55);
+      color: #b8a2ff;
+    }
+    .mpill {
+      flex: 1; min-width: 90px; padding: 9px 14px;
+      border: 1px solid var(--border); border-radius: 30px;
+      background: rgba(255,255,255,.03); color: var(--muted);
+      cursor: pointer; font-size: .83rem; font-weight: 600;
+      text-align: center; transition: all .2s; white-space: nowrap;
+      user-select: none;
+    }
+    .mpill.active {
+      background: rgba(0,229,255,.12);
+      border-color: rgba(0,229,255,.4);
+      color: var(--cyan);
+    }
+
+    /* ── Generate button ── */
+    .btn-generate {
+      width: 100%; padding: 16px;
+      border: none; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #00b8d9, var(--accent));
+      background-size: 200% 100%;
+      color: #fff; font-size: 1.05rem; font-weight: 700; letter-spacing: .5px;
+      cursor: pointer; transition: opacity .2s, transform .15s, background-position .3s;
+    }
+    .btn-generate:hover:not(:disabled) {
+      opacity: .9; transform: translateY(-1px);
+      background-position: 100% 0;
+    }
+    .btn-generate:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+    /* ── Progress ── */
+    #progressArea { display: none; text-align: center; padding: 28px 0; }
+    .spinner {
+      width: 50px; height: 50px; margin: 0 auto 16px;
+      border: 3px solid rgba(124,77,255,.2);
+      border-top-color: var(--accent);
+      border-right-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #progressText { color: var(--cyan); font-size: .9rem; opacity: .85; }
+
+    /* ── Error ── */
+    #errorBox {
+      display: none;
+      background: rgba(220,50,50,.1); border: 1px solid rgba(220,80,80,.3);
+      border-radius: 10px; padding: 14px 18px;
+      color: #ff9090; font-size: .88rem; margin-bottom: 20px;
+    }
+
+    /* ── Results ── */
+    #results { margin-top: 32px; }
+    .results-header {
+      font-size: .8rem; font-weight: 700; letter-spacing: 1.4px;
+      text-transform: uppercase; color: var(--gold);
+      margin-bottom: 18px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px; margin-bottom: 18px;
+    }
+    .result-number {
+      font-size: .68rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+    }
+    .result-quote {
+      font-size: .95rem; line-height: 1.6; color: var(--text);
+      border-left: 3px solid var(--accent); padding-left: 14px;
+      margin-bottom: 16px; font-style: italic;
+    }
+    .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-action {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 18px; border-radius: 8px; font-size: .84rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; transition: all .2s;
+    }
+    .btn-play {
+      background: rgba(0,229,255,.1); border: 1px solid rgba(0,229,255,.3);
+      color: var(--cyan);
+    }
+    .btn-play:hover  { background: rgba(0,229,255,.22); }
+    .btn-dl {
+      background: rgba(124,77,255,.15); border: 1px solid rgba(124,77,255,.4);
+      color: #b8a2ff;
+    }
+    .btn-dl:hover { background: rgba(124,77,255,.28); }
+
+    /* ── Inline video player ── */
+    .video-wrap { display: none; margin-top: 14px; }
+    .video-wrap.open { display: block; }
+    .video-wrap video {
+      width: 100%; border-radius: 10px; background: #000;
+      max-height: 520px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <a href="https://anurag-ai-hub.pages.dev" class="hub-link">← AI Hub</a>
+
+  <header>
+    <div class="logo-icon">⚡</div>
+    <h1>vCreator</h1>
+    <p>Turn motivational quotes into cinematic narrated videos with karaoke-style subtitles.</p>
+  </header>
+
+  <div id="errorBox"></div>
+
+  <form id="mainForm">
+
+    <!-- Quotes input -->
+    <div class="card">
+      <div class="card-title">Motivational Quotes</div>
+      <label for="quotesInput">Enter one quote per line — each quote becomes its own video.</label>
+      <textarea
+        id="quotesInput"
+        name="quotes"
+        placeholder="Believe you can and you're halfway there.
+The only way to do great work is to love what you do.
+It always seems impossible until it's done.
+Push yourself, because no one else is going to do it for you."
+      ></textarea>
+      <p class="hint">Each non-empty line = one video. You can also separate blocks with <strong style="color:var(--cyan)">---</strong> for multi-line quotes.</p>
+
+      <!-- File upload -->
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="quoteFile" accept=".txt" />
+        <div class="upload-zone-label">📄 Or upload a .txt file</div>
+        <div class="upload-zone-sub">File contents will be loaded into the textarea above</div>
+        <div class="upload-filename" id="uploadFilename"></div>
+      </div>
+    </div>
+
+    <!-- Format -->
+    <div class="card">
+      <div class="card-title">Video Format</div>
+      <div class="pill-row">
+        <button type="button" class="pill active" id="fmt169" data-fmt="16:9">📺 16:9 Landscape</button>
+        <button type="button" class="pill" id="fmt916" data-fmt="9:16">📱 9:16 Portrait / Shorts</button>
+      </div>
+    </div>
+
+    <!-- Music -->
+    <div class="card">
+      <div class="card-title">Background Music</div>
+      <label>Choose an optional music track mixed at low volume under the narration.</label>
+      <div class="pill-row" style="margin-top:10px" id="musicPills">
+        <button type="button" class="mpill active" data-music="none">🔇 None</button>
+        <button type="button" class="mpill" data-music="uplifting">⚡ Uplifting</button>
+        <button type="button" class="mpill" data-music="calm">🌊 Calm</button>
+        <button type="button" class="mpill" data-music="epic">🔥 Epic</button>
+      </div>
+      <p class="hint">Music files must be placed in <code>public/music/</code> as <code>uplifting.mp3</code>, <code>calm.mp3</code>, <code>epic.mp3</code>. Missing files are skipped silently.</p>
+    </div>
+
+    <!-- Submit -->
+    <button type="submit" class="btn-generate" id="generateBtn">
+      ⚡ Generate Videos
+    </button>
+
+  </form>
+
+  <!-- Progress -->
+  <div id="progressArea">
+    <div class="spinner"></div>
+    <div id="progressText">Generating your motivational videos…</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results"></div>
+
+</div><!-- /page -->
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────────
+  const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? window.location.origin
+    : 'https://vcreator-production.up.railway.app';
+
+  // ── Format selection ─────────────────────────────────────────────────
+  let selectedFmt = '16:9';
+  document.querySelectorAll('.pill[data-fmt]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedFmt = btn.dataset.fmt;
+      document.querySelectorAll('.pill[data-fmt]').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // ── Music selection ──────────────────────────────────────────────────
+  let selectedMusic = 'none';
+  document.querySelectorAll('.mpill[data-music]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedMusic = btn.dataset.music;
+      document.querySelectorAll('.mpill[data-music]').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // ── File upload → textarea ────────────────────────────────────────────
+  const dropZone     = document.getElementById('dropZone');
+  const quoteFile    = document.getElementById('quoteFile');
+  const quotesInput  = document.getElementById('quotesInput');
+  const uploadFilename = document.getElementById('uploadFilename');
+
+  dropZone.addEventListener('click', () => quoteFile.click());
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) loadTxtFile(file);
+  });
+
+  quoteFile.addEventListener('change', e => {
+    if (e.target.files[0]) loadTxtFile(e.target.files[0]);
+  });
+
+  function loadTxtFile(file) {
+    if (!file.name.endsWith('.txt') && file.type && !file.type.includes('text')) {
+      showError('Please upload a .txt file.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      quotesInput.value = ev.target.result;
+      uploadFilename.textContent = `Loaded: ${file.name}`;
+    };
+    reader.readAsText(file);
+  }
+
+  // ── Form submit ──────────────────────────────────────────────────────
+  document.getElementById('mainForm').addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const errorBox    = document.getElementById('errorBox');
+    const results     = document.getElementById('results');
+    const progressArea = document.getElementById('progressArea');
+    const generateBtn  = document.getElementById('generateBtn');
+    const progressText = document.getElementById('progressText');
+
+    errorBox.style.display = 'none';
+    results.innerHTML = '';
+
+    const rawQuotes = quotesInput.value.trim();
+    if (!rawQuotes) {
+      showError('Please enter at least one quote, or upload a .txt file.');
+      return;
+    }
+
+    // Count expected videos (rough estimate for progress message)
+    const useBlockSep = rawQuotes.includes('---');
+    const quoteCount = useBlockSep
+      ? rawQuotes.split('---').filter(b => b.trim()).length
+      : rawQuotes.split('\n').filter(l => l.trim() && l.trim() !== '---').length;
+
+    generateBtn.disabled = true;
+    progressArea.style.display = 'block';
+    progressText.textContent = `Generating ${quoteCount} video${quoteCount !== 1 ? 's' : ''}… This may take a while.`;
+
+    const formData = new FormData();
+    formData.append('quotes', rawQuotes);
+    formData.append('format', selectedFmt);
+    formData.append('music', selectedMusic);
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/generate`, { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`);
+      renderResults(data.videos);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      generateBtn.disabled = false;
+      progressArea.style.display = 'none';
+    }
+  });
+
+  // ── Render results ────────────────────────────────────────────────────
+  let _playingId = null;
+
+  function togglePlay(id, videoUrl) {
+    const wrap = document.getElementById('vwrap-' + id);
+    if (!wrap) return;
+
+    // Pause previously playing video
+    if (_playingId && _playingId !== id) {
+      const prev = document.getElementById('vwrap-' + _playingId);
+      if (prev) {
+        prev.classList.remove('open');
+        const prevVid = prev.querySelector('video');
+        if (prevVid) { prevVid.pause(); prevVid.src = ''; }
+      }
+    }
+
+    if (wrap.classList.contains('open')) {
+      wrap.classList.remove('open');
+      const vid = wrap.querySelector('video');
+      if (vid) { vid.pause(); vid.src = ''; }
+      _playingId = null;
+    } else {
+      wrap.classList.add('open');
+      const vid = wrap.querySelector('video');
+      if (vid) { vid.src = videoUrl; vid.play().catch(() => {}); }
+      _playingId = id;
+    }
+  }
+
+  function renderResults(videos) {
+    const results = document.getElementById('results');
+    results.innerHTML = `<div class="results-header">⚡ ${videos.length} Video${videos.length !== 1 ? 's' : ''} Ready</div>`;
+
+    videos.forEach((v, i) => {
+      const videoUrl = `${API_BASE}${v.url}`;
+      const filename = `vcreator_${v.index}.mp4`;
+      const pid = `v${i}`;
+      const quotePreview = (v.quote || '').slice(0, 200);
+
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <div class="result-number">Video ${v.index}</div>
+        <blockquote class="result-quote">${escHtml(quotePreview)}</blockquote>
+        <div class="result-actions">
+          <button type="button" class="btn-action btn-play" onclick="togglePlay('${pid}', '${videoUrl}')">▶ Play</button>
+          <a class="btn-action btn-dl" href="${videoUrl}" download="${filename}">⬇ Download MP4</a>
+        </div>
+        <div class="video-wrap" id="vwrap-${pid}">
+          <video controls preload="none"></video>
+        </div>
+      `;
+      results.appendChild(item);
+    });
+
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function showError(msg) {
+    const errorBox = document.getElementById('errorBox');
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.style.display = 'block';
+    errorBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>
