@@ -376,12 +376,12 @@ const KRAKEN_INTERVAL = {
   '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440,
 };
 
-function fetchCandles(symbol, interval, limit = 100) {
-  const pair  = KRAKEN_PAIR[symbol] || symbol;
-  const ivMin = KRAKEN_INTERVAL[interval] || 5;
+// Low-level single-request fetch; since=null fetches latest 720 candles
+function fetchCandlesRaw(pair, ivMin, since) {
   return new Promise((resolve, reject) => {
-    const p = `/0/public/OHLC?pair=${encodeURIComponent(pair)}&interval=${ivMin}`;
-    const req = https.get({ hostname: 'api.kraken.com', path: p, timeout: 15000 }, res => {
+    let p = `/0/public/OHLC?pair=${encodeURIComponent(pair)}&interval=${ivMin}`;
+    if (since != null) p += `&since=${since}`;
+    const req = https.get({ hostname: 'api.kraken.com', path: p, timeout: 20000 }, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -390,17 +390,13 @@ function fetchCandles(symbol, interval, limit = 100) {
           if (parsed.error && parsed.error.length > 0) throw new Error(parsed.error[0]);
           const key = Object.keys(parsed.result).find(k => k !== 'last');
           if (!key) throw new Error('No OHLCV data in Kraken response');
-          // [time, open, high, low, close, vwap, volume, count]
-          const candles = parsed.result[key]
-            .slice(-limit)
-            .map(c => ({
-              time:   parseInt(c[0], 10) * 1000,
-              open:   parseFloat(c[1]), high:   parseFloat(c[2]),
-              low:    parseFloat(c[3]), close:  parseFloat(c[4]),
-              volume: parseFloat(c[6]),
-            }));
-          if (candles.length < 60) throw new Error(`Only ${candles.length} candles returned`);
-          resolve(candles);
+          const candles = parsed.result[key].map(c => ({
+            time:   parseInt(c[0], 10) * 1000,
+            open:   parseFloat(c[1]), high:   parseFloat(c[2]),
+            low:    parseFloat(c[3]), close:  parseFloat(c[4]),
+            volume: parseFloat(c[6]),
+          }));
+          resolve({ candles, last: parseInt(parsed.result.last, 10) });
         } catch (e) { reject(e); }
       });
     });
@@ -409,4 +405,49 @@ function fetchCandles(symbol, interval, limit = 100) {
   });
 }
 
-module.exports = { computeIndicators, generateSignal, checkExit, fetchCandles };
+function fetchCandles(symbol, interval, limit = 100) {
+  const pair  = KRAKEN_PAIR[symbol] || symbol;
+  const ivMin = KRAKEN_INTERVAL[interval] || 5;
+  return fetchCandlesRaw(pair, ivMin, null).then(({ candles }) => {
+    const recent = candles.slice(-limit);
+    if (recent.length < 60) throw new Error(`Only ${recent.length} candles returned`);
+    return recent;
+  });
+}
+
+// Historical fetch with pagination for backtesting
+// Returns all candles from (months ago - 100 warmup bars) to now
+async function fetchCandlesHistorical(symbol, interval, months) {
+  const pair  = KRAKEN_PAIR[symbol] || symbol;
+  const ivMin = KRAKEN_INTERVAL[interval] || 60;
+  const ivSec = ivMin * 60;
+  const now   = Math.floor(Date.now() / 1000);
+  const startSec  = now - Math.ceil(months * 30.44 * 24 * 3600);
+  const fetchFrom = startSec - 100 * ivSec; // include warmup candles
+
+  // Safety cap: limit total API calls
+  const candlesNeeded = Math.ceil((now - fetchFrom) / ivSec);
+  const maxCalls = Math.min(50, Math.ceil(candlesNeeded / 700) + 2);
+
+  const allCandles = [];
+  let since = fetchFrom;
+
+  for (let i = 0; i < maxCalls; i++) {
+    const { candles, last } = await fetchCandlesRaw(pair, ivMin, since);
+    if (!candles.length) break;
+
+    // Deduplicate by timestamp
+    const seen = new Set(allCandles.map(c => c.time));
+    allCandles.push(...candles.filter(c => !seen.has(c.time)));
+
+    const lastMs = allCandles[allCandles.length - 1].time;
+    if (lastMs / 1000 >= now - ivSec * 3) break; // reached current time
+
+    since = last || Math.floor(lastMs / 1000) + 1;
+    if (i < maxCalls - 1) await new Promise(r => setTimeout(r, 350)); // rate-limit
+  }
+
+  return allCandles;
+}
+
+module.exports = { computeIndicators, generateSignal, checkExit, fetchCandles, fetchCandlesHistorical };

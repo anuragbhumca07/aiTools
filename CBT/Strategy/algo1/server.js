@@ -4,7 +4,10 @@ const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
 const Database = require('better-sqlite3');
-const { generateSignal, checkExit, fetchCandles } = require('./algo');
+const {
+  computeIndicators, generateSignal, checkExit,
+  fetchCandles, fetchCandlesHistorical,
+} = require('./algo');
 
 const app  = express();
 const PORT = parseInt(process.env.PORT || '3006', 10);
@@ -35,7 +38,6 @@ db.exec(`
     mae           REAL DEFAULT 0
   )
 `);
-// Migrate existing deployments
 try { db.exec('ALTER TABLE trades ADD COLUMN mae REAL DEFAULT 0'); } catch {}
 
 const stmtInsert = db.prepare(`
@@ -45,11 +47,22 @@ const stmtInsert = db.prepare(`
     (@session_id,@type,@side,@symbol,@timeframe,@price,@size,@pnl,@stop_loss,@take_profit,@reason,@balance_after,@timestamp,@mae)
 `);
 
+// ── Strategy registry ─────────────────────────────────────────────
+// Add new strategies here to make them appear in the UI dropdown
+const STRATEGIES = {
+  'v1': {
+    name: 'v1: ADX Multi-Confluence',
+    description: 'ADX(14) hard gate + 6/6 conditions + incremental SL ratchet + 2:1 R:R',
+  },
+};
+
 // ── Runtime state ─────────────────────────────────────────────────
 const state = {
   running:           false,
   symbol:            'BTCUSDT',
   timeframe:         '15m',
+  strategyId:        'v1',
+  mode:              'paper',   // 'paper' | 'live'
   balance:           10000,
   initialBalance:    10000,
   sessionId:         null,
@@ -88,12 +101,14 @@ function pushLog(entry) {
 
 function publicState() {
   const {
-    running, symbol, timeframe, balance, initialBalance, sessionId, sessionStart,
+    running, symbol, timeframe, strategyId, mode,
+    balance, initialBalance, sessionId, sessionStart,
     pnl, totalTrades, wins, lastIndicators, lastSignal, error,
     peakBalance, maxDrawdownDollar, maxDrawdownPct,
   } = state;
   return {
-    running, symbol, timeframe, balance, initialBalance, sessionId, sessionStart,
+    running, symbol, timeframe, strategyId, mode,
+    balance, initialBalance, sessionId, sessionStart,
     pnl, totalTrades, wins, error,
     lastIndicators, lastSignal,
     position:          state.position ? { ...state.position } : null,
@@ -107,7 +122,7 @@ function publicState() {
 
 function updateDrawdown() {
   if (state.balance > state.peakBalance) state.peakBalance = state.balance;
-  const dd = state.peakBalance - state.balance;
+  const dd    = state.peakBalance - state.balance;
   const ddPct = state.peakBalance > 0 ? (dd / state.peakBalance) * 100 : 0;
   if (dd > state.maxDrawdownDollar) {
     state.maxDrawdownDollar = dd;
@@ -159,7 +174,6 @@ async function runTick() {
         return;
       }
 
-      // Update unrealized PnL (live while in position)
       const { side, entryPrice, size } = state.position;
       state.position.unrealizedPnl = parseFloat(
         (side === 'long' ? (price - entryPrice) * size : (entryPrice - price) * size).toFixed(4)
@@ -173,13 +187,12 @@ async function runTick() {
 
     if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
       const { atr } = indicators;
-      // Wider stop: max(2×ATR, 0.15% of price) — prevents noise-induced stop hits
       const stopDist = Math.max(2 * atr, price * 0.0015);
-      const riskAmt  = state.balance * 0.015;  // 1.5% risk per trade
+      const riskAmt  = state.balance * 0.015;
       const size     = parseFloat((riskAmt / stopDist).toFixed(8));
       const side     = signal === 'BUY' ? 'long' : 'short';
       const sl       = side === 'long' ? price - stopDist : price + stopDist;
-      const tp       = side === 'long' ? price + stopDist * 2 : price - stopDist * 2; // 2:1 R:R
+      const tp       = side === 'long' ? price + stopDist * 2 : price - stopDist * 2;
 
       state.position = {
         side, entryPrice: price, size, stopLoss: sl, takeProfit: tp,
@@ -217,13 +230,124 @@ async function tick() {
   try { await runTick(); } finally { tickBusy = false; }
 }
 
+// ── Backtest runner ───────────────────────────────────────────────
+async function runBacktest(symbol, timeframe, months) {
+  const allCandles = await fetchCandlesHistorical(symbol, timeframe, months);
+  if (allCandles.length < 60) {
+    throw new Error(`Insufficient data: only ${allCandles.length} candles fetched`);
+  }
+
+  const WINDOW = 100;
+  let balance = 10000;
+  const initialBalance = 10000;
+  let pos = null;
+  let peakBal = balance;
+  let maxDD = 0;
+  const trades = [];
+  let wins = 0;
+
+  for (let i = WINDOW; i < allCandles.length; i++) {
+    const seg   = allCandles.slice(Math.max(0, i - WINDOW + 1), i + 1);
+    const price = allCandles[i].close;
+
+    if (pos) {
+      const ex = checkExit(pos, seg);
+      if (ex.exit) {
+        const pnl = pos.side === 'long'
+          ? (price - pos.entryPrice) * pos.size
+          : (pos.entryPrice - price) * pos.size;
+        balance += pnl;
+        if (pnl > 0) wins++;
+        if (balance > peakBal) peakBal = balance;
+        const dd = peakBal - balance;
+        if (dd > maxDD) maxDD = dd;
+
+        trades.push({
+          side:       pos.side,
+          entryPrice: +pos.entryPrice.toFixed(4),
+          exitPrice:  +price.toFixed(4),
+          pnl:        +pnl.toFixed(2),
+          balance:    +balance.toFixed(2),
+          entryTime:  new Date(pos.entryTime).toISOString(),
+          exitTime:   new Date(allCandles[i].time).toISOString(),
+          reason:     ex.reasons[0] || '',
+          mae:        +(pos.mae || 0).toFixed(2),
+          phase:      pos.phase || 1,
+        });
+        pos = null;
+      } else {
+        const unreal = pos.side === 'long'
+          ? (price - pos.entryPrice) * pos.size
+          : (pos.entryPrice - price) * pos.size;
+        if (unreal < (pos.mae || 0)) pos.mae = unreal;
+      }
+    }
+
+    if (!pos) {
+      const sig = generateSignal(seg);
+      if (sig.signal === 'BUY' || sig.signal === 'SELL') {
+        const { atr } = sig.indicators;
+        const stopDist = Math.max(2 * atr, price * 0.0015);
+        const riskAmt  = balance * 0.015;
+        const size     = riskAmt / stopDist;
+        const side     = sig.signal === 'BUY' ? 'long' : 'short';
+        pos = {
+          side, entryPrice: price, size,
+          stopLoss:   side === 'long' ? price - stopDist : price + stopDist,
+          takeProfit: side === 'long' ? price + stopDist * 2 : price - stopDist * 2,
+          entryTime:  allCandles[i].time,
+          phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
+        };
+      }
+    }
+  }
+
+  // Force-close any open position at last price
+  if (pos) {
+    const lp  = allCandles[allCandles.length - 1].close;
+    const pnl = pos.side === 'long'
+      ? (lp - pos.entryPrice) * pos.size
+      : (pos.entryPrice - lp) * pos.size;
+    balance += pnl;
+    trades.push({
+      side: pos.side, entryPrice: +pos.entryPrice.toFixed(4), exitPrice: +lp.toFixed(4),
+      pnl: +pnl.toFixed(2), balance: +balance.toFixed(2),
+      entryTime: new Date(pos.entryTime).toISOString(),
+      exitTime:  new Date(allCandles[allCandles.length - 1].time).toISOString(),
+      reason: 'End of backtest', mae: +(pos.mae || 0).toFixed(2), phase: pos.phase || 1,
+    });
+  }
+
+  const total  = trades.length;
+  const netPnl = balance - initialBalance;
+  return {
+    trades,
+    summary: {
+      totalTrades:      total,
+      wins,
+      losses:           total - wins,
+      winRate:          total > 0 ? ((wins / total) * 100).toFixed(1) : '0.0',
+      totalPnl:         +netPnl.toFixed(2),
+      pnlPct:           ((netPnl / initialBalance) * 100).toFixed(2),
+      maxDrawdown:      +maxDD.toFixed(2),
+      finalBalance:     +balance.toFixed(2),
+      candlesAnalyzed:  allCandles.length,
+      period:           `${months} month${months > 1 ? 's' : ''}`,
+      timeframe, symbol,
+    },
+  };
+}
+
 // ── Routes ────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
 
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
-app.get('/api/state', (_, res) => res.json(publicState()));
-app.get('/api/logs',  (_, res) => res.json(logs));
+app.get('/health',          (_, res) => res.json({ status: 'ok' }));
+app.get('/api/state',       (_, res) => res.json(publicState()));
+app.get('/api/logs',        (_, res) => res.json(logs));
+app.get('/api/strategies',  (_, res) => res.json(
+  Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s }))
+));
 
 app.get('/api/trades', (req, res) => {
   const { session, all } = req.query;
@@ -242,12 +366,16 @@ app.get('/api/trades', (req, res) => {
 
 app.post('/api/start', (req, res) => {
   if (state.running) return res.json({ ok: false, msg: 'Already running' });
-  const { symbol = 'BTCUSDT', timeframe = '15m', balance = 10000, interval = 30 } = req.body || {};
-  const ms = Math.max(5000, parseInt(interval, 10) * 1000);
+  const {
+    symbol = 'BTCUSDT', timeframe = '15m',
+    balance = 10000, interval = 60,
+    strategyId = 'v1', mode = 'paper',
+  } = req.body || {};
+  const ms  = Math.max(5000, parseInt(interval, 10) * 1000);
   const bal = parseFloat(balance);
 
   Object.assign(state, {
-    running: true, symbol, timeframe,
+    running: true, symbol, timeframe, strategyId, mode,
     balance: bal, initialBalance: bal,
     sessionId: `s_${Date.now()}`, sessionStart: new Date().toISOString(),
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -269,6 +397,18 @@ app.post('/api/stop', (_, res) => {
   state.running = false;
   broadcast({ type: 'stopped', state: publicState() });
   res.json({ ok: true, state: publicState() });
+});
+
+// Backtest — can take 5-60s depending on duration/timeframe
+app.post('/api/backtest', async (req, res) => {
+  const { symbol = 'BTCUSDT', timeframe = '1h', months = 1 } = req.body || {};
+  const m = Math.max(1, Math.min(12, parseInt(months, 10) || 1));
+  try {
+    const result = await runBacktest(symbol, timeframe, m);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
 });
 
 app.get('/events', (req, res) => {

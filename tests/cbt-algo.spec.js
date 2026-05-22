@@ -151,3 +151,80 @@ test('main page has CBT Algo Trading card (if server running)', async ({ page })
   }
   await expect(page.locator('text=CBT Algo Trading')).toBeVisible();
 });
+
+test('strategy dropdown is populated from API', async ({ page }) => {
+  await page.goto(BASE);
+  const sel = page.locator('#ctrl-strategy');
+  await expect(sel).toBeVisible();
+  // At least one option loaded (v1 is always registered)
+  const count = await sel.locator('option').count();
+  expect(count).toBeGreaterThanOrEqual(1);
+  const firstText = await sel.locator('option').first().textContent();
+  expect(firstText).toContain('v1');
+});
+
+test('mode tabs switch UI correctly', async ({ page }) => {
+  await page.goto(BASE);
+
+  // Default: PAPER tab active, trading controls visible, backtest panel hidden
+  await expect(page.locator('#tab-paper')).toHaveClass(/active/);
+  await expect(page.locator('#trading-controls')).toBeVisible();
+  await expect(page.locator('#backtest-panel')).not.toBeVisible();
+
+  // Switch to BACKTEST
+  await page.click('#tab-backtest');
+  await expect(page.locator('#tab-backtest')).toHaveClass(/active-backtest/);
+  await expect(page.locator('#backtest-panel')).toBeVisible();
+  await expect(page.locator('#trading-controls')).not.toBeVisible();
+
+  // Backtest panel has all required controls
+  await expect(page.locator('#bt-symbol')).toBeVisible();
+  await expect(page.locator('#bt-tf')).toBeVisible();
+  await expect(page.locator('#bt-months')).toBeVisible();
+  await expect(page.locator('#btn-run-bt')).toBeVisible();
+
+  // Switch to LIVE
+  await page.click('#tab-live');
+  await expect(page.locator('#tab-live')).toHaveClass(/active-live/);
+  await expect(page.locator('#trading-controls')).toBeVisible();
+  await expect(page.locator('#backtest-panel')).not.toBeVisible();
+
+  // Switch back to PAPER
+  await page.click('#tab-paper');
+  await expect(page.locator('#tab-paper')).toHaveClass(/active/);
+  await expect(page.locator('#trading-controls')).toBeVisible();
+});
+
+test('backtest runs and returns results', async ({ page }) => {
+  test.setTimeout(120000);
+  await page.goto(BASE);
+
+  // Switch to BACKTEST mode
+  await page.click('#tab-backtest');
+  await expect(page.locator('#backtest-panel')).toBeVisible();
+
+  // Configure: 1 month BTC 1h (fastest meaningful backtest)
+  await page.selectOption('#bt-symbol', 'BTCUSDT');
+  await page.selectOption('#bt-tf', '1h');
+  await page.selectOption('#bt-months', '1');
+
+  // Run backtest
+  await page.click('#btn-run-bt');
+
+  // Button should disable while running
+  await expect(page.locator('#btn-run-bt')).toBeDisabled({ timeout: 3000 });
+
+  // Wait for results (Kraken fetch can take 20–60s)
+  await expect(page.locator('#bt-results')).toBeVisible({ timeout: 90000 });
+
+  // Results should show summary stats
+  await expect(page.locator('#bt-results .bt-stat-grid')).toBeVisible();
+
+  // Button re-enables after completion
+  await expect(page.locator('#btn-run-bt')).not.toBeDisabled({ timeout: 5000 });
+
+  // The trades table exists (even if 0 trades)
+  await expect(page.locator('#bt-trades-body')).toBeVisible();
+
+  await page.screenshot({ path: 'tests/cbt-backtest-results.png', fullPage: false });
+});
