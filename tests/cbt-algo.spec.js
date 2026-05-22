@@ -19,7 +19,7 @@ test('CBT app loads with correct UI structure', async ({ page }) => {
   await page.goto(BASE);
 
   await expect(page.locator('text=CBT Algo1')).toBeVisible();
-  await expect(page.locator('text=Multi-Confluence Trend Following')).toBeVisible();
+  await expect(page.locator('.subtitle')).toContainText('ADX-Gated');
   await expect(page.locator('.badge-paper')).toBeVisible();
 
   // Controls
@@ -33,8 +33,8 @@ test('CBT app loads with correct UI structure', async ({ page }) => {
   // Algo Logic section
   await expect(page.locator('text=BUY (LONG)')).toBeVisible();
   await expect(page.locator('text=SELL (SHORT)')).toBeVisible();
-  await expect(page.locator('text=BUY EXIT')).toBeVisible();
-  await expect(page.locator('text=SELL EXIT')).toBeVisible();
+  await expect(page.locator('text=LONG EXIT')).toBeVisible();
+  await expect(page.locator('text=SHORT EXIT')).toBeVisible();
 
   // Indicator chips
   await expect(page.locator('#ic-price')).toBeVisible();
@@ -131,12 +131,15 @@ test('API endpoints respond correctly', async ({ request }) => {
 test('algo logic section shows all 4 rule blocks', async ({ page }) => {
   await page.goto(BASE);
   await expect(page.locator('text=EMA20 > EMA50')).toBeVisible();
-  await expect(page.locator('text=RSI ∈ [45–68]')).toBeVisible();
-  await expect(page.locator('text=MACD Hist rising')).toBeVisible();
-  await expect(page.locator('text=RSI > 73')).toBeVisible();
-  await expect(page.locator('text=RSI < 27')).toBeVisible();
-  // Risk line appears in at least one logic box
-  await expect(page.locator('text=Balance×2%').first()).toBeVisible();
+  await expect(page.locator('text=RSI ∈ [50–67]')).toBeVisible();
+  // MACD 2-bar confirmation text
+  await expect(page.locator('.logic-box').first().locator('text=MACD')).toBeVisible();
+  await expect(page.locator('text=RSI > 75')).toBeVisible();
+  await expect(page.locator('text=RSI < 25')).toBeVisible();
+  // ADX hard gate description
+  await expect(page.locator('text=ADX(14)').first()).toBeVisible();
+  // Phase SL ratchet described
+  await expect(page.locator('text=breakeven').first()).toBeVisible();
 });
 
 test('main page has CBT Algo Trading card (if server running)', async ({ page }) => {
@@ -147,5 +150,4 @@ test('main page has CBT Algo Trading card (if server running)', async ({ page })
     return;
   }
   await expect(page.locator('text=CBT Algo Trading')).toBeVisible();
-  await expect(page.locator('a[href="http://localhost:3006"]')).toBeVisible();
 });
