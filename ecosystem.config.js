@@ -101,5 +101,13 @@ module.exports = {
       cwd: path.join(ROOT, 'CBT', 'Strategy', 'algo1'),
       env: { PORT: 3006, NODE_ENV: 'development' },
     },
+
+    // ── CBT Algo2 Swing Trading (Tickmill) ────────────────────
+    {
+      name: 'cbt-algo2',
+      script: path.join(ROOT, 'CBT', 'Strategy', 'algo2', 'server.js'),
+      cwd: path.join(ROOT, 'CBT', 'Strategy', 'algo2'),
+      env: { PORT: 3009, NODE_ENV: 'development' },
+    },
   ],
 };

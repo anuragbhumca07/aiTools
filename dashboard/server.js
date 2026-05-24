@@ -44,6 +44,8 @@ const SERVICES = [
   { name: 'social-media',     label: 'Social Media Uploader', icon: '🚀', port: 3005, desc: 'Multi-platform video uploader'   },
   { name: 'bhakti',           label: 'aiBhakti',              icon: '🪔', port: 3007, desc: 'Spiritual story video generator' },
   { name: 'vcreator',         label: 'vCreator',              icon: '⚡', port: 3008, desc: 'Motivational video creator'     },
+  { name: 'cbt-algo1',        label: 'CBT Algo1 (Kraken)',    icon: '📈', port: 3006, desc: 'Crypto algo trading – scalp/momentum' },
+  { name: 'cbt-algo2',        label: 'CBT Algo2 (Tickmill)',  icon: '📊', port: 3009, desc: 'Swing trading – EMA ribbon + ADX'      },
 ];
 
 const VALID_ACTIONS = new Set(['start', 'stop', 'restart']);

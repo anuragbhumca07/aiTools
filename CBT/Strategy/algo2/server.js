@@ -3,6 +3,7 @@
 const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
+const https    = require('https');
 const Database = require('better-sqlite3');
 const session  = require('express-session');
 const { OAuth2Client } = require('google-auth-library');
@@ -12,10 +13,21 @@ const {
 } = require('./algo');
 
 // ── Config ────────────────────────────────────────────────────────
-const PORT            = parseInt(process.env.PORT || '3006', 10);
+const PORT             = parseInt(process.env.PORT || '3009', 10);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const AUTH_REQUIRED   = !!GOOGLE_CLIENT_ID;
-const SESSION_SECRET  = process.env.SESSION_SECRET || 'cbt-algo1-dev-secret';
+const AUTH_REQUIRED    = !!GOOGLE_CLIENT_ID;
+const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-algo2-dev-secret';
+
+// Tickmill / MetaApi credentials
+const METAAPI_TOKEN      = process.env.METAAPI_TOKEN      || '';
+const METAAPI_ACCOUNT_ID = process.env.METAAPI_ACCOUNT_ID || '';
+const METAAPI_REGION     = process.env.METAAPI_REGION     || 'new-york';
+const TICKMILL_DEMO      = {
+  accountNumber: '25326583',
+  accountType:   'Classic',
+  currency:      'USD',
+  // password stored in env only — never hard-code secrets
+};
 
 const DATA_DIR = path.join(__dirname, 'data');
 const LOGS_DIR = path.join(__dirname, 'logs');
@@ -43,38 +55,142 @@ db.exec(`
     reason        TEXT,
     balance_after REAL,
     timestamp     TEXT,
-    mae           REAL DEFAULT 0
+    mae           REAL DEFAULT 0,
+    tickmill_order TEXT
   )
 `);
-// Migrations (idempotent)
-['mae REAL DEFAULT 0', 'user_id TEXT DEFAULT "guest"'].forEach(col => {
+['mae REAL DEFAULT 0', 'user_id TEXT DEFAULT "guest"', 'tickmill_order TEXT'].forEach(col => {
   try { db.exec(`ALTER TABLE trades ADD COLUMN ${col}`); } catch {}
 });
 
 const stmtInsert = db.prepare(`
   INSERT INTO trades
     (session_id,user_id,type,side,symbol,timeframe,price,size,pnl,
-     stop_loss,take_profit,reason,balance_after,timestamp,mae)
+     stop_loss,take_profit,reason,balance_after,timestamp,mae,tickmill_order)
   VALUES
     (@session_id,@user_id,@type,@side,@symbol,@timeframe,@price,@size,@pnl,
-     @stop_loss,@take_profit,@reason,@balance_after,@timestamp,@mae)
+     @stop_loss,@take_profit,@reason,@balance_after,@timestamp,@mae,@tickmill_order)
 `);
 
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
-  'v1': {
-    name: 'v1: ADX Multi-Confluence',
-    description: 'ADX(14) hard gate + 6/6 conditions + incremental SL ratchet + 2:1 R:R',
+  'swing-v1': {
+    name: 'swing-v1: EMA Ribbon Swing',
+    description: 'EMA21/55/200 + ADX(25) gate + 5/6 conditions + 3:1 R:R + 60-candle max hold',
   },
 };
+
+// ── Tickmill / MetaApi Adapter ─────────────────────────────────────
+// Connects to live Tickmill MT4 demo via MetaApi when credentials are set.
+// Falls back to Kraken paper-trading mode when not configured.
+const tickmill = {
+  connected:   false,
+  mode:        METAAPI_TOKEN ? 'metaapi' : 'paper-kraken',
+  openOrders:  new Map(), // userId:side -> orderId
+
+  async init() {
+    if (!METAAPI_TOKEN || !METAAPI_ACCOUNT_ID) {
+      console.log('[Algo2] MetaApi not configured — running in paper-Kraken mode');
+      console.log('[Algo2] To connect Tickmill: set METAAPI_TOKEN and METAAPI_ACCOUNT_ID');
+      return;
+    }
+    try {
+      // Verify connection by pinging account status
+      const status = await this._apiGet(`/users/current/accounts/${METAAPI_ACCOUNT_ID}`);
+      this.connected = status && status.state === 'deployed';
+      console.log(`[Algo2] MetaApi ${this.connected ? '✓ connected' : '✗ not deployed'} — account ${METAAPI_ACCOUNT_ID}`);
+    } catch (err) {
+      console.error('[Algo2] MetaApi connection error:', err.message);
+    }
+  },
+
+  _apiGet(path) {
+    return new Promise((resolve, reject) => {
+      const opts = {
+        hostname: `mt-client-api-v1.${METAAPI_REGION}.agiliumtrade.ai`,
+        path,
+        method: 'GET',
+        headers: { 'auth-token': METAAPI_TOKEN, 'Content-Type': 'application/json' },
+      };
+      const req = https.request(opts, res => {
+        let raw = '';
+        res.on('data', d => raw += d);
+        res.on('end', () => {
+          try { resolve(JSON.parse(raw)); } catch { resolve({}); }
+        });
+      });
+      req.on('error', reject);
+      req.end();
+    });
+  },
+
+  _apiPost(path, body) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify(body);
+      const opts = {
+        hostname: `mt-client-api-v1.${METAAPI_REGION}.agiliumtrade.ai`,
+        path,
+        method: 'POST',
+        headers: {
+          'auth-token': METAAPI_TOKEN,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data),
+        },
+      };
+      const req = https.request(opts, res => {
+        let raw = '';
+        res.on('data', d => raw += d);
+        res.on('end', () => {
+          try { resolve(JSON.parse(raw)); } catch { resolve({}); }
+        });
+      });
+      req.on('error', reject);
+      req.write(data);
+      req.end();
+    });
+  },
+
+  async placeOrder(side, symbol, lots, stopLoss, takeProfit, comment) {
+    if (!this.connected) return { paper: true, orderId: `paper_${Date.now()}` };
+    try {
+      const tradeType = side === 'long' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
+      const tkSymbol  = symbol.replace('USDT', 'USD'); // BTCUSDT → BTCUSD for MT4
+      const result = await this._apiPost(
+        `/users/current/accounts/${METAAPI_ACCOUNT_ID}/trade`,
+        { actionType: tradeType, symbol: tkSymbol, volume: lots, stopLoss, takeProfit, comment }
+      );
+      return { orderId: result.orderId || result.positionId, live: true };
+    } catch (err) {
+      console.error('[Algo2] placeOrder error:', err.message);
+      return { paper: true, orderId: `paper_${Date.now()}`, error: err.message };
+    }
+  },
+
+  async closeOrder(orderId) {
+    if (!this.connected || !orderId || orderId.startsWith('paper_')) return { paper: true };
+    try {
+      await this._apiPost(
+        `/users/current/accounts/${METAAPI_ACCOUNT_ID}/trade`,
+        { actionType: 'POSITION_CLOSE_ID', positionId: orderId }
+      );
+      return { closed: true };
+    } catch (err) {
+      console.error('[Algo2] closeOrder error:', err.message);
+      return { error: err.message };
+    }
+  },
+};
+
+// Initialize MetaApi in background
+tickmill.init().catch(() => {});
 
 // ── Per-user session management ────────────────────────────────────
 const userSessions = new Map();
 
 function defaultState() {
   return {
-    running: false, symbol: 'BTCUSDT', timeframe: '15m',
-    strategyId: 'v1', mode: 'paper',
+    running: false, symbol: 'BTCUSDT', timeframe: '4h',
+    strategyId: 'swing-v1', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -106,14 +222,12 @@ function broadcast(sess, obj) {
     try { res.write(msg); } catch { sess.sseClients.delete(res); }
   }
 }
-
 function pushLog(sess, entry) {
   const row = { id: Date.now() + Math.random(), ...entry };
   sess.logs.unshift(row);
   if (sess.logs.length > 500) sess.logs.length = 500;
   broadcast(sess, { type: 'log', entry: row });
 }
-
 function publicState(state) {
   const {
     running, symbol, timeframe, strategyId, mode,
@@ -131,9 +245,10 @@ function publicState(state) {
     peakBalance,
     maxDrawdownDollar: parseFloat(maxDrawdownDollar.toFixed(2)),
     maxDrawdownPct:    parseFloat(maxDrawdownPct.toFixed(2)),
+    tickmillConnected: tickmill.connected,
+    tickmillMode:      tickmill.mode,
   };
 }
-
 function updateDrawdown(state) {
   if (state.balance > state.peakBalance) state.peakBalance = state.balance;
   const dd    = state.peakBalance - state.balance;
@@ -144,52 +259,58 @@ function updateDrawdown(state) {
   }
 }
 
-// ── Main algo tick (session-scoped) ───────────────────────────────
+// ── Main swing tick (session-scoped) ──────────────────────────────
 async function runTick(sess) {
   const { state } = sess;
-  const { symbol, timeframe, sessionId, userId } = state;
-  const ts = new Date().toISOString();
+  const { symbol, timeframe, sessionId } = state;
+  const userId = sess.userId;
+  const ts     = new Date().toISOString();
   try {
     state.error = null;
-    const candles = await fetchCandles(symbol, timeframe, 100);
+    const candles          = await fetchCandles(symbol, timeframe, 250); // need 200+ for EMA200
     const latestCandleTime = candles[candles.length - 1].time;
     const price            = candles[candles.length - 1].close;
 
-    // ── Exit check (runs every tick even mid-candle) ────────────
+    // ── Exit check ─────────────────────────────────────────────
     if (state.position) {
       const exitResult = checkExit(state.position, candles);
       state.lastIndicators = exitResult.indicators;
 
       if (exitResult.exit) {
-        const { side, entryPrice, size, stopLoss, takeProfit, mae } = state.position;
+        const { side, entryPrice, size, stopLoss, takeProfit, mae, tickmillOrderId } = state.position;
         const rawPnl = side === 'long'
           ? (price - entryPrice) * size
           : (entryPrice - price) * size;
         const pnl = parseFloat(rawPnl.toFixed(4));
 
-        state.balance += pnl;
-        state.pnl     += pnl;
+        // Close Tickmill order if live
+        let closeResult = { paper: true };
+        if (tickmillOrderId && !tickmillOrderId.startsWith('paper_')) {
+          closeResult = await tickmill.closeOrder(tickmillOrderId);
+        }
+
+        state.balance   += pnl;
+        state.pnl       += pnl;
         if (pnl > 0) state.wins++;
         state.totalTrades++;
         updateDrawdown(state);
         state.position = null;
 
         const trade = {
-          session_id: sessionId, user_id: userId || 'guest',
+          session_id: sessionId, user_id: userId,
           type: 'exit', side, symbol, timeframe,
           price, size, pnl,
           stop_loss: stopLoss, take_profit: takeProfit,
           reason: exitResult.reasons.join(' | '),
           balance_after: parseFloat(state.balance.toFixed(4)),
           timestamp: ts,
-          mae: parseFloat((mae || 0).toFixed(4)),
+          mae:  parseFloat((mae || 0).toFixed(4)),
+          tickmill_order: closeResult.closed ? tickmillOrderId : null,
         };
         stmtInsert.run(trade);
         pushLog(sess, { ts, type: 'EXIT', side, price, pnl,
-                        balance: state.balance.toFixed(4),
                         mae: (mae || 0).toFixed(2),
-                        reason: exitResult.reasons,
-                        indicators: state.lastIndicators });
+                        reason: exitResult.reasons, indicators: state.lastIndicators });
         broadcast(sess, { type: 'trade', trade, state: publicState(state) });
         return;
       }
@@ -200,7 +321,7 @@ async function runTick(sess) {
       );
     }
 
-    // ── Candle-change gate: only generate new signals on new candle ──
+    // ── Candle-change gate ─────────────────────────────────────
     const isNewCandle = latestCandleTime !== sess.lastCandleTime;
     if (!isNewCandle) {
       broadcast(sess, { type: 'tick', state: publicState(state) });
@@ -208,39 +329,46 @@ async function runTick(sess) {
     }
     sess.lastCandleTime = latestCandleTime;
 
-    // ── Signal check (only when a fresh candle has closed) ────────
+    // ── Signal check (new candle only) ────────────────────────
     const { signal, reason, indicators, buyScore, sellScore } = generateSignal(candles);
     state.lastIndicators = indicators;
     state.lastSignal     = { signal, buyScore, sellScore };
 
     if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
       const { atr } = indicators;
-      const stopDist = Math.max(2 * atr, price * 0.0015);
+      const stopDist = Math.max(3 * atr, price * 0.0025); // wider swing stop
       const riskAmt  = state.balance * 0.015;
       const size     = parseFloat((riskAmt / stopDist).toFixed(8));
       const side     = signal === 'BUY' ? 'long' : 'short';
       const sl       = side === 'long' ? price - stopDist : price + stopDist;
-      const tp       = side === 'long' ? price + stopDist * 2 : price - stopDist * 2;
+      const tp       = side === 'long' ? price + stopDist * 3 : price - stopDist * 3;
+      const lots     = parseFloat((riskAmt / (price * 100)).toFixed(2)); // approximate lots
+
+      // Place Tickmill order (or paper)
+      const orderResult = await tickmill.placeOrder(side, symbol, lots, sl, tp, 'CBT Algo2 Swing');
 
       state.position = {
         side, entryPrice: price, size, stopLoss: sl, takeProfit: tp,
         entryTime: ts, unrealizedPnl: 0,
         phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
+        tickmillOrderId: orderResult.orderId,
       };
 
       const trade = {
-        session_id: sessionId, user_id: userId || 'guest',
+        session_id: sessionId, user_id: userId,
         type: 'entry', side, symbol, timeframe,
         price, size, pnl: 0,
         stop_loss: sl, take_profit: tp,
         reason: reason.join(' | '),
         balance_after: parseFloat(state.balance.toFixed(4)),
         timestamp: ts, mae: 0,
+        tickmill_order: orderResult.orderId,
       };
       stmtInsert.run(trade);
       pushLog(sess, { ts, type: 'ENTRY', side, signal, price, size,
                       stopLoss: sl, takeProfit: tp,
-                      balance: state.balance.toFixed(4), reason, indicators });
+                      balance: state.balance.toFixed(4), reason, indicators,
+                      tickmill: orderResult });
       broadcast(sess, { type: 'trade', trade, state: publicState(state) });
     } else {
       pushLog(sess, { ts, type: 'TICK',
@@ -261,11 +389,10 @@ async function tick(sess) {
   try { await runTick(sess); } finally { sess.tickBusy = false; }
 }
 
-// Align ticks to candle-boundary intervals (mm:00 for 1m, 5m, 15m etc.)
 function startAlignedTicks(sess, intervalMs) {
   stopTicker(sess);
   const now   = Date.now();
-  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 2000; // 2s after candle close
+  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 2000;
   sess.alignTimeout = setTimeout(() => {
     tick(sess);
     sess.ticker = setInterval(() => tick(sess), intervalMs);
@@ -277,14 +404,14 @@ function stopTicker(sess) {
   if (sess.ticker)       { clearInterval(sess.ticker);       sess.ticker       = null; }
 }
 
-// ── Backtest runner ────────────────────────────────────────────────
+// ── Backtest runner (swing variant) ───────────────────────────────
 async function runBacktest(symbol, timeframe, months) {
   const allCandles = await fetchCandlesHistorical(symbol, timeframe, months);
-  if (allCandles.length < 60) {
-    throw new Error(`Insufficient data: only ${allCandles.length} candles fetched`);
+  if (allCandles.length < 210) {
+    throw new Error(`Need 210+ candles for EMA200. Got ${allCandles.length} — try longer duration or wider timeframe.`);
   }
 
-  const WINDOW = 100;
+  const WINDOW = 250;
   let balance = 10000;
   const initialBalance = 10000;
   let pos = null, peakBal = balance, maxDD = 0;
@@ -331,14 +458,14 @@ async function runBacktest(symbol, timeframe, months) {
       const sig = generateSignal(seg);
       if (sig.signal === 'BUY' || sig.signal === 'SELL') {
         const { atr } = sig.indicators;
-        const stopDist = Math.max(2 * atr, price * 0.0015);
+        const stopDist = Math.max(3 * atr, price * 0.0025);
         const riskAmt  = balance * 0.015;
         const size     = riskAmt / stopDist;
         const side     = sig.signal === 'BUY' ? 'long' : 'short';
         pos = {
           side, entryPrice: price, size,
           stopLoss:   side === 'long' ? price - stopDist : price + stopDist,
-          takeProfit: side === 'long' ? price + stopDist * 2 : price - stopDist * 2,
+          takeProfit: side === 'long' ? price + stopDist * 3 : price - stopDist * 3,
           entryTime:  allCandles[i].time,
           phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
         };
@@ -356,7 +483,7 @@ async function runBacktest(symbol, timeframe, months) {
       side: pos.side, entryPrice: +pos.entryPrice.toFixed(4), exitPrice: +lp.toFixed(4),
       pnl: +pnl.toFixed(2), balance: +balance.toFixed(2),
       entryTime: new Date(pos.entryTime).toISOString(),
-      exitTime:  new Date(allCandles[allCandles.length - 1].time).toISOString(),
+      exitTime: new Date(allCandles[allCandles.length - 1].time).toISOString(),
       reason: 'End of backtest', mae: +(pos.mae || 0).toFixed(2), phase: pos.phase || 1,
     });
   }
@@ -390,19 +517,18 @@ app.use(session({
 }));
 app.use(express.static(path.join(__dirname, 'web')));
 
-// ── Auth middleware & routes ───────────────────────────────────────
 function requireAuth(req, res, next) {
   if (!AUTH_REQUIRED) { req.userId = 'guest'; return next(); }
   if (req.session.userId) { req.userId = req.session.userId; return next(); }
   res.status(401).json({ error: 'Not authenticated' });
 }
 
+// ── Auth routes ────────────────────────────────────────────────────
 app.get('/api/config', (req, res) => res.json({
   authRequired:   AUTH_REQUIRED,
   googleClientId: GOOGLE_CLIENT_ID,
   user:           req.session.user || null,
 }));
-
 app.post('/auth/google', async (req, res) => {
   if (!AUTH_REQUIRED) return res.json({ ok: false, error: 'Auth not configured' });
   try {
@@ -412,41 +538,35 @@ app.post('/auth/google', async (req, res) => {
     req.session.userId = payload.sub;
     req.session.user   = { id: payload.sub, email: payload.email, name: payload.name, picture: payload.picture };
     res.json({ ok: true, user: req.session.user });
-  } catch (err) {
-    res.json({ ok: false, error: err.message });
-  }
+  } catch (err) { res.json({ ok: false, error: err.message }); }
 });
-
-app.post('/auth/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
+app.post('/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 
 // ── Public routes ──────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
-
 app.get('/api/strategies', (_, res) =>
   res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s })))
 );
+app.get('/api/tickmill', (_, res) => res.json({
+  connected:     tickmill.connected,
+  mode:          tickmill.mode,
+  accountNumber: TICKMILL_DEMO.accountNumber,
+  accountType:   TICKMILL_DEMO.accountType,
+  currency:      TICKMILL_DEMO.currency,
+  metaapiConfigured: !!(METAAPI_TOKEN && METAAPI_ACCOUNT_ID),
+}));
 
 // ── Protected routes ───────────────────────────────────────────────
-app.get('/api/state', requireAuth, (req, res) => {
-  res.json(publicState(getSession(req.userId).state));
-});
-
-app.get('/api/logs', requireAuth, (req, res) => {
-  res.json(getSession(req.userId).logs);
-});
-
+app.get('/api/state', requireAuth, (req, res) => res.json(publicState(getSession(req.userId).state)));
+app.get('/api/logs',  requireAuth, (req, res) => res.json(getSession(req.userId).logs));
 app.get('/api/trades', requireAuth, (req, res) => {
-  const { session, all } = req.query;
+  const { session } = req.query;
   const userId = req.userId;
+  const sess   = getSession(userId);
   let rows;
-  if (all) {
-    rows = db.prepare('SELECT * FROM trades WHERE user_id=? ORDER BY id DESC LIMIT 2000').all(userId);
-  } else if (session) {
+  if (session) {
     rows = db.prepare('SELECT * FROM trades WHERE session_id=? AND user_id=? ORDER BY id DESC').all(session, userId);
   } else {
-    const sess = getSession(userId);
     rows = sess.state.sessionId
       ? db.prepare('SELECT * FROM trades WHERE session_id=? ORDER BY id DESC').all(sess.state.sessionId)
       : [];
@@ -458,9 +578,9 @@ app.post('/api/start', requireAuth, (req, res) => {
   const sess = getSession(req.userId);
   if (sess.state.running) return res.json({ ok: false, msg: 'Already running' });
   const {
-    symbol = 'BTCUSDT', timeframe = '15m',
-    balance = 10000, interval = 60,
-    strategyId = 'v1', mode = 'paper',
+    symbol = 'BTCUSDT', timeframe = '4h',
+    balance = 10000, interval = 14400, // 4h default
+    strategyId = 'swing-v1', mode = 'paper',
   } = req.body || {};
   const ms  = Math.max(5000, parseInt(interval, 10) * 1000);
   const bal = parseFloat(balance);
@@ -478,8 +598,8 @@ app.post('/api/start', requireAuth, (req, res) => {
   sess.logs           = [];
   sess.lastCandleTime = null;
 
-  tick(sess); // immediate first tick
-  startAlignedTicks(sess, ms); // then align to candle boundaries
+  tick(sess);
+  startAlignedTicks(sess, ms);
 
   broadcast(sess, { type: 'started', state: publicState(sess.state) });
   res.json({ ok: true, state: publicState(sess.state) });
@@ -495,8 +615,8 @@ app.post('/api/stop', requireAuth, (req, res) => {
 });
 
 app.post('/api/backtest', requireAuth, async (req, res) => {
-  const { symbol = 'BTCUSDT', timeframe = '1h', months = 1 } = req.body || {};
-  const m = Math.max(1, Math.min(12, parseInt(months, 10) || 1));
+  const { symbol = 'BTCUSDT', timeframe = '4h', months = 3 } = req.body || {};
+  const m = Math.max(1, Math.min(12, parseInt(months, 10) || 3));
   try {
     const result = await runBacktest(symbol, timeframe, m);
     res.json({ ok: true, ...result });
@@ -517,10 +637,11 @@ app.get('/events', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
-  // Send full state + recent logs on connect
   res.write(`data: ${JSON.stringify({ type: 'connected', state: publicState(sess.state), logs: sess.logs })}\n\n`);
   sess.sseClients.add(res);
   req.on('close', () => sess.sseClients.delete(res));
 });
 
-app.listen(PORT, () => console.log(`CBT Algo1 v2 listening on :${PORT}`));
+app.listen(PORT, () =>
+  console.log(`CBT Algo2 (Swing/Tickmill) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+);

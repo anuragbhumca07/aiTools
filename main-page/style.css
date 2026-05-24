@@ -206,6 +206,7 @@ header h1 {
 .glow-pink   { background: radial-gradient(ellipse at 30% 0%, rgba(233,69,96,.15) 0%, transparent 60%); }
 .glow-gold   { background: radial-gradient(ellipse at 30% 0%, rgba(245,166,35,.15) 0%, transparent 60%); }
 .glow-green  { background: radial-gradient(ellipse at 30% 0%, rgba(0,200,83,.15) 0%, transparent 60%); }
+.glow-orange { background: radial-gradient(ellipse at 30% 0%, rgba(240,136,62,.18) 0%, transparent 60%); }
 
 /* Card hover glow per type */
 .tool-card[data-color="cyan"]:not(.soon):hover   { box-shadow: 0 24px 60px rgba(5,191,219,.25), 0 0 0 1px rgba(5,191,219,.2); }
@@ -213,6 +214,7 @@ header h1 {
 .tool-card[data-color="pink"]:not(.soon):hover   { box-shadow: 0 24px 60px rgba(233,69,96,.2),   0 0 0 1px rgba(233,69,96,.15); }
 .tool-card[data-color="gold"]:not(.soon):hover   { box-shadow: 0 24px 60px rgba(245,166,35,.2),  0 0 0 1px rgba(245,166,35,.15); }
 .tool-card[data-color="green"]:not(.soon):hover  { box-shadow: 0 24px 60px rgba(0,200,83,.2),    0 0 0 1px rgba(0,200,83,.15); }
+.tool-card[data-color="orange"]:not(.soon):hover { box-shadow: 0 24px 60px rgba(240,136,62,.25), 0 0 0 1px rgba(240,136,62,.2); }
 
 /* ── 3D Icon stage ── */
 .icon-stage {

@@ -1,11 +1,10 @@
 {
-  "name": "cbt-algo1",
+  "name": "cbt-algo2",
   "version": "1.0.0",
-  "description": "Multi-Confluence Trend Following — CBT Algo 1",
+  "description": "CBT Algo2 — Swing Trading (Tickmill/MetaApi)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
