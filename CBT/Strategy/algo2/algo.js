@@ -210,18 +210,9 @@ function generateSignal(candles) {
 
   const fmt = (v, d = 2) => v != null ? v.toFixed(d) : 'n/a';
 
-  // Hard gate: need strong trend
-  if (adx < 25) {
-    return {
-      signal: 'HOLD',
-      reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend, waiting for swing setup`],
-      indicators: ind, buyScore: 0, sellScore: 0,
-    };
-  }
-
   const volOk  = volume >= volumeMA * 1.0;
 
-  // ── BUY (LONG) conditions ─────────────────────────────────────
+  // ── BUY (LONG) conditions — evaluated regardless of ADX gate ──
   const buyChecks = [
     { ok: diPlus  > diMinus,   label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)})` },
     { ok: ema21   > ema55,     label: `EMA21(${fmt(ema21)}) > EMA55(${fmt(ema55)})` },
@@ -234,7 +225,7 @@ function generateSignal(candles) {
   const buyPassed = buyChecks.filter(c => c.ok).map(c => c.label);
   const buyFailed = buyChecks.filter(c => !c.ok).map(c => c.label);
 
-  // ── SELL (SHORT) conditions ───────────────────────────────────
+  // ── SELL (SHORT) conditions — evaluated regardless of ADX gate ─
   const sellChecks = [
     { ok: diMinus > diPlus,    label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)})` },
     { ok: ema21   < ema55,     label: `EMA21 < EMA55` },
@@ -246,6 +237,15 @@ function generateSignal(candles) {
   const sellScore  = sellChecks.filter(c => c.ok).length;
   const sellPassed = sellChecks.filter(c => c.ok).map(c => c.label);
   const sellFailed = sellChecks.filter(c => !c.ok).map(c => c.label);
+
+  // Hard gate: need strong trend (scores still returned for UI dots)
+  if (adx < 25) {
+    return {
+      signal: 'HOLD',
+      reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend, waiting for swing setup`],
+      indicators: ind, buyScore, sellScore,
+    };
+  }
 
   const THRESHOLD = 5; // need 5/6
   if (buyScore >= THRESHOLD && buyScore > sellScore) {

@@ -602,6 +602,8 @@ function applyState(s) {
   appState = s;
   const badge = $('status-badge');
   if (s.running) {
+    if (s.symbol)    $('ctrl-symbol').value = s.symbol;
+    if (s.timeframe) $('ctrl-tf').value     = s.timeframe;
     badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
     $('btn-start').disabled = true; $('btn-stop').disabled = false;
     ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = true);
