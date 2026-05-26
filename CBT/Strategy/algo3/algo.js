@@ -265,7 +265,7 @@ function generateSignal(candles) {
     };
   }
 
-  const THRESHOLD = 5; // need 5/6
+  const THRESHOLD = 6; // need 6/6
   if (buyScore >= THRESHOLD && buyScore > sellScore) {
     return { signal: 'BUY', reason: buyPassed, indicators: ind, buyScore, sellScore };
   }
