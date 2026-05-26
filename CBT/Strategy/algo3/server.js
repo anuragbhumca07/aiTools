@@ -411,9 +411,15 @@ async function runBacktest(symbol, timeframe, months) {
     if (pos) {
       const ex = checkExit(pos, seg);
       if (ex.exit) {
+        // Use SL/TP level for accuracy; candle close only for time/indicator exits
+        const reason0 = ex.reasons[0] || '';
+        let exitPrice = price;
+        if (reason0.startsWith('SL hit')) exitPrice = pos.stopLoss;
+        else if (reason0.startsWith('TP hit')) exitPrice = pos.takeProfit;
+
         const pnl = pos.side === 'long'
-          ? (price - pos.entryPrice) * pos.size
-          : (pos.entryPrice - price) * pos.size;
+          ? (exitPrice - pos.entryPrice) * pos.size
+          : (pos.entryPrice - exitPrice) * pos.size;
         balance += pnl;
         if (pnl > 0) wins++;
         if (balance > peakBal) peakBal = balance;
@@ -422,7 +428,7 @@ async function runBacktest(symbol, timeframe, months) {
         trades.push({
           side:       pos.side,
           entryPrice: +pos.entryPrice.toFixed(4),
-          exitPrice:  +price.toFixed(4),
+          exitPrice:  +exitPrice.toFixed(4),
           pnl:        +pnl.toFixed(2),
           balance:    +balance.toFixed(2),
           entryTime:  new Date(pos.entryTime).toISOString(),

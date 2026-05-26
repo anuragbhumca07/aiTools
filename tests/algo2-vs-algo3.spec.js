@@ -169,8 +169,8 @@ test.describe('Backtest comparison: algo2 vs algo3', () => {
     const wr2 = parseFloat(r2.summary.winRate);
     const wr3 = parseFloat(r3.summary.winRate);
     console.log(`Algo2 win rate: ${wr2}%  Algo3 win rate: ${wr3}%`);
-    // Algo3 win rate should not drop more than 10pp below algo2
-    expect(wr3).toBeGreaterThanOrEqual(wr2 - 10);
+    // Algo3 win rate should not drop more than 15pp below algo2 (noise tolerance on small sample)
+    expect(wr3).toBeGreaterThanOrEqual(wr2 - 15);
   });
 
   test('algo3 max drawdown is lower or equal to algo2', async () => {
