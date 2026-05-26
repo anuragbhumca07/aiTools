@@ -324,7 +324,7 @@ async function runTick(sess) {
       const { atr } = indicators;
       // Tightened Phase-1 SL: 2.5×ATR (was 3×ATR in algo2)
       const stopDist = Math.max(2.5 * atr, price * 0.0025);
-      const riskAmt  = state.balance * 0.015;
+      const riskAmt  = Math.min(state.balance * 0.015, 150);  // cap at $150 regardless of balance growth
       const size     = parseFloat((riskAmt / stopDist).toFixed(8));
       const side     = signal === 'BUY' ? 'long' : 'short';
       const sl       = side === 'long' ? price - stopDist : price + stopDist;
@@ -452,7 +452,7 @@ async function runBacktest(symbol, timeframe, months) {
         const { atr } = sig.indicators;
         // Tightened: 2.5×ATR (was 3×ATR in algo2)
         const stopDist = Math.max(2.5 * atr, price * 0.0025);
-        const riskAmt  = balance * 0.015;
+        const riskAmt  = Math.min(balance * 0.015, 150);  // cap at $150 regardless of balance growth
         const size     = riskAmt / stopDist;
         const side     = sig.signal === 'BUY' ? 'long' : 'short';
         pos = {
