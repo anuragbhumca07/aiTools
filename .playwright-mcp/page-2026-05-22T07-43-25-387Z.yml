@@ -1,0 +1,158 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e5]: AI
+    - generic [ref=e6]: ANURAG'S AI STUDIO
+    - heading "AI Tools Hub" [level=1] [ref=e7]:
+      - text: AI Tools
+      - text: Hub
+    - paragraph [ref=e8]:
+      - text: A collection of powerful AI-powered tools to automate
+      - text: your creative and social media workflow.
+    - button "Sign In to AI Hub" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: "0"
+        - text: Live Tools
+      - generic [ref=e16]:
+        - generic [ref=e17]: "0"
+        - text: Coming Soon
+      - generic [ref=e19]:
+        - generic [ref=e20]: ∞
+        - text: Possibilities
+  - generic [ref=e21]: Live Tools
+  - generic [ref=e23]:
+    - link "🎬 ● LIVE Quiz Video Generator Drop a topic, pick a voice — AI writes the quiz, generates visuals, and renders a broadcast-ready video automatically. Video AI TTS Auto-Edit Open App →" [ref=e24] [cursor=pointer]:
+      - /url: http://localhost:3001
+      - generic [ref=e27]: 🎬
+      - generic [ref=e29]: ● LIVE
+      - heading "Quiz Video Generator" [level=2] [ref=e30]
+      - paragraph [ref=e31]: Drop a topic, pick a voice — AI writes the quiz, generates visuals, and renders a broadcast-ready video automatically.
+      - generic [ref=e32]:
+        - generic [ref=e33]: Video AI
+        - generic [ref=e34]: TTS
+        - generic [ref=e35]: Auto-Edit
+      - generic [ref=e36]:
+        - text: Open App
+        - generic [ref=e37]: →
+    - link "🚀 ● LIVE Social Media Uploader Upload one video, AI writes platform-perfect captions for YouTube, Instagram, TikTok, LinkedIn, X & Facebook — then publishes everywhere. 6 Platforms Auto-Copy OAuth Open App →" [ref=e38] [cursor=pointer]:
+      - /url: http://localhost:3005
+      - generic [ref=e41]: 🚀
+      - generic [ref=e43]: ● LIVE
+      - heading "Social Media Uploader" [level=2] [ref=e44]
+      - paragraph [ref=e45]: Upload one video, AI writes platform-perfect captions for YouTube, Instagram, TikTok, LinkedIn, X & Facebook — then publishes everywhere.
+      - generic [ref=e46]:
+        - generic [ref=e47]: 6 Platforms
+        - generic [ref=e48]: Auto-Copy
+        - generic [ref=e49]: OAuth
+      - generic [ref=e50]:
+        - text: Open App
+        - generic [ref=e51]: →
+    - link "🧠 ● LIVE AI Explainer Turn any topic into an animated explanation video — type a topic, list the steps, and get a Manim-rendered video in seconds. Manim Animated MP4 Open App →" [ref=e52] [cursor=pointer]:
+      - /url: http://localhost:3002
+      - generic [ref=e55]: 🧠
+      - generic [ref=e57]: ● LIVE
+      - heading "AI Explainer" [level=2] [ref=e58]
+      - paragraph [ref=e59]: Turn any topic into an animated explanation video — type a topic, list the steps, and get a Manim-rendered video in seconds.
+      - generic [ref=e60]:
+        - generic [ref=e61]: Manim
+        - generic [ref=e62]: Animated
+        - generic [ref=e63]: MP4
+      - generic [ref=e64]:
+        - text: Open App
+        - generic [ref=e65]: →
+    - link "📅 ● LIVE Quiz Scheduler Auto-schedule quiz video generation by category, set posting frequency, and publish to all social platforms — fully automated in the cloud. Auto-Schedule Cron Jobs Multi-Platform Open App →" [ref=e66] [cursor=pointer]:
+      - /url: http://localhost:3003
+      - generic [ref=e69]: 📅
+      - generic [ref=e71]: ● LIVE
+      - heading "Quiz Scheduler" [level=2] [ref=e72]
+      - paragraph [ref=e73]: Auto-schedule quiz video generation by category, set posting frequency, and publish to all social platforms — fully automated in the cloud.
+      - generic [ref=e74]:
+        - generic [ref=e75]: Auto-Schedule
+        - generic [ref=e76]: Cron Jobs
+        - generic [ref=e77]: Multi-Platform
+      - generic [ref=e78]:
+        - text: Open App
+        - generic [ref=e79]: →
+    - link "📝 ● LIVE Question Creator Upload any PDF, Word doc, or text — AI generates a ready-to-use quiz question bank in seconds. Paste directly into the Scheduler. PDF / DOCX AI Questions Quiz Bank Open App →" [ref=e80] [cursor=pointer]:
+      - /url: http://localhost:3004
+      - generic [ref=e83]: 📝
+      - generic [ref=e85]: ● LIVE
+      - heading "Question Creator" [level=2] [ref=e86]
+      - paragraph [ref=e87]: Upload any PDF, Word doc, or text — AI generates a ready-to-use quiz question bank in seconds. Paste directly into the Scheduler.
+      - generic [ref=e88]:
+        - generic [ref=e89]: PDF / DOCX
+        - generic [ref=e90]: AI Questions
+        - generic [ref=e91]: Quiz Bank
+      - generic [ref=e92]:
+        - text: Open App
+        - generic [ref=e93]: →
+    - link "⚡ ● LIVE vCreator Turn motivational quotes into cinematic videos — karaoke-style subtitles light up word by word as the narration plays, with optional background music. Karaoke CC TTS Narration Background Music Open App →" [ref=e94] [cursor=pointer]:
+      - /url: http://localhost:3008
+      - generic [ref=e97]: ⚡
+      - generic [ref=e99]: ● LIVE
+      - heading "vCreator" [level=2] [ref=e100]
+      - paragraph [ref=e101]: Turn motivational quotes into cinematic videos — karaoke-style subtitles light up word by word as the narration plays, with optional background music.
+      - generic [ref=e102]:
+        - generic [ref=e103]: Karaoke CC
+        - generic [ref=e104]: TTS Narration
+        - generic [ref=e105]: Background Music
+      - generic [ref=e106]:
+        - text: Open App
+        - generic [ref=e107]: →
+    - link "🪔 ● LIVE aiBhakti Turn any spiritual story into a narrated video — upload your sacred images and let AI weave them into a divine slideshow with voice narration. TTS Narration Image Slideshow Multi-Video Open App →" [ref=e108] [cursor=pointer]:
+      - /url: http://localhost:3007
+      - generic [ref=e111]: 🪔
+      - generic [ref=e113]: ● LIVE
+      - heading "aiBhakti" [level=2] [ref=e114]
+      - paragraph [ref=e115]: Turn any spiritual story into a narrated video — upload your sacred images and let AI weave them into a divine slideshow with voice narration.
+      - generic [ref=e116]:
+        - generic [ref=e117]: TTS Narration
+        - generic [ref=e118]: Image Slideshow
+        - generic [ref=e119]: Multi-Video
+      - generic [ref=e120]:
+        - text: Open App
+        - generic [ref=e121]: →
+  - generic [ref=e122]: Coming Soon
+  - generic [ref=e124]:
+    - generic [ref=e125] [cursor=pointer]:
+      - generic [ref=e128]: 🎨
+      - generic [ref=e130]: ⏳ COMING SOON
+      - heading "AI Image Studio" [level=2] [ref=e131]
+      - paragraph [ref=e132]: Generate stunning images, product photos, thumbnails and art from simple text prompts using Stable Diffusion & DALL·E.
+      - generic [ref=e133]:
+        - generic [ref=e134]: Text-to-Image
+        - generic [ref=e135]: DALL·E
+        - generic [ref=e136]: Stable Diffusion
+      - generic [ref=e137]: In Development
+    - generic [ref=e138] [cursor=pointer]:
+      - generic [ref=e141]: 🎙️
+      - generic [ref=e143]: ⏳ COMING SOON
+      - heading "AI Podcast Maker" [level=2] [ref=e144]
+      - paragraph [ref=e145]: Turn any topic, blog post, or document into a full podcast episode with multiple AI voices, intro music and chapter markers.
+      - generic [ref=e146]:
+        - generic [ref=e147]: Multi-voice TTS
+        - generic [ref=e148]: Audio Edit
+        - generic [ref=e149]: RSS Feed
+      - generic [ref=e150]: In Development
+    - generic [ref=e151] [cursor=pointer]:
+      - generic [ref=e154]: 📄
+      - generic [ref=e156]: ⏳ COMING SOON
+      - heading "AI Resume Builder" [level=2] [ref=e157]
+      - paragraph [ref=e158]: Paste your experience, AI rewrites every bullet point for ATS optimization, tailors it per job description and exports a polished PDF.
+      - generic [ref=e159]:
+        - generic [ref=e160]: ATS-Ready
+        - generic [ref=e161]: Job Tailored
+        - generic [ref=e162]: PDF Export
+      - generic [ref=e163]: In Development
+    - generic [ref=e164] [cursor=pointer]:
+      - generic [ref=e167]: ✍️
+      - generic [ref=e169]: ⏳ COMING SOON
+      - heading "AI Blog Writer" [level=2] [ref=e170]
+      - paragraph [ref=e171]: Give a keyword — AI researches, outlines, writes and SEO-optimises a full long-form blog post ready to publish on WordPress or Medium.
+      - generic [ref=e172]:
+        - generic [ref=e173]: SEO
+        - generic [ref=e174]: Long-Form
+        - generic [ref=e175]: WordPress
+      - generic [ref=e176]: In Development
+  - contentinfo [ref=e177]:
+    - paragraph [ref=e178]: Built with ❤️ by Anurag · Powered by AI

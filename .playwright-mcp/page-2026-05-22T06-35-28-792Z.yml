@@ -1,0 +1,34 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link "← AI Hub" [ref=e4] [cursor=pointer]:
+      - /url: https://aitools-hub-c5g.pages.dev
+    - generic [ref=e5]: ॐ
+    - heading "aiBhakti" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Generate spiritual story videos or AI-composed Hindi bhakti songs — animated with Higgsfield.
+  - generic [ref=e8]:
+    - button "📖 Story Video" [ref=e9] [cursor=pointer]
+    - button "🎵 Song Video ✦ Cinematic" [ref=e10] [cursor=pointer]:
+      - text: 🎵 Song Video
+      - generic [ref=e11]: ✦ Cinematic
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: Spiritual Story / Stories
+      - generic [ref=e16]:
+        - text: Enter your story text below. For multiple videos, separate each story with a line containing only
+        - strong [ref=e17]: "---"
+      - textbox "Enter your story text below. For multiple videos, separate each story with a line containing only ---" [ref=e18]:
+        - /placeholder: "Once upon a time, in the sacred forest of Vrindavan, Lord Krishna played his divine flute...\n\n---\n\nIn the silence of dawn, the great sage Narada meditated beneath the Peepal tree..."
+      - paragraph [ref=e19]: One story = one video. Use --- on its own line to generate multiple videos at once.
+    - generic [ref=e20]:
+      - generic [ref=e21]: Video Format
+      - generic [ref=e22]:
+        - button "📺 16:9 Landscape" [ref=e23] [cursor=pointer]
+        - button "📱 9:16 Portrait / Shorts" [ref=e24] [cursor=pointer]
+    - generic [ref=e25]:
+      - generic [ref=e26]: Images for Slideshow
+      - generic [ref=e27]: Upload images to display in the video (they will cycle through the full duration).
+      - generic [ref=e28] [cursor=pointer]:
+        - generic [ref=e29]: 🖼️
+        - generic [ref=e30]: Click or drag & drop images here
+        - generic [ref=e31]: JPG, PNG, WEBP · up to 20 images · max 50 MB each
+    - button "✨ Generate Video(s)" [ref=e32] [cursor=pointer]

@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: 🖥️
+      - generic [ref=e5]:
+        - heading "PM2 Dashboard" [level=1] [ref=e6]: PM2 Dashboard
+        - paragraph [ref=e8]: Loading…
+    - generic [ref=e9]:
+      - generic "Auto-refreshes every 4s" [ref=e10]: ↻
+      - button "▶ Start All" [ref=e11] [cursor=pointer]
+      - button "■ Stop All" [ref=e12] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e16]: —
+      - generic [ref=e17]: online
+    - generic [ref=e18]:
+      - generic [ref=e20]: —
+      - generic [ref=e21]: stopped
+    - generic [ref=e22]:
+      - generic [ref=e24]: —
+      - generic [ref=e25]: errored

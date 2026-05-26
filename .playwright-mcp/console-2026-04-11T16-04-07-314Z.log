@@ -1,0 +1,5 @@
+[     369ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://quiz-scheduler-production.up.railway.app/:0
+[     369ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://quiz-scheduler-production.up.railway.app/:0
+[     414ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://quiz-scheduler-production.up.railway.app/favicon.ico:0
+[   23924ms] ReferenceError: error is not defined
+    at doAuth (https://quiz-scheduler-production.up.railway.app/:554:3)
