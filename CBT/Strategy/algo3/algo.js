@@ -169,8 +169,8 @@ function computeIndicators(candles) {
     macdLine:      macdArr[n]?.macd      ?? null,
     macdSignal:    macdArr[n]?.signal    ?? null,
     atr:           atr14[n],
-    volume:        volumes[n],
-    volumeMA:      volMA[n],
+    volume:        volumes[n-1],   // use last CLOSED candle — volumes[n] is in-progress (only seconds old)
+    volumeMA:      volMA[n-1],
     adx:           adxArr[n]?.adx        ?? null,
     diPlus:        adxArr[n]?.diPlus     ?? null,
     diMinus:       adxArr[n]?.diMinus    ?? null,
