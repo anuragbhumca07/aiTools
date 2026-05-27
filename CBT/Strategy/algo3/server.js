@@ -22,6 +22,11 @@ const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-algo3-dev-secret';
 const METAAPI_TOKEN      = process.env.METAAPI_TOKEN      || '';
 const METAAPI_ACCOUNT_ID = process.env.METAAPI_ACCOUNT_ID || '';
 const METAAPI_REGION     = process.env.METAAPI_REGION     || 'new-york';
+
+// WhatsApp notifications via Green API
+const WA_INSTANCE = process.env.WA_INSTANCE || '';
+const WA_TOKEN    = process.env.WA_TOKEN    || '';
+const WA_GROUP    = process.env.WA_GROUP    || '';
 const TICKMILL_DEMO      = {
   accountNumber: '25326583',
   accountType:   'Classic',
@@ -31,6 +36,61 @@ const TICKMILL_DEMO      = {
 const DATA_DIR = path.join(__dirname, 'data');
 const LOGS_DIR = path.join(__dirname, 'logs');
 [DATA_DIR, LOGS_DIR].forEach(d => fs.mkdirSync(d, { recursive: true }));
+
+// ── WhatsApp notifications (Green API) ───────────────────────────────
+function sendWhatsApp(text) {
+  if (!WA_INSTANCE || !WA_TOKEN || !WA_GROUP) return;
+  const chatId = WA_GROUP.includes('@') ? WA_GROUP : `${WA_GROUP}@g.us`;
+  const body   = JSON.stringify({ chatId, message: text });
+  const opts   = {
+    hostname: 'api.green-api.com',
+    path:     `/waInstance${WA_INSTANCE}/sendMessage/${WA_TOKEN}`,
+    method:   'POST',
+    headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  };
+  const req = https.request(opts, res => {
+    let raw = '';
+    res.on('data', d => raw += d);
+    res.on('end', () => {
+      if (res.statusCode !== 200) console.error('[WA] send failed:', res.statusCode, raw);
+    });
+  });
+  req.on('error', err => console.error('[WA] request error:', err.message));
+  req.write(body);
+  req.end();
+}
+
+function waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, balance) {
+  const dir    = side === 'long' ? '🟢' : '🔴';
+  const label  = side === 'long' ? 'LONG' : 'SHORT';
+  const sym    = symbol.replace('USDT', '/USDT');
+  const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  sendWhatsApp(
+    `${dir} *ENTRY — ${label} ${sym} ${timeframe}*\n` +
+    `Price : $${f(price)}\n` +
+    `Size  : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
+    `SL    : $${f(sl)}  |  TP : $${f(tp)}\n` +
+    `Risk  : $${f(riskAmt)}\n` +
+    `Balance: $${f(balance)}`
+  );
+}
+
+function waExit(side, symbol, timeframe, pnl, reason, balance, wins, totalTrades) {
+  const win    = pnl > 0;
+  const icon   = win ? '✅' : '❌';
+  const label  = side === 'long' ? 'LONG' : 'SHORT';
+  const sym    = symbol.replace('USDT', '/USDT');
+  const wr     = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
+  const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pnlStr = `${pnl >= 0 ? '+' : ''}$${f(Math.abs(pnl))}`;
+  sendWhatsApp(
+    `${icon} *EXIT — ${label} ${sym} ${timeframe}*\n` +
+    `Reason  : ${reason}\n` +
+    `PnL     : *${pnlStr}*\n` +
+    `Balance : $${f(balance)}\n` +
+    `Win Rate: ${wr}% (${wins}/${totalTrades})`
+  );
+}
 
 // ── Google auth client ─────────────────────────────────────────────
 const googleClient = AUTH_REQUIRED ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -307,6 +367,7 @@ async function runTick(sess) {
         }
 
         stmtInsert.run(trade);
+        waExit(side, symbol, timeframe, pnl, exitResult.reasons[0] || '', state.balance, state.wins, state.totalTrades);
         pushLog(sess, { ts, type: 'EXIT', side, price, pnl,
                         mae: (mae || 0).toFixed(2),
                         reason: exitResult.reasons, indicators: state.lastIndicators });
@@ -372,6 +433,7 @@ async function runTick(sess) {
         tickmill_order: orderResult.orderId,
       };
       stmtInsert.run(trade);
+      waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, state.balance);
       pushLog(sess, { ts, type: 'ENTRY', side, signal, price, size,
                       stopLoss: sl, takeProfit: tp,
                       balance: state.balance.toFixed(4), reason, indicators,
