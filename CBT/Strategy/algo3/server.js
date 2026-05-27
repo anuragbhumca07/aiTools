@@ -177,6 +177,8 @@ tickmill.init().catch(() => {});
 // ── Per-user session management ────────────────────────────────────
 const userSessions = new Map();
 
+const CANDLE_MS = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+
 function defaultState() {
   return {
     running: false, symbol: 'BTCUSDT', timeframe: '4h',
@@ -186,6 +188,7 @@ function defaultState() {
     position: null, pnl: 0, totalTrades: 0, wins: 0,
     lastIndicators: null, lastSignal: null, error: null,
     peakBalance: 10000, maxDrawdownDollar: 0, maxDrawdownPct: 0,
+    lastRsiExitSide: null, lastRsiExitCandleTime: null,
   };
 }
 
@@ -295,6 +298,14 @@ async function runTick(sess) {
           mae:  parseFloat((mae || 0).toFixed(4)),
           tickmill_order: closeResult.closed ? tickmillOrderId : null,
         };
+        // Track RSI extreme exits for cooldown (prevents re-entry at exhausted zone)
+        const exitReasonStr = exitResult.reasons.join(' ');
+        if ((exitReasonStr.includes('RSI overbought') && side === 'long') ||
+            (exitReasonStr.includes('RSI oversold')   && side === 'short')) {
+          state.lastRsiExitSide        = side;
+          state.lastRsiExitCandleTime  = latestCandleTime;
+        }
+
         stmtInsert.run(trade);
         pushLog(sess, { ts, type: 'EXIT', side, price, pnl,
                         mae: (mae || 0).toFixed(2),
@@ -322,11 +333,21 @@ async function runTick(sess) {
 
     if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
       const { atr } = indicators;
+      const side = signal === 'BUY' ? 'long' : 'short';
+      // RSI extreme cooldown: 15 candle-periods after an RSI overbought/oversold exit
+      const candleIntervalMs = CANDLE_MS[state.timeframe] || 14400000;
+      const inRsiCooldown = state.lastRsiExitSide === side
+        && state.lastRsiExitCandleTime
+        && (latestCandleTime - state.lastRsiExitCandleTime) < 15 * candleIntervalMs;
+      if (inRsiCooldown) {
+        pushLog(sess, { ts, type: 'TICK', signal: `RSI-cooldown (${side})`, price, indicators, reason });
+        broadcast(sess, { type: 'tick', state: publicState(state) });
+        return;
+      }
       // Tightened Phase-1 SL: 2.5×ATR (was 3×ATR in algo2)
       const stopDist = Math.max(2.5 * atr, price * 0.0025);
       const riskAmt  = Math.min(state.balance * 0.015, 150);  // cap at $150 regardless of balance growth
       const size     = parseFloat((riskAmt / stopDist).toFixed(8));
-      const side     = signal === 'BUY' ? 'long' : 'short';
       const sl       = side === 'long' ? price - stopDist : price + stopDist;
       const tp       = side === 'long' ? price + stopDist * 3 : price - stopDist * 3;
       const lots     = parseFloat((riskAmt / (price * 100)).toFixed(2));
@@ -403,6 +424,16 @@ async function runBacktest(symbol, timeframe, months) {
   let pos = null, peakBal = balance, maxDD = 0;
   const trades = [];
   let wins = 0;
+  // Phase-1/2 cooldown: blocks re-entry in same direction for 6 bars after an SL hit.
+  const COOLDOWN_BARS     = 6;
+  let lastPhase1ExitBar   = -COOLDOWN_BARS;
+  let lastPhase1ExitSide  = null;
+  let lastPhase1ExitPrice = null;
+  // RSI extreme cooldown: after RSI overbought long exit / oversold short exit, the price zone
+  // is momentum-exhausted. Block same-direction re-entry for 15 bars (2.5 days on 4h).
+  const RSI_COOLDOWN_BARS = 15;
+  let lastRsiExitBar      = -RSI_COOLDOWN_BARS;
+  let lastRsiExitSide     = null;
 
   for (let i = WINDOW; i < allCandles.length; i++) {
     const seg   = allCandles.slice(Math.max(0, i - WINDOW + 1), i + 1);
@@ -425,6 +456,23 @@ async function runBacktest(symbol, timeframe, months) {
         if (balance > peakBal) peakBal = balance;
         const dd = peakBal - balance;
         if (dd > maxDD) maxDD = dd;
+
+        // Track Phase-1 and Phase-2 SL exits for cooldown.
+        // Phase-2 SL = breakeven exit — counts as a failed zone attempt even though PnL≈$0.
+        // Prevents re-entry at the same resistance level (BTC $81.4k May-10 Phase-2 → May-11 Phase-1).
+        if (reason0.startsWith('SL hit (Phase 1)') || reason0.startsWith('SL hit (Phase 2)')) {
+          lastPhase1ExitBar   = i;
+          lastPhase1ExitSide  = pos.side;
+          lastPhase1ExitPrice = exitPrice;
+        }
+        // RSI extreme exits mark a momentum-exhausted zone; use longer cooldown (15 bars = 2.5d on 4h).
+        // Prevents re-entering a long just after RSI overbought exit at the same price level.
+        if ((reason0.includes('RSI overbought') && pos.side === 'long') ||
+            (reason0.includes('RSI oversold')   && pos.side === 'short')) {
+          lastRsiExitBar  = i;
+          lastRsiExitSide = pos.side;
+        }
+
         trades.push({
           side:       pos.side,
           entryPrice: +pos.entryPrice.toFixed(4),
@@ -449,16 +497,20 @@ async function runBacktest(symbol, timeframe, months) {
     if (!pos) {
       const sig = generateSignal(seg);
       if (sig.signal === 'BUY' || sig.signal === 'SELL') {
+        const newSide = sig.signal === 'BUY' ? 'long' : 'short';
+        // Cooldown check: skip if same direction as a recent Phase-1 SL within COOLDOWN_BARS bars
+        const inCooldown    = lastPhase1ExitSide === newSide && (i - lastPhase1ExitBar)  < COOLDOWN_BARS;
+        const inRsiCooldown = lastRsiExitSide    === newSide && (i - lastRsiExitBar)    < RSI_COOLDOWN_BARS;
+        if (inCooldown || inRsiCooldown) continue;
+
         const { atr } = sig.indicators;
-        // Tightened: 2.5×ATR (was 3×ATR in algo2)
         const stopDist = Math.max(2.5 * atr, price * 0.0025);
-        const riskAmt  = Math.min(balance * 0.015, 150);  // cap at $150 regardless of balance growth
+        const riskAmt  = Math.min(balance * 0.015, 150);
         const size     = riskAmt / stopDist;
-        const side     = sig.signal === 'BUY' ? 'long' : 'short';
         pos = {
-          side, entryPrice: price, size,
-          stopLoss:   side === 'long' ? price - stopDist : price + stopDist,
-          takeProfit: side === 'long' ? price + stopDist * 3 : price - stopDist * 3,
+          side: newSide, entryPrice: price, size,
+          stopLoss:   newSide === 'long' ? price - stopDist : price + stopDist,
+          takeProfit: newSide === 'long' ? price + stopDist * 3 : price - stopDist * 3,
           entryTime:  allCandles[i].time,
           phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
         };

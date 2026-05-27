@@ -230,7 +230,7 @@
 <header>
   <div>
     <div class="title">CBT Algo3 — Swing Trade v2</div>
-    <div class="subtitle">EMA Ribbon · ADX(25) · DI-Spread≥15 · MACD-Growing · 6/6 · 2.5×ATR SL · 3:1 R:R</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · ATR-Regime · Proximity · 6/7 · 2.5×ATR SL · RSI-Cooldown · 3:1 R:R</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -367,38 +367,43 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — Swing v2 · Precision-Filtered EMA Ribbon</div>
+    <div class="card-title">Algo Logic — Swing v2 · Trend-Quality Filtered EMA Ribbon</div>
     <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
-    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2 (NEW): |DI+ − DI−| ≥ 15 — minimum directional conviction (blocks weak splits like 49/38)</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening (blocks fading-trend entries)</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries where SL is blown through</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing overextended moves</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
-        <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/6</div>
+        <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
         <div class="logic-rule">1. <span>DI+ &gt; DI−</span> — directional bias bullish</div>
         <div class="logic-rule">2. <span>EMA21 &gt; EMA55</span> — fast trend bullish</div>
-        <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span> — macro trend bullish</div>
-        <div class="logic-rule">4. <span>RSI ∈ [38–65]</span> — pulled back to neutral zone</div>
-        <div class="logic-rule">5. <span class="new">MACD Hist &gt; 0 AND rising</span> — momentum accelerating (NEW)</div>
-        <div class="logic-rule">6. <span>Volume ≥ VolMA</span> — average participation</div>
+        <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span> — macro trend bullish (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope rising</span> — ema21[n] &gt; ema21[n-3]</div>
+        <div class="logic-rule">5. <span>RSI ∈ [42–72]</span> — healthy momentum zone</div>
+        <div class="logic-rule">6. <span>MACD Hist &gt; 0</span> — positive momentum</div>
+        <div class="logic-rule">7. <span class="new">Candle close ≥ 45% of range</span> — bar closes in upper half</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--orange)">
-          Risk 1.5% · SL max(<span class="new">2.5×ATR</span>, 0.25%) · TP 3×SL (3:1 R:R)
+          Risk 1.5% · SL max(2.5×ATR, 0.25%) · TP 3×SL · Phase-2 SL locks +0.15×ATR · Cooldown 6 bars SL / 15 bars RSI
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/6</div>
+        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/7</div>
         <div class="logic-rule">1. <span>DI− &gt; DI+</span> — directional bias bearish</div>
         <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span> — fast trend bearish</div>
-        <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> — macro trend bearish</div>
-        <div class="logic-rule">4. <span>RSI ∈ [38–65]</span> — retraced to neutral zone</div>
-        <div class="logic-rule">5. <span class="new">MACD Hist &lt; 0 AND falling</span> — momentum accelerating (NEW)</div>
-        <div class="logic-rule">6. <span>Volume ≥ VolMA</span></div>
+        <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> — macro trend bearish (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope falling</span> — ema21[n] &lt; ema21[n-3]</div>
+        <div class="logic-rule">5. <span>RSI ∈ [28–58]</span> — bearish momentum zone</div>
+        <div class="logic-rule">6. <span>MACD Hist &lt; 0</span> — negative momentum</div>
+        <div class="logic-rule">7. <span class="new">Candle close ≤ 55% of range</span> — bar closes in lower half</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--orange)">
-          Risk 1.5% · SL max(<span class="new">2.5×ATR</span>, 0.25%) · TP 3×SL (3:1 R:R)
+          Risk 1.5% · SL max(2.5×ATR, 0.25%) · TP 3×SL · Phase-2 SL locks −0.15×ATR · Cooldown 6 bars
         </div>
       </div>
       <div class="logic-box">
         <div class="lh" style="color:var(--yellow)">↑ LONG EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Phase 1</span> SL at entry − 2.5×ATR (tighter)</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
+        <div class="logic-rule">• <span>Phase 1</span> SL at entry − 2.5×ATR</div>
+        <div class="logic-rule">• <span class="new">Phase 2</span> profit ≥ 1×ATR → SL at entry + 0.15×ATR (small win locked)</div>
         <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked +1.5×ATR</div>
         <div class="logic-rule">• <span>Phase 4</span> profit ≥ 4×ATR → trailing SL price−2×ATR</div>
         <div class="logic-rule">• RSI &gt; 78 (extreme overbought)</div>
@@ -407,8 +412,8 @@
       </div>
       <div class="logic-box">
         <div class="lh" style="color:var(--yellow)">↓ SHORT EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Phase 1</span> SL at entry + 2.5×ATR (tighter)</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
+        <div class="logic-rule">• <span>Phase 1</span> SL at entry + 2.5×ATR</div>
+        <div class="logic-rule">• <span class="new">Phase 2</span> profit ≥ 1×ATR → SL at entry − 0.15×ATR (small win locked)</div>
         <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked −1.5×ATR</div>
         <div class="logic-rule">• <span>Phase 4</span> profit ≥ 4×ATR → trailing SL price+2×ATR</div>
         <div class="logic-rule">• RSI &lt; 22 (extreme oversold)</div>

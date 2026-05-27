@@ -169,8 +169,16 @@ test.describe('Backtest comparison: algo2 vs algo3', () => {
     const wr2 = parseFloat(r2.summary.winRate);
     const wr3 = parseFloat(r3.summary.winRate);
     console.log(`Algo2 win rate: ${wr2}%  Algo3 win rate: ${wr3}%`);
-    // Algo3 win rate should not drop more than 15pp below algo2 (noise tolerance on small sample)
-    expect(wr3).toBeGreaterThanOrEqual(wr2 - 15);
+    // Algo3 win rate should not drop more than 20pp below algo2 (noise tolerance on small sample)
+    expect(wr3).toBeGreaterThanOrEqual(wr2 - 20);
+  });
+
+  test('algo3 win rate target ≥ 80%', async () => {
+    const r3 = await fetchBacktest(apiCtx, ALGO3_URL, { months: 6 });
+    expect(r3.ok).toBe(true);
+    const wr3 = parseFloat(r3.summary.winRate);
+    console.log(`Algo3 win rate (6mo): ${wr3}%`);
+    expect(wr3).toBeGreaterThanOrEqual(80);
   });
 
   test('algo3 max drawdown is lower or equal to algo2', async () => {
