@@ -16,6 +16,13 @@ CBT/.gitignore
 # CBT algo runtime artifacts
 CBT/Strategy/algo1/data/
 CBT/Strategy/algo1/logs/
+CBT/Strategy/algo2/data/
+CBT/Strategy/algo2/logs/
+CBT/Strategy/algo3/data/
+CBT/Strategy/algo3/logs/
+
+# Playwright MCP session files
+.playwright-mcp/
 
 # misc recordings / generated outputs
 misc/recordings/
