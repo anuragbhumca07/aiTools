@@ -22,6 +22,8 @@ CBT/Strategy/algo3/data/
 CBT/Strategy/algo3/logs/
 CBT/Strategy/algo4/data/
 CBT/Strategy/algo4/logs/
+CBT/Strategy/algo5/data/
+CBT/Strategy/algo5/logs/
 
 # Playwright MCP session files
 .playwright-mcp/
