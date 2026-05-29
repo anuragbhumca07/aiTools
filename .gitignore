@@ -20,9 +20,14 @@ CBT/Strategy/algo2/data/
 CBT/Strategy/algo2/logs/
 CBT/Strategy/algo3/data/
 CBT/Strategy/algo3/logs/
+CBT/Strategy/algo4/data/
+CBT/Strategy/algo4/logs/
 
 # Playwright MCP session files
 .playwright-mcp/
+
+# Robinhood credentials
+Robinhood/.env
 
 # misc recordings / generated outputs
 misc/recordings/
