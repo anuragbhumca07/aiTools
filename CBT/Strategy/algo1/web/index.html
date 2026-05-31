@@ -3,20 +3,19 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CBT Algo1 — ADX-Gated Trend Following v2</title>
+<title>CBT Algo1 — Closed Candle + Trailing SL</title>
 <style>
   :root {
     --bg: #0d1117; --card: #161b22; --border: #21262d;
-    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #f0883e;
     --green: #3fb950; --red: #f85149; --yellow: #e3b341; --purple: #bc8cff;
+    --orange: #f0883e; --teal: #39d353;
     --font: 'Courier New', Courier, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
   a { color: var(--accent); }
-
   .wrap { max-width: 1600px; margin: 0 auto; padding: 12px 16px; }
-
   header {
     display: flex; align-items: center; gap: 12px;
     padding: 14px 16px; background: var(--card);
@@ -30,12 +29,49 @@
     border: 1px solid; letter-spacing: .5px;
   }
   .badge-paper   { color: var(--yellow); border-color: var(--yellow); }
-  .badge-live    { color: var(--accent); border-color: var(--accent); }
-  .badge-running { color: var(--green);  border-color: var(--green); animation: pulse 1.5s infinite; }
+  .badge-live    { color: var(--green);  border-color: var(--green); }
+  .badge-running { color: var(--teal);   border-color: var(--teal); animation: pulse 1.5s infinite; }
   .badge-stopped { color: var(--muted);  border-color: var(--muted); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
   .spacer { flex: 1; }
   #last-update { color: var(--muted); font-size: .72rem; }
+
+  #tm-status {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px; font-size: .72rem;
+  }
+  .tm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .tm-dot.live    { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .tm-dot.paper   { background: var(--yellow); }
+
+  #auth-wall {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg); align-items: center; justify-content: center;
+  }
+  #auth-wall.show { display: flex; }
+  .auth-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 40px 48px; text-align: center; max-width: 380px; width: 90%;
+  }
+  .auth-card .logo { font-size: 2.5rem; margin-bottom: 12px; }
+  .auth-card h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 6px; }
+  .auth-card p { color: var(--muted); font-size: .82rem; margin-bottom: 24px; }
+  #google-signin-btn { margin: 0 auto; }
+  #user-info {
+    display: none; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px 4px 6px;
+  }
+  #user-info.show { display: flex; }
+  #user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+  #user-name { font-size: .75rem; color: var(--muted); }
+  .btn-signout {
+    padding: 3px 8px; font-size: .7rem; font-weight: 700;
+    background: rgba(248,81,73,.15); border: 1px solid var(--red);
+    color: var(--red); border-radius: 4px; cursor: pointer; font-family: var(--font);
+  }
+  .btn-signout:hover { background: rgba(248,81,73,.3); }
 
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -48,31 +84,27 @@
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
   @media(max-width:900px){ .grid-2 { grid-template-columns: 1fr; } }
 
-  /* ── Mode tabs ──────────────────────────────────── */
   .mode-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
   .mode-tab {
     padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
     background: transparent; color: var(--muted); font-family: var(--font);
-    font-size: .75rem; font-weight: 700; cursor: pointer; letter-spacing: .5px;
-    transition: all .15s;
+    font-size: .75rem; font-weight: 700; cursor: pointer; letter-spacing: .5px; transition: all .15s;
   }
   .mode-tab:hover { border-color: var(--accent); color: var(--accent); }
-  .mode-tab.active { background: var(--accent); border-color: var(--accent); color: #000; }
-  .mode-tab.active-live { background: var(--green); border-color: var(--green); color: #000; }
-  .mode-tab.active-backtest { background: var(--purple); border-color: var(--purple); color: #000; }
+  .mode-tab.active          { background: var(--yellow); border-color: var(--yellow); color: #000; }
+  .mode-tab.active-live     { background: var(--green);  border-color: var(--green);  color: #000; }
+  .mode-tab.active-backtest { background: var(--accent); border-color: var(--accent); color: #000; }
 
-  /* ── Controls ───────────────────────────────────── */
   .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
   .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
   .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  select, input[type=number], input[type=text] {
+  select, input[type=number] {
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
     border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 13px;
     outline: none; transition: border-color .2s;
   }
   select:focus, input:focus { border-color: var(--accent); }
   select { cursor: pointer; }
-
   .btn {
     padding: 7px 18px; border: none; border-radius: 6px;
     font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer;
@@ -81,23 +113,21 @@
   .btn:hover { opacity: .85; transform: translateY(-1px); }
   .btn:active { transform: translateY(0); }
   .btn:disabled { opacity: .4; cursor: default; transform: none; }
-  .btn-start    { background: var(--green);  color: #000; }
+  .btn-start    { background: var(--teal);   color: #000; }
   .btn-stop     { background: var(--red);    color: #fff; }
-  .btn-backtest { background: var(--purple); color: #000; }
+  .btn-backtest { background: var(--accent); color: #000; }
 
-  /* ── Backtest panel ─────────────────────────────── */
   #backtest-panel { display: none; }
   #backtest-panel.show { display: block; }
   .bt-progress {
     margin-top: 10px; padding: 8px 12px;
-    background: rgba(188,140,255,.1); border: 1px solid rgba(188,140,255,.3);
-    border-radius: 6px; color: var(--purple); font-size: .82rem;
+    background: rgba(240,136,62,.1); border: 1px solid rgba(240,136,62,.3);
+    border-radius: 6px; color: var(--accent); font-size: .82rem;
   }
   .bt-results { margin-top: 12px; }
   .bt-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
   @media(max-width:700px){ .bt-stat-grid { grid-template-columns: repeat(2,1fr); } }
 
-  /* ── PnL panel ──────────────────────────────────── */
   .pnl-big { font-size: 2rem; font-weight: 700; transition: color .3s; }
   .pnl-pct { font-size: .95rem; color: var(--muted); margin-left: 6px; }
   .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 10px; }
@@ -109,14 +139,19 @@
   .stat-box .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
   .stat-box .val { font-size: .95rem; font-weight: 700; }
 
-  /* ── Position panel ─────────────────────────────── */
   .pos-row  { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; }
   .pos-item { display: flex; flex-direction: column; gap: 2px; }
   .pos-item .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
   .pos-item .val { font-size: .88rem; font-weight: 700; }
   .pos-none { color: var(--muted); font-style: italic; margin-top: 4px; }
 
-  /* ── Algo Logic ─────────────────────────────────── */
+  .trail-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: .68rem;
+    font-weight: 700; letter-spacing: .5px; border: 1px solid;
+  }
+  .trail-badge.active   { color: var(--teal);  border-color: var(--teal);  background: rgba(57,211,83,.1); animation: pulse 1.5s infinite; }
+  .trail-badge.inactive { color: var(--muted); border-color: var(--muted); background: transparent; }
+
   .logic-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
   @media(max-width:900px){ .logic-grid { grid-template-columns: 1fr; } }
   .logic-box {
@@ -126,13 +161,25 @@
   .logic-box .lh { font-size: .7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
   .logic-rule { font-size: .78rem; color: var(--muted); margin-bottom: 3px; }
   .logic-rule span { color: var(--accent); font-weight: 700; }
+  .logic-rule span.new { color: var(--teal); font-weight: 700; }
   .logic-gate {
     font-size: .78rem; color: var(--yellow); font-weight: 700;
-    margin-bottom: 6px; padding: 4px 8px;
+    margin-bottom: 4px; padding: 4px 8px;
     background: rgba(227,179,65,.08); border-radius: 4px;
   }
+  .logic-gate.new-gate {
+    color: var(--teal); background: rgba(57,211,83,.08);
+    border: 1px solid rgba(57,211,83,.2);
+  }
+  .logic-gate.trail-gate {
+    color: var(--accent); background: rgba(240,136,62,.08);
+    border: 1px solid rgba(240,136,62,.25);
+  }
+  .logic-gate.closed-gate {
+    color: #c9d1d9; background: rgba(240,136,62,.12);
+    border: 1px solid rgba(240,136,62,.35);
+  }
 
-  /* ── Indicators ─────────────────────────────────── */
   .ind-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
   .ind-chip {
     display: flex; flex-direction: column; gap: 2px;
@@ -151,16 +198,14 @@
   .dot-pip.active      { background: var(--green); }
   .dot-pip.active.sell { background: var(--red); }
 
-  /* ── Tables ─────────────────────────────────────── */
   .tbl-wrap { overflow-x: auto; margin-top: 8px; max-height: 340px; overflow-y: auto; }
-  .tbl-wrap.log-wrap { max-height: 420px; }
+  .tbl-wrap.log-wrap    { max-height: 420px; }
   .tbl-wrap.bt-tbl-wrap { max-height: 400px; }
   table { width: 100%; border-collapse: collapse; font-size: .78rem; }
   thead th {
     background: var(--bg); color: var(--muted); text-transform: uppercase;
     letter-spacing: .8px; font-size: .68rem; padding: 6px 8px;
-    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1;
-    white-space: nowrap;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; white-space: nowrap;
   }
   tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .1s; }
   tbody tr:hover { background: rgba(255,255,255,.03); }
@@ -171,15 +216,14 @@
   .clr-y { color: var(--yellow) !important; }
   .clr-a { color: var(--accent) !important; }
   .clr-p { color: var(--purple) !important; }
-
+  .clr-o { color: var(--orange) !important; }
   .type-tick  { color: var(--muted); }
-  .type-entry { color: var(--green);  font-weight: 700; }
+  .type-entry { color: var(--teal);  font-weight: 700; }
   .type-exit  { color: var(--yellow); font-weight: 700; }
   .type-error { color: var(--red);    font-weight: 700; }
-
+  .type-trail { color: var(--accent); font-weight: 700; }
   .empty-msg   { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
-  .reason-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
+  .reason-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #err-banner {
     display: none; margin-top: 10px; padding: 9px 14px;
     background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3);
@@ -187,58 +231,29 @@
   }
   #err-banner.show { display: block; }
 </style>
-</style>
-<style>
-  /* ── Auth overlay ─────────────────────────────────────────────── */
-  #auth-wall {
-    display: none; position: fixed; inset: 0; z-index: 9999;
-    background: var(--bg); align-items: center; justify-content: center;
-  }
-  #auth-wall.show { display: flex; }
-  .auth-card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 40px 48px; text-align: center; max-width: 380px; width: 90%;
-  }
-  .auth-card .logo { font-size: 2.5rem; margin-bottom: 12px; }
-  .auth-card h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 6px; }
-  .auth-card p { color: var(--muted); font-size: .82rem; margin-bottom: 24px; }
-  #google-signin-btn { margin: 0 auto; }
-  /* user badge in header */
-  #user-info {
-    display: none; align-items: center; gap: 8px;
-    background: rgba(255,255,255,.04); border: 1px solid var(--border);
-    border-radius: 20px; padding: 4px 12px 4px 6px;
-  }
-  #user-info.show { display: flex; }
-  #user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-  #user-name { font-size: .75rem; color: var(--muted); }
-  .btn-signout {
-    padding: 3px 8px; font-size: .7rem; font-weight: 700;
-    background: rgba(248,81,73,.15); border: 1px solid var(--red);
-    color: var(--red); border-radius: 4px; cursor: pointer; font-family: var(--font);
-  }
-  .btn-signout:hover { background: rgba(248,81,73,.3); }
-</style>
 </head>
 <body>
 
-<!-- ── Auth wall (hidden when not required or already logged in) ── -->
 <div id="auth-wall">
   <div class="auth-card">
-    <div class="logo">📈</div>
-    <h2>CBT Algo Trading</h2>
-    <p>Sign in to run your own isolated trading session</p>
+    <div class="logo">🎯</div>
+    <h2>CBT Algo1 — Closed Candle + Trailing SL</h2>
+    <p>Sign in to run your own isolated closed-candle swing trading session</p>
     <div id="google-signin-btn"></div>
   </div>
 </div>
 
 <header>
   <div>
-    <div class="title">CBT Algo1 v2</div>
-    <div class="subtitle">ADX-Gated Trend Following · 6/6 Conditions · Paper Trading · Kraken</div>
+    <div class="title">CBT Algo1 — Closed Candle + Trailing SL</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1.5×ATR SL · Trails $50/step after $300 profit · 10s fast poll · Opposite-Signal Exit · $1000 Hard Stop</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
+  <div id="tm-status">
+    <div class="tm-dot paper" id="tm-dot"></div>
+    <span id="tm-label" style="font-size:.7rem;color:var(--muted)">Tickmill: paper-kraken</span>
+  </div>
   <div class="spacer"></div>
   <div id="user-info">
     <img id="user-avatar" src="" alt=""/>
@@ -250,21 +265,16 @@
 
 <div class="wrap">
 
-  <!-- ── Grid: Controls + PnL ──────────────────────── -->
   <div class="grid-2">
-
-    <!-- Controls Card -->
     <div class="card">
       <div class="card-title">Controls</div>
 
-      <!-- Mode Tabs -->
       <div class="mode-tabs">
-        <button class="mode-tab active" id="tab-paper"     onclick="setMode('paper')">PAPER TRADE</button>
-        <button class="mode-tab"        id="tab-live"      onclick="setMode('live')">LIVE MARKET</button>
-        <button class="mode-tab"        id="tab-backtest"  onclick="setMode('backtest')">BACKTEST</button>
+        <button class="mode-tab active" id="tab-paper"    onclick="setMode('paper')">PAPER TRADE</button>
+        <button class="mode-tab"        id="tab-live"     onclick="setMode('live')">LIVE MARKET</button>
+        <button class="mode-tab"        id="tab-backtest" onclick="setMode('backtest')">BACKTEST</button>
       </div>
 
-      <!-- Trading Controls Row -->
       <div class="ctrl-row" id="trading-controls">
         <div class="ctrl-group">
           <label>Symbol</label>
@@ -273,27 +283,24 @@
             <option value="ETHUSDT">ETH/USD</option>
             <option value="SOLUSDT">SOL/USD</option>
             <option value="XRPUSDT">XRP/USD</option>
-            <option value="ADAUSDT">ADA/USD</option>
             <option value="LTCUSDT">LTC/USD</option>
-            <option value="DOGEUSDT">DOGE/USD</option>
           </select>
         </div>
         <div class="ctrl-group">
           <label>Timeframe</label>
-          <select id="ctrl-tf">
-            <option value="1m">1m</option>
+          <select id="ctrl-tf" onchange="syncCheckInterval()">
+            <option value="1m" selected>1m ★ (Closed Candle)</option>
             <option value="5m">5m</option>
-            <option value="15m" selected>15m ★</option>
+            <option value="15m">15m</option>
             <option value="30m">30m</option>
             <option value="1h">1h</option>
             <option value="4h">4h</option>
+            <option value="1d">1d</option>
           </select>
         </div>
         <div class="ctrl-group">
           <label>Strategy</label>
-          <select id="ctrl-strategy">
-            <!-- populated from /api/strategies -->
-          </select>
+          <select id="ctrl-strategy"></select>
         </div>
         <div class="ctrl-group">
           <label>Capital ($)</label>
@@ -301,7 +308,7 @@
         </div>
         <div class="ctrl-group">
           <label>Check (sec)</label>
-          <input id="ctrl-interval" type="number" value="60" min="5" step="5" style="width:70px"/>
+          <input id="ctrl-interval" type="number" value="60" min="60" step="60" style="width:80px"/>
         </div>
         <div class="ctrl-group">
           <label>&nbsp;</label>
@@ -312,7 +319,6 @@
         </div>
       </div>
 
-      <!-- Backtest Panel (hidden unless BACKTEST mode) -->
       <div id="backtest-panel">
         <div style="height:10px"></div>
         <div class="ctrl-row">
@@ -322,27 +328,25 @@
               <option value="BTCUSDT">BTC/USD</option>
               <option value="ETHUSDT">ETH/USD</option>
               <option value="SOLUSDT">SOL/USD</option>
-              <option value="XRPUSDT">XRP/USD</option>
-              <option value="ADAUSDT">ADA/USD</option>
-              <option value="LTCUSDT">LTC/USD</option>
             </select>
           </div>
           <div class="ctrl-group">
             <label>Timeframe</label>
             <select id="bt-tf">
-              <option value="15m">15m (≤3mo)</option>
-              <option value="30m">30m (≤6mo)</option>
-              <option value="1h" selected>1h ★</option>
+              <option value="1m" selected>1m ★</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="30m">30m</option>
+              <option value="1h">1h</option>
               <option value="4h">4h</option>
+              <option value="1d">1d</option>
             </select>
           </div>
           <div class="ctrl-group">
             <label>Duration</label>
             <select id="bt-months">
-              <option value="1">1 month</option>
-              <option value="2">2 months</option>
-              <option value="3" selected>3 months</option>
-              <option value="6">6 months</option>
+              <option value="3">3 months</option>
+              <option value="6" selected>6 months</option>
               <option value="12">12 months</option>
             </select>
           </div>
@@ -358,7 +362,6 @@
       <div id="err-banner"></div>
     </div>
 
-    <!-- PnL + Stats -->
     <div class="card">
       <div class="card-title">PnL Dashboard</div>
       <div style="display:flex;align-items:baseline;gap:4px">
@@ -378,73 +381,88 @@
     </div>
   </div>
 
-  <!-- ── Algo Logic ──────────────────────────────────── -->
+  <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — v2 ADX-Gated Multi-Confluence</div>
-    <div class="logic-gate">⚡ Hard Gate: ADX(14) ≥ 20 required — ranging/choppy markets are skipped entirely</div>
-    <div class="logic-grid">
+    <div class="card-title">Algo Logic — Swing v3 · Closed Candle Eval · No-Drift :01s Timer · Trailing SL after $300 profit</div>
+    <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">🕯 Closed Candle: fetches 251 candles, drops forming candle, evaluates signal on fully-closed candle[250] — eliminates noisy early-candle signals</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">⏱ No-Drift Timer: self-rescheduling setTimeout recomputes delay from Date.now() every tick → always fires at :01s after candle boundary, zero cumulative drift over days</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trailing Rule: once profit ≥ $300, SL locks in $250 · every +$50 profit → SL advances $50 · fast poll every 10s while trailing active</div>
+    <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
-        <div class="lh" style="color:var(--green)">▲ BUY (LONG) — need 6/6</div>
-        <div class="logic-rule">1. <span>ADX DI+ &gt; DI−</span> — directional strength confirms uptrend</div>
-        <div class="logic-rule">2. <span>EMA20 &gt; EMA50</span> — trend aligned bullish</div>
-        <div class="logic-rule">3. <span>Price &gt; EMA20</span> — above fast moving average</div>
-        <div class="logic-rule">4. <span>RSI ∈ [50–67]</span> — bullish zone, not overbought</div>
-        <div class="logic-rule">5. <span>MACD Hist &gt;0 rising × 2 bars</span> — confirmed acceleration</div>
-        <div class="logic-rule">6. <span>Volume &gt; VolMA × 1.2</span> — above-average interest</div>
+        <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
+        <div class="logic-rule">1. <span>DI+ &gt; DI−</span></div>
+        <div class="logic-rule">2. <span>EMA21 &gt; EMA55</span></div>
+        <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span> (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope rising</span></div>
+        <div class="logic-rule">5. <span>RSI ∈ [42–72]</span></div>
+        <div class="logic-rule">6. <span>MACD Hist &gt; 0</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≥ 45% of range</span></div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
-          Risk 1.5% | SL max(2×ATR, 0.15%) | TP 2×SL | Phase SL ratchet
+          SL = entry − 1.5×ATR · Risk $150 · Initial TP = entry + 3×ATR
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/6</div>
-        <div class="logic-rule">1. <span>ADX DI− &gt; DI+</span> — directional strength confirms downtrend</div>
-        <div class="logic-rule">2. <span>EMA20 &lt; EMA50</span> — trend aligned bearish</div>
-        <div class="logic-rule">3. <span>Price &lt; EMA20</span> — below fast moving average</div>
-        <div class="logic-rule">4. <span>RSI ∈ [33–50]</span> — bearish zone, not oversold</div>
-        <div class="logic-rule">5. <span>MACD Hist &lt;0 falling × 2 bars</span> — confirmed deceleration</div>
-        <div class="logic-rule">6. <span>Volume &gt; VolMA × 1.2</span> — above-average interest</div>
+        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/7</div>
+        <div class="logic-rule">1. <span>DI− &gt; DI+</span></div>
+        <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span></div>
+        <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope falling</span></div>
+        <div class="logic-rule">5. <span>RSI ∈ [28–58]</span></div>
+        <div class="logic-rule">6. <span>MACD Hist &lt; 0</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≤ 55% of range</span></div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
-          Risk 1.5% | SL max(2×ATR, 0.15%) | TP 2×SL | Phase SL ratchet
+          SL = entry + 1.5×ATR · Risk $150 · Initial TP = entry − 3×ATR
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">↑ LONG EXIT — any triggers</div>
-        <div class="logic-rule">• <span>Phase 1</span> initial SL at entry − max(2×ATR, 0.15%)</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
-        <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked at +0.75×ATR</div>
-        <div class="logic-rule">• <span>Phase 4</span> profit ≥ 3×ATR → trailing SL at price−1.5×ATR</div>
-        <div class="logic-rule">• RSI &gt; 75 (overbought) or trend reversal signal</div>
-        <div class="logic-rule">• Time stop: max 30 candles held</div>
+        <div class="lh" style="color:var(--yellow)">📈 TRAILING PHASE (profit ≥ $300)</div>
+        <div class="logic-rule">• <span>$300 profit hit</span> → SL moved to lock in $250 · 10s fast poll starts</div>
+        <div class="logic-rule">• <span>$350 profit</span> → SL advances to lock in $300</div>
+        <div class="logic-rule">• <span>$400 profit</span> → SL advances to lock in $350</div>
+        <div class="logic-rule">• <span>Every +$50</span> → SL locks in $50 more profit</div>
+        <div class="logic-rule">• SL never retreats — only moves in trade direction</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
+          Each SL update logged in Tick Log with old → new value
+        </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">↓ SHORT EXIT — any triggers</div>
-        <div class="logic-rule">• <span>Phase 1</span> initial SL at entry + max(2×ATR, 0.15%)</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
-        <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked at −0.75×ATR</div>
-        <div class="logic-rule">• <span>Phase 4</span> profit ≥ 3×ATR → trailing SL at price+1.5×ATR</div>
-        <div class="logic-rule">• RSI &lt; 25 (oversold) or trend reversal signal</div>
-        <div class="logic-rule">• Time stop: max 30 candles held</div>
+        <div class="lh" style="color:var(--yellow)">🚪 EXIT — any trigger</div>
+        <div class="logic-rule">• <span>Static SL</span> at entry ± 1.5×ATR (pre-$300)</div>
+        <div class="logic-rule">• <span>Trailing SL</span> (post-$300) — advances in $50 steps</div>
+        <div class="logic-rule">• <span class="new">Opposite signal</span> — fires while in position → exit &amp; reverse</div>
+        <div class="logic-rule">• <span class="new">$1000 hard stop</span> — price moves $1000 against entry</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--muted)">
+          No fixed TP — trailing SL is the only profit exit
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ── Live Indicators ─────────────────────────────── -->
+  <!-- Live Indicators -->
   <div class="card">
     <div class="card-title">Live Indicators</div>
     <div class="ind-chips">
       <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ic-price">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">EMA 20</div><div class="ic-val" id="ic-ema20">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">EMA 50</div><div class="ic-val" id="ic-ema50">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 21</div><div class="ic-val" id="ic-ema21">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 55</div><div class="ic-val" id="ic-ema55">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 200</div><div class="ic-val" id="ic-ema200">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">RSI 14</div><div class="ic-val" id="ic-rsi">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">MACD Hist</div><div class="ic-val" id="ic-macd">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">ATR 14</div><div class="ic-val" id="ic-atr">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">Vol / VolMA</div><div class="ic-val" id="ic-vol">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">ADX 14</div><div class="ic-val" id="ic-adx">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">DI+ / DI−</div><div class="ic-val" id="ic-di">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">DI Spread</div><div class="ic-val" id="ic-dispread">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">MACD Prev</div><div class="ic-val" id="ic-macdprev">—</div></div>
     </div>
     <div class="scores-row">
       <div class="score-bar">
-        <span style="color:var(--green);font-size:.75rem;font-weight:700">BUY</span>
+        <span style="color:var(--teal);font-size:.75rem;font-weight:700">BUY</span>
         <div class="score-dots" id="buy-dots">
           <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
           <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
@@ -465,7 +483,7 @@
     </div>
   </div>
 
-  <!-- ── Entry / Exit Records ────────────────────────── -->
+  <!-- Entry / Exit Records -->
   <div class="card">
     <div class="card-title">Entry / Exit Records <span id="trades-count" style="color:var(--muted);font-weight:400">(0)</span></div>
     <div class="tbl-wrap">
@@ -474,117 +492,112 @@
           <tr>
             <th>Time</th><th>Type</th><th>Side</th>
             <th>Price</th><th>Size</th><th>Stop Loss</th><th>Take Profit</th>
-            <th>PnL</th><th>MAE $</th><th>Balance</th><th>Reason</th>
+            <th>PnL</th><th>MAE $</th><th>Balance</th><th>Order</th><th>Reason</th>
           </tr>
         </thead>
         <tbody id="trades-body">
-          <tr><td colspan="11" class="empty-msg">No trades yet — start the algo to begin paper trading</td></tr>
+          <tr><td colspan="12" class="empty-msg">No trades yet — start the algo to begin</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- ── Tick Log ─────────────────────────────────────── -->
+  <!-- Tick Log -->
   <div class="card">
-    <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span></div>
+    <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span>
+      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRAIL-UPDATE entries show SL moves · TRAIL-WATCH fires every 10s while trailing · ticks always on closed candles at :01s</span>
+    </div>
     <div class="tbl-wrap log-wrap">
       <table id="log-tbl">
         <thead>
           <tr>
             <th>Time</th><th>Type</th><th>Signal</th>
-            <th>Price</th><th>EMA20</th><th>EMA50</th>
+            <th>Price</th><th>EMA21</th><th>EMA55</th><th>EMA200</th>
             <th>RSI</th><th>MACD Hist</th><th>ATR</th>
-            <th>ADX</th><th>DI+/−</th><th>Vol/VolMA</th><th>Notes</th>
+            <th>ADX</th><th>DI+/−</th><th>DI Spread</th><th>Vol/VolMA</th><th>Notes</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr>
+          <tr><td colspan="15" class="empty-msg">Waiting for first tick…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-</div><!-- /wrap -->
+</div>
 
 <script>
-// ── Helpers ─────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const fmt      = (v, d=2) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
 const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
-const fmtTime  = iso => {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
-const fmtDate  = iso => {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-         d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
-};
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+const fmtTime  = iso => { const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+const fmtDate  = iso => { const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }); };
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// ── State ────────────────────────────────────────────────────────
-let appState   = {};
-let logCount   = 0;
-let tradeCount = 0;
+let appState    = {};
+let logCount    = 0;
+let tradeCount  = 0;
 let currentMode = 'paper';
 let es;
 
-// Deduplication set — prevents same trade appearing twice
-// (race between SSE trade events and loadTrades() fetch)
 const shownTradeKeys = new Set();
+function tradeKey(t) { return `${t.timestamp||''}_${t.type||''}_${t.side||''}`; }
 
-// ── Mode UI ──────────────────────────────────────────────────────
 function setMode(m) {
   currentMode = m;
   ['paper','live','backtest'].forEach(id => {
     const tab = $('tab-' + id);
-    tab.className = 'mode-tab' + (m === id
-      ? (id === 'live' ? ' active-live' : id === 'backtest' ? ' active-backtest' : ' active')
-      : '');
+    tab.className = 'mode-tab' + (m === id ? (id === 'live' ? ' active-live' : id === 'backtest' ? ' active-backtest' : ' active') : '');
   });
-
   const tradingCtrl = $('trading-controls');
   const btPanel     = $('backtest-panel');
-
-  if (m === 'backtest') {
-    tradingCtrl.style.display = 'none';
-    btPanel.classList.add('show');
-  } else {
-    tradingCtrl.style.display = '';
-    btPanel.classList.remove('show');
-  }
-
-  // Update mode badge
+  if (m === 'backtest') { tradingCtrl.style.display = 'none'; btPanel.classList.add('show'); }
+  else { tradingCtrl.style.display = ''; btPanel.classList.remove('show'); }
   const mb = $('mode-badge');
-  if (m === 'live') {
-    mb.textContent = 'LIVE';
-    mb.className = 'badge badge-live';
-  } else if (m === 'backtest') {
-    mb.textContent = 'BACKTEST';
-    mb.style.cssText = 'color:var(--purple);border-color:var(--purple)';
-    mb.className = 'badge';
-  } else {
-    mb.textContent = 'PAPER';
-    mb.className = 'badge badge-paper';
-  }
+  if (m === 'live') { mb.textContent = 'LIVE'; mb.className = 'badge badge-live'; }
+  else if (m === 'backtest') { mb.textContent = 'BACKTEST'; mb.className = 'badge'; mb.style.cssText = 'color:var(--accent);border-color:var(--accent)'; }
+  else { mb.textContent = 'PAPER'; mb.className = 'badge badge-paper'; }
 }
 
-// ── Load strategy list ───────────────────────────────────────────
+const TF_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 };
+function syncCheckInterval() {
+  const tf = $('ctrl-tf').value;
+  const inp = $('ctrl-interval');
+  if (TF_SECONDS[tf]) inp.value = TF_SECONDS[tf];
+}
+
 async function loadStrategies() {
   try {
     const list = await fetch('/api/strategies', { credentials: 'same-origin' }).then(r => r.json());
-    const sel = $('ctrl-strategy');
-    sel.innerHTML = list.map(s =>
-      `<option value="${esc(s.id)}" title="${esc(s.description)}">${esc(s.name)}</option>`
-    ).join('');
+    const sel  = $('ctrl-strategy');
+    sel.innerHTML = list.map(s => `<option value="${esc(s.id)}" title="${esc(s.description)}">${esc(s.name)}</option>`).join('');
   } catch {}
 }
 
-// ── SSE connection ───────────────────────────────────────────────
+async function loadTickmillStatus() {
+  try {
+    const d = await fetch('/api/tickmill', { credentials: 'same-origin' }).then(r => r.json());
+    const dot   = $('tm-dot');
+    const label = $('tm-label');
+    if (d.connected) {
+      dot.className = 'tm-dot live';
+      label.textContent = `Tickmill: LIVE demo #${d.accountNumber}`;
+      label.style.color = 'var(--green)';
+    } else if (d.metaapiConfigured) {
+      dot.className = 'tm-dot paper';
+      dot.style.background = 'var(--red)';
+      label.textContent = 'Tickmill: MetaApi configured, not connected';
+      label.style.color = 'var(--red)';
+    } else {
+      dot.className = 'tm-dot paper';
+      label.textContent = 'Tickmill: paper-Kraken (MetaApi not set)';
+      label.style.color = 'var(--muted)';
+    }
+  } catch {}
+}
+
 function connectSSE() {
-  if (es) { es.close(); es = null; } // close stale connection first
+  if (es) { es.close(); es = null; }
   es = new EventSource('/events', { withCredentials: true });
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => { if (es) { es.close(); es = null; } setTimeout(connectSSE, 3000); };
@@ -594,66 +607,40 @@ function handle(d) {
   switch (d.type) {
     case 'connected':
       applyState(d.state);
-      if (d.logs && d.logs.length) {
-        $('log-body').innerHTML = '';
-        logCount = 0;
-        [...d.logs].reverse().forEach(entry => prependLog(entry));
-        updateLogCount();
-      }
-      loadTrades(); // single authoritative source on (re)connect
+      if (d.logs && d.logs.length) { $('log-body').innerHTML = ''; logCount = 0; [...d.logs].reverse().forEach(e => prependLog(e)); updateLogCount(); }
+      loadTrades();
       break;
-    case 'started':
-    case 'stopped':
-    case 'tick':
-      applyState(d.state);
-      break;
-    case 'log':
-      prependLog(d.entry);
-      updateLogCount();
-      break;
-    case 'trade':
-      applyState(d.state);
-      prependTrade(d.trade);
-      break;
-    case 'error':
-      applyState(d.state);
-      showErr(d.message);
-      break;
+    case 'started': case 'stopped': case 'tick': applyState(d.state); break;
+    case 'log':   prependLog(d.entry); updateLogCount(); break;
+    case 'trade': applyState(d.state); prependTrade(d.trade); break;
+    case 'error': applyState(d.state); showErr(d.message); break;
   }
   $('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
 
-// ── applyState ───────────────────────────────────────────────────
 function applyState(s) {
   if (!s) return;
   appState = s;
-
   const badge = $('status-badge');
   if (s.running) {
-    badge.textContent = '● RUNNING';
-    badge.className = 'badge badge-running';
-    $('btn-start').disabled = true;
-    $('btn-stop').disabled  = false;
-    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy']
-      .forEach(id => $(id).disabled = true);
+    if (s.symbol)    $('ctrl-symbol').value = s.symbol;
+    if (s.timeframe) $('ctrl-tf').value     = s.timeframe;
+    badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
+    $('btn-start').disabled = true; $('btn-stop').disabled = false;
+    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = true);
   } else {
-    badge.textContent = '● STOPPED';
-    badge.className = 'badge badge-stopped';
-    $('btn-start').disabled = false;
-    $('btn-stop').disabled  = true;
-    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy']
-      .forEach(id => $(id).disabled = false);
+    badge.textContent = '● STOPPED'; badge.className = 'badge badge-stopped';
+    $('btn-start').disabled = false; $('btn-stop').disabled = true;
+    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = false);
   }
-
   const pnl = parseFloat(s.pnl || 0);
   const pnlEl = $('pnl-val');
   pnlEl.textContent = fmtMoney(pnl);
   pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text)';
   $('pnl-pct').textContent = '(' + (s.pnlPct || '0.00') + '%)';
   $('stat-balance').textContent = '$' + parseFloat(s.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
-  $('stat-trades').textContent = s.totalTrades || 0;
-  $('stat-wr').textContent = (s.winRate || '0.0') + '%';
-
+  $('stat-trades').textContent  = s.totalTrades || 0;
+  $('stat-wr').textContent      = (s.winRate || '0.0') + '%';
   const dd = s.maxDrawdownDollar || 0;
   const ddEl = $('stat-maxdd');
   ddEl.textContent = '$' + parseFloat(dd).toFixed(2) + (s.maxDrawdownPct ? ` (${parseFloat(s.maxDrawdownPct).toFixed(1)}%)` : '');
@@ -661,28 +648,35 @@ function applyState(s) {
 
   const ind = s.lastIndicators;
   if (ind) {
-    $('ic-price').textContent = fmt(ind.price);
-    coloredEl($('ic-ema20'), fmt(ind.ema20), ind.price > ind.ema20 ? 'g' : 'r');
-    coloredEl($('ic-ema50'), fmt(ind.ema50), ind.ema20 > ind.ema50 ? 'g' : 'r');
+    $('ic-price').textContent  = fmt(ind.price);
+    const colorEma = (el, val, ref, up) => { el.textContent = fmt(val); el.style.color = up ? 'var(--green)' : 'var(--red)'; };
+    colorEma($('ic-ema21'),  ind.ema21,  ind.price, ind.price >= ind.ema21);
+    colorEma($('ic-ema55'),  ind.ema55,  ind.ema21, ind.ema21 >= ind.ema55);
+    colorEma($('ic-ema200'), ind.ema200, ind.ema55, ind.ema55  >= ind.ema200);
     const rsiV = ind.rsi;
-    $('ic-rsi').textContent = fmt(rsiV, 1);
-    $('ic-rsi').style.color = rsiV > 70 ? 'var(--red)' : rsiV < 30 ? 'var(--green)' : rsiV >= 50 ? 'var(--green)' : 'var(--text)';
+    $('ic-rsi').textContent  = fmt(rsiV, 1);
+    $('ic-rsi').style.color  = rsiV > 70 ? 'var(--red)' : rsiV < 30 ? 'var(--green)' : 'var(--text)';
     const mh = ind.macdHist;
     $('ic-macd').textContent = mh != null ? (mh >= 0 ? '+' : '') + parseFloat(mh).toFixed(5) : '—';
     $('ic-macd').style.color = mh > 0 ? 'var(--green)' : mh < 0 ? 'var(--red)' : 'var(--text)';
-    $('ic-atr').textContent = fmt(ind.atr);
+    const mph = ind.macdPrevHist;
+    $('ic-macdprev').textContent = mph != null ? (mph >= 0 ? '+' : '') + parseFloat(mph).toFixed(5) : '—';
+    $('ic-macdprev').style.color = mh != null && mph != null
+      ? (mh > mph ? 'var(--green)' : mh < mph ? 'var(--red)' : 'var(--text)') : 'var(--text)';
+    $('ic-atr').textContent  = fmt(ind.atr);
     const vr = ind.volumeMA > 0 ? ind.volume / ind.volumeMA : null;
-    $('ic-vol').textContent = vr != null ? fmt(vr, 2) + 'x' : '—';
-    $('ic-vol').style.color = vr > 1.2 ? 'var(--green)' : 'var(--text)';
+    $('ic-vol').textContent  = vr != null ? fmt(vr, 2) + 'x' : '—';
+    $('ic-vol').style.color  = vr >= 1.0 ? 'var(--green)' : 'var(--text)';
     const adxV = ind.adx;
-    $('ic-adx').textContent = adxV != null ? fmt(adxV, 1) : '—';
-    $('ic-adx').style.color = adxV >= 20 ? 'var(--green)' : adxV != null ? 'var(--red)' : 'var(--text)';
+    $('ic-adx').textContent  = adxV != null ? fmt(adxV, 1) : '—';
+    $('ic-adx').style.color  = adxV >= 25 ? 'var(--green)' : adxV != null ? 'var(--red)' : 'var(--text)';
     const dip = ind.diPlus, dim = ind.diMinus;
-    $('ic-di').textContent = (dip != null && dim != null) ? fmt(dip,1) + '/' + fmt(dim,1) : '—';
-    $('ic-di').style.color = (dip != null && dim != null)
-      ? (dip > dim ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    $('ic-di').textContent   = (dip != null && dim != null) ? fmt(dip,1) + '/' + fmt(dim,1) : '—';
+    $('ic-di').style.color   = (dip != null && dim != null) ? (dip > dim ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    const spread = (dip != null && dim != null) ? Math.abs(dip - dim) : null;
+    $('ic-dispread').textContent = spread != null ? fmt(spread, 1) : '—';
+    $('ic-dispread').style.color = spread != null ? (spread >= 15 ? 'var(--green)' : 'var(--red)') : 'var(--text)';
   }
-
   const ls = s.lastSignal;
   if (ls) {
     updateDots('buy-dots',  ls.buyScore,  false);
@@ -691,17 +685,21 @@ function applyState(s) {
     $('sell-score-txt').textContent = ls.sellScore + '/6';
     const sigEl = $('last-signal-txt');
     sigEl.textContent = ls.signal;
-    sigEl.style.color = ls.signal === 'BUY' ? 'var(--green)' : ls.signal === 'SELL' ? 'var(--red)' : 'var(--muted)';
+    sigEl.style.color = ls.signal === 'BUY' ? 'var(--teal)' : ls.signal === 'SELL' ? 'var(--red)' : 'var(--accent)';
   }
-
   renderPosition(s.position, s.lastIndicators);
   if (s.error) showErr(s.error);
+
+  if (s.tickmillMode) {
+    const dot = $('tm-dot'), lbl = $('tm-label');
+    if (s.tickmillConnected) {
+      dot.className = 'tm-dot live'; lbl.textContent = 'Tickmill: LIVE'; lbl.style.color = 'var(--green)';
+    } else {
+      dot.className = 'tm-dot paper'; lbl.textContent = `Tickmill: ${s.tickmillMode}`; lbl.style.color = 'var(--muted)';
+    }
+  }
 }
 
-function coloredEl(el, txt, gc) {
-  el.textContent = txt;
-  el.style.color = gc === 'g' ? 'var(--green)' : 'var(--red)';
-}
 function updateDots(id, score, isSell) {
   const dots = $(id).children;
   for (let i = 0; i < dots.length; i++) {
@@ -710,93 +708,80 @@ function updateDots(id, score, isSell) {
   }
 }
 
-const PHASE_LABELS = { 1: 'Init', 2: 'Breakeven', 3: 'Locked', 4: 'Trail' };
-
 function renderPosition(pos, ind) {
   const el = $('pos-display');
   if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
-  const unreal = pos.unrealizedPnl || 0;
+  const unreal  = pos.unrealizedPnl || 0;
   const urColor = unreal >= 0 ? 'var(--green)' : 'var(--red)';
-  const phase = pos.phase || 1;
-  const phaseColor = phase >= 4 ? 'var(--green)' : phase >= 2 ? 'var(--yellow)' : 'var(--muted)';
-  const mae = pos.mae || 0;
+  const trailBadge = pos.trailing
+    ? `<span class="trail-badge active">▲ TRAILING</span>`
+    : `<span class="trail-badge inactive">STATIC</span>`;
   el.innerHTML = `
     <div class="pos-row">
-      <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--green)':'var(--red)'}">${pos.side.toUpperCase()}</div></div>
+      <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--teal)':'var(--red)'}">${pos.side.toUpperCase()}</div></div>
       <div class="pos-item"><div class="lbl">Entry</div><div class="val">${fmt(pos.entryPrice)}</div></div>
       <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : '—'}</div></div>
       <div class="pos-item"><div class="lbl">Size</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
       <div class="pos-item"><div class="lbl">Stop Loss</div><div class="val clr-r">${fmt(pos.stopLoss)}</div></div>
-      <div class="pos-item"><div class="lbl">Take Profit</div><div class="val clr-g">${fmt(pos.takeProfit)}</div></div>
       <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
-      <div class="pos-item"><div class="lbl">SL Phase</div><div class="val" style="color:${phaseColor}">${PHASE_LABELS[phase]||phase}</div></div>
-      <div class="pos-item"><div class="lbl">MAE $</div><div class="val clr-r">${mae < 0 ? fmtMoney(mae) : '$0.00'}</div></div>
-      <div class="pos-item"><div class="lbl">Candles</div><div class="val">${pos.candlesHeld||0}/30</div></div>
+      <div class="pos-item"><div class="lbl">SL Mode</div><div class="val">${trailBadge}</div></div>
+      ${pos.trailing ? `<div class="pos-item"><div class="lbl">Locked $</div><div class="val clr-g">+$${(pos.trailLockProfit||0)}</div></div>` : ''}
+      <div class="pos-item"><div class="lbl">MAE $</div><div class="val clr-r">${(pos.mae||0) < 0 ? fmtMoney(pos.mae) : '$0.00'}</div></div>
+      ${pos.tickmillOrderId ? `<div class="pos-item"><div class="lbl">Order ID</div><div class="val clr-o" style="font-size:.75rem">${esc(pos.tickmillOrderId)}</div></div>` : ''}
     </div>`;
 }
 
-// ── Log table ────────────────────────────────────────────────────
 function prependLog(entry) {
   const tbody = $('log-body');
   const emp = tbody.querySelector('.empty-msg');
   if (emp) emp.parentElement.remove();
-
   const tr  = document.createElement('tr');
   const ind = entry.indicators || {};
   const vr  = ind.volumeMA > 0 ? (ind.volume / ind.volumeMA).toFixed(2) + 'x' : '—';
   const adxV = ind.adx;
-  const dip = ind.diPlus, dim = ind.diMinus;
+  const dip  = ind.diPlus, dim = ind.diMinus;
+  const spread = (dip != null && dim != null) ? Math.abs(dip - dim).toFixed(1) : '—';
 
+  const sig = entry.signal || entry.type || '—';
+  const isTrail = sig === 'TRAIL-UPDATE' || sig === 'TRAIL-WATCH';
   let typeCls = 'type-tick';
-  if (entry.type === 'ENTRY')      typeCls = 'type-entry';
-  else if (entry.type === 'EXIT')  typeCls = 'type-exit';
-  else if (entry.type === 'ERROR') typeCls = 'type-error';
+  if (entry.type === 'ENTRY')       typeCls = 'type-entry';
+  else if (entry.type === 'EXIT')   typeCls = 'type-exit';
+  else if (entry.type === 'ERROR')  typeCls = 'type-error';
+  else if (isTrail)                 typeCls = 'type-trail';
 
-  const sig   = entry.signal || entry.type || '—';
   const notes = Array.isArray(entry.reason) ? entry.reason[0] : (entry.message || '');
-
   tr.innerHTML = `
     <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
     <td class="${typeCls}">${entry.type}</td>
     <td class="${typeCls}">${sig}</td>
     <td class="main">${fmt(ind.price || entry.price)}</td>
-    <td>${fmt(ind.ema20)}</td>
-    <td>${fmt(ind.ema50)}</td>
-    <td style="color:${rsiColor(ind.rsi)}">${fmt(ind.rsi,1)}</td>
+    <td>${fmt(ind.ema21)}</td>
+    <td>${fmt(ind.ema55)}</td>
+    <td>${fmt(ind.ema200)}</td>
+    <td style="color:${ind.rsi>70?'var(--red)':ind.rsi<30?'var(--green)':'var(--text)'}">${fmt(ind.rsi,1)}</td>
     <td style="color:${ind.macdHist>0?'var(--green)':ind.macdHist<0?'var(--red)':'var(--text)'}">${ind.macdHist!=null?(ind.macdHist>=0?'+':'')+parseFloat(ind.macdHist).toFixed(5):'—'}</td>
     <td>${fmt(ind.atr)}</td>
-    <td style="color:${adxV>=20?'var(--green)':adxV!=null?'var(--red)':'var(--text)'}">${adxV!=null?fmt(adxV,1):'—'}</td>
+    <td style="color:${adxV>=25?'var(--green)':adxV!=null?'var(--red)':'var(--text)'}">${adxV!=null?fmt(adxV,1):'—'}</td>
     <td style="color:${dip!=null&&dim!=null?(dip>dim?'var(--green)':'var(--red)'):'var(--text)'}">${dip!=null&&dim!=null?fmt(dip,1)+'/'+fmt(dim,1):'—'}</td>
-    <td style="color:${vr!=='—'&&parseFloat(vr)>1.2?'var(--green)':'var(--text)'}">${vr}</td>
-    <td class="reason-cell" title="${esc(notes)}">${esc(notes.substring(0,50))}${notes.length>50?'…':''}</td>`;
+    <td style="color:${spread!=='—'&&parseFloat(spread)>=15?'var(--green)':'var(--red)'}">${spread}</td>
+    <td style="color:${vr!=='—'&&parseFloat(vr)>=1.0?'var(--green)':'var(--text)'}">${vr}</td>
+    <td class="reason-cell" title="${esc(notes)}">${isTrail?`<strong style="color:var(--accent)">${esc(notes.substring(0,60))}</strong>`:esc(notes.substring(0,60))}${notes.length>60?'…':''}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);
   logCount++;
   if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
 }
 
-function updateLogCount() {
-  $('log-count').textContent = `(${logCount} / 500)`;
-}
-function rsiColor(v) {
-  return v == null ? 'var(--text)' : v > 70 ? 'var(--red)' : v < 30 ? 'var(--green)' : 'var(--text)';
-}
-
-// ── Trades table — dedup-safe ────────────────────────────────────
-function tradeKey(t) {
-  // Use timestamp+type as unique key; DB rows also have numeric id
-  return `${t.timestamp || ''}_${t.type || ''}_${t.side || ''}`;
-}
+function updateLogCount() { $('log-count').textContent = `(${logCount} / 500)`; }
 
 function prependTrade(trade) {
   const key = tradeKey(trade);
-  if (shownTradeKeys.has(key)) return; // already shown — skip
+  if (shownTradeKeys.has(key)) return;
   shownTradeKeys.add(key);
-
-  const tbody = $('trades-body');
-  const emp = tbody.querySelector('.empty-msg');
+  const tbody  = $('trades-body');
+  const emp    = tbody.querySelector('.empty-msg');
   if (emp) emp.parentElement.remove();
-
-  const tr      = document.createElement('tr');
+  const tr     = document.createElement('tr');
   const isEntry = trade.type === 'entry';
   const isLong  = trade.side === 'long';
   const pnl     = trade.pnl || 0;
@@ -804,7 +789,7 @@ function prependTrade(trade) {
   const pnlClr  = pnl > 0 ? 'clr-g' : pnl < 0 ? 'clr-r' : '';
   const typeClr = isEntry ? 'type-entry' : 'type-exit';
   const sideClr = isLong  ? 'clr-g'     : 'clr-r';
-
+  const orderId = trade.tickmill_order || '';
   tr.innerHTML = `
     <td class="main">${fmtTime(trade.timestamp)}</td>
     <td class="${typeClr}">${trade.type.toUpperCase()}</td>
@@ -816,7 +801,8 @@ function prependTrade(trade) {
     <td class="${pnlClr}">${isEntry ? '—' : fmtMoney(pnl)}</td>
     <td class="clr-r">${isEntry ? '—' : (mae < 0 ? fmtMoney(mae) : '$0.00')}</td>
     <td>$${parseFloat(trade.balance_after||0).toFixed(2)}</td>
-    <td class="reason-cell" title="${esc(trade.reason||'')}">${esc((trade.reason||'').substring(0,50))}${(trade.reason||'').length>50?'…':''}</td>`;
+    <td class="clr-o" style="font-size:.72rem">${orderId ? esc(orderId.substring(0,12)) + (orderId.length>12?'…':'') : '—'}</td>
+    <td class="reason-cell" title="${esc(trade.reason||'')}">${esc((trade.reason||'').substring(0,40))}${(trade.reason||'').length>40?'…':''}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);
   tradeCount++;
   $('trades-count').textContent = `(${tradeCount})`;
@@ -830,42 +816,23 @@ function loadTrades() {
       const tbody = $('trades-body');
       tbody.innerHTML = '';
       tradeCount = 0;
-      shownTradeKeys.clear(); // reset dedup set when reloading
-      if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-msg">No trades yet</td></tr>';
-        return;
-      }
+      shownTradeKeys.clear();
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No trades yet</td></tr>'; return; }
       [...rows].reverse().forEach(t => prependTrade(t));
-    })
-    .catch(() => {});
+    }).catch(() => {});
 }
 
-// ── Backtest ─────────────────────────────────────────────────────
 async function runBacktest() {
   const btn = $('btn-run-bt');
   btn.disabled = true;
-  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching historical data from Kraken… (may take 5–30s)</div>';
+  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching historical data… (Closed Candle — 200+ candles needed, may take 10–60s)</div>';
   $('bt-results').style.display = 'none';
-
-  const body = {
-    symbol:    $('bt-symbol').value,
-    timeframe: $('bt-tf').value,
-    months:    parseInt($('bt-months').value, 10),
-  };
-
+  const body = { symbol: $('bt-symbol').value, timeframe: $('bt-tf').value, months: parseInt($('bt-months').value, 10) };
   try {
-    const r = await fetch('/api/backtest', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const r = await fetch('/api/backtest', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     btn.disabled = false;
-    if (!d.ok) {
-      $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`;
-      return;
-    }
+    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`; return; }
     $('bt-status').innerHTML = '';
     renderBacktestResults(d);
   } catch (e) {
@@ -879,7 +846,6 @@ function renderBacktestResults(d) {
   const pnlColor = s.totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
   const res = $('bt-results');
   res.style.display = 'block';
-
   res.innerHTML = `
     <div class="card-title" style="margin-bottom:8px">
       Backtest: ${esc(s.symbol)} ${esc(s.timeframe)} · ${esc(s.period)} · ${s.candlesAnalyzed} candles
@@ -891,153 +857,93 @@ function renderBacktestResults(d) {
       <div class="stat-box"><div class="lbl">Max Drawdown</div><div class="val clr-r">$${parseFloat(s.maxDrawdown).toFixed(2)}</div></div>
     </div>
     <div class="tbl-wrap bt-tbl-wrap" style="margin-top:8px">
-      <table>
-        <thead><tr>
-          <th>Entry Time</th><th>Exit Time</th><th>Side</th>
-          <th>Entry $</th><th>Exit $</th><th>PnL</th><th>MAE $</th><th>Phase</th><th>Reason</th>
-        </tr></thead>
-        <tbody id="bt-trades-body"></tbody>
-      </table>
+      <table><thead><tr>
+        <th>Entry Time</th><th>Exit Time</th><th>Side</th>
+        <th>Entry $</th><th>Exit $</th><th>PnL</th><th>MAE $</th><th>Trailed</th><th>Reason</th>
+      </tr></thead><tbody id="bt-trades-body"></tbody></table>
     </div>`;
-
   const tbody = document.getElementById('bt-trades-body');
-  if (!d.trades.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No trades triggered in this period</td></tr>';
-    return;
-  }
-  // newest first
+  if (!d.trades.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No trades triggered — try longer duration or different timeframe</td></tr>'; return; }
   [...d.trades].reverse().forEach(t => {
-    const pnlCls = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
+    const pnlCls  = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
     const sideCls = t.side === 'long' ? 'clr-g' : 'clr-r';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="main">${fmtDate(t.entryTime)}</td>
       <td>${fmtDate(t.exitTime)}</td>
       <td class="${sideCls}">${t.side.toUpperCase()}</td>
-      <td>${fmt(t.entryPrice)}</td>
-      <td>${fmt(t.exitPrice)}</td>
+      <td>${fmt(t.entryPrice)}</td><td>${fmt(t.exitPrice)}</td>
       <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
       <td class="clr-r">${t.mae < 0 ? fmtMoney(t.mae) : '$0.00'}</td>
-      <td>${PHASE_LABELS[t.phase]||t.phase}</td>
-      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'…':''}</td>`;
+      <td style="color:${t.trailed?'var(--teal)':'var(--muted)'}">${t.trailed ? '▲ YES' : 'no'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,45))}${(t.reason||'').length>45?'…':''}</td>`;
     tbody.appendChild(tr);
   });
 }
 
-// ── Control actions ──────────────────────────────────────────────
 async function startAlgo() {
   $('btn-start').disabled = true;
   hideErr();
   const body = {
-    symbol:     $('ctrl-symbol').value,
-    timeframe:  $('ctrl-tf').value,
+    symbol: $('ctrl-symbol').value, timeframe: $('ctrl-tf').value,
     strategyId: $('ctrl-strategy').value,
-    balance:    parseFloat($('ctrl-balance').value) || 10000,
-    interval:   parseInt($('ctrl-interval').value, 10) || 60,
-    mode:       currentMode,
+    balance: parseFloat($('ctrl-balance').value) || 10000,
+    interval: parseInt($('ctrl-interval').value, 10) || 60,
+    mode: currentMode,
   };
   try {
-    const r = await fetch('/api/start', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r = await fetch('/api/start', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (!d.ok) { showErr(d.msg || 'Could not start'); $('btn-start').disabled = false; }
   } catch(e) { showErr(e.message); $('btn-start').disabled = false; }
 }
-
 async function stopAlgo() {
   $('btn-stop').disabled = true;
-  try { await fetch('/api/stop', { method:'POST', credentials:'same-origin' }); } catch(e) { showErr(e.message); }
+  try { await fetch('/api/stop', { method: 'POST', credentials: 'same-origin' }); } catch(e) { showErr(e.message); }
 }
-
-function showErr(msg) {
-  const b = $('err-banner');
-  b.textContent = '⚠ ' + msg;
-  b.classList.add('show');
-}
+function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
 function hideErr() { $('err-banner').classList.remove('show'); }
 
-// ── Auth ─────────────────────────────────────────────────────────
 let googleInitialized = false;
-
 async function bootAuth() {
   try {
     const cfg = await fetch('/api/config', { credentials: 'same-origin' }).then(r => r.json());
-    if (cfg.user) {
-      showUserBadge(cfg.user);
-    } else if (cfg.authRequired && cfg.googleClientId) {
-      showAuthWall(cfg.googleClientId);
-      return; // don't connect SSE yet
-    }
-    // No auth required or already logged in → start app
+    if (cfg.user) { showUserBadge(cfg.user); }
+    else if (cfg.authRequired && cfg.googleClientId) { showAuthWall(cfg.googleClientId); return; }
     initApp();
-  } catch {
-    initApp(); // network error → start anyway (demo mode)
-  }
+  } catch { initApp(); }
 }
-
 function showAuthWall(clientId) {
   $('auth-wall').classList.add('show');
-  // Load Google Identity Services script once
   if (!googleInitialized) {
     googleInitialized = true;
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.onload = () => {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleSignIn,
-        auto_select: false,
-      });
-      window.google.accounts.id.renderButton($('google-signin-btn'), {
-        theme: 'outline', size: 'large', text: 'signin_with',
-      });
+      window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleSignIn, auto_select: false });
+      window.google.accounts.id.renderButton($('google-signin-btn'), { theme: 'outline', size: 'large' });
     };
     document.head.appendChild(s);
   }
 }
-
 async function handleGoogleSignIn(response) {
   try {
-    const data = await fetch('/auth/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ credential: response.credential }),
-    }).then(r => r.json());
-    if (data.ok) {
-      $('auth-wall').classList.remove('show');
-      showUserBadge(data.user);
-      initApp();
-    }
-  } catch (e) {
-    console.error('Sign-in failed', e);
-  }
+    const data = await fetch('/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ credential: response.credential }) }).then(r => r.json());
+    if (data.ok) { $('auth-wall').classList.remove('show'); showUserBadge(data.user); initApp(); }
+  } catch(e) { console.error('Sign-in failed', e); }
 }
-
 function showUserBadge(user) {
   if (!user) return;
-  $('user-avatar').src = user.picture || '';
-  $('user-avatar').style.display = user.picture ? '' : 'none';
-  $('user-name').textContent = user.name || user.email || '';
-  $('user-info').classList.add('show');
+  $('user-avatar').src = user.picture || ''; $('user-avatar').style.display = user.picture ? '' : 'none';
+  $('user-name').textContent = user.name || user.email || ''; $('user-info').classList.add('show');
 }
-
 async function signOut() {
-  try {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
-  } catch {}
-  $('user-info').classList.remove('show');
-  $('auth-wall').classList.add('show');
+  try { await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+  $('user-info').classList.remove('show'); $('auth-wall').classList.add('show');
   if (es) { es.close(); es = null; }
 }
+function initApp() { loadStrategies(); loadTickmillStatus(); connectSSE(); }
 
-function initApp() {
-  loadStrategies();
-  connectSSE();
-}
-
-// ── Boot ─────────────────────────────────────────────────────────
-// SSE connected event is the single source of truth for initial data.
-// No separate /api/logs or /api/state boot fetch (avoids duplicate rendering race).
 bootAuth();
 </script>
 </body>

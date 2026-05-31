@@ -2,7 +2,7 @@
 
 const https = require('https');
 
-// ── Indicator math ────────────────────────────────────────────────
+// ── Shared indicator math ─────────────────────────────────────────
 
 function ema(values, period) {
   const result = new Array(values.length).fill(null);
@@ -46,11 +46,9 @@ function macdCalc(closes, fast = 12, slow = 26, signalPeriod = 9) {
     emaFast[i] !== null && emaSlow[i] !== null ? emaFast[i] - emaSlow[i] : null
   );
   const firstValid = macdLine.findIndex(v => v !== null);
-  if (firstValid === -1 || closes.length - firstValid < signalPeriod) {
+  if (firstValid === -1 || closes.length - firstValid < signalPeriod)
     return closes.map(() => ({ macd: null, signal: null, hist: null }));
-  }
-  const validMacd = macdLine.slice(firstValid);
-  const sigEma = ema(validMacd, signalPeriod);
+  const sigEma = ema(macdLine.slice(firstValid), signalPeriod);
   return closes.map((_, i) => {
     const m = macdLine[i];
     if (m === null) return { macd: null, signal: null, hist: null };
@@ -74,9 +72,8 @@ function atrCalc(highs, lows, closes, period = 14) {
   let sum = 0;
   for (let i = 1; i <= period; i++) sum += tr[i];
   result[period] = sum / period;
-  for (let i = period + 1; i < n; i++) {
+  for (let i = period + 1; i < n; i++)
     result[i] = (result[i - 1] * (period - 1) + tr[i]) / period;
-  }
   return result;
 }
 
@@ -89,29 +86,19 @@ function volMACalc(volumes, period = 20) {
   });
 }
 
-// ADX(14) with Wilder's smoothing — returns array of {adx, diPlus, diMinus}
 function adxCalc(highs, lows, closes, period = 14) {
   const n = closes.length;
   const empty = { adx: null, diPlus: null, diMinus: null };
   if (n < period * 2 + 1) return new Array(n).fill(null).map(() => ({ ...empty }));
-
-  const tr   = new Array(n).fill(0);
-  const dmP  = new Array(n).fill(0);
-  const dmM  = new Array(n).fill(0);
-
+  const tr  = new Array(n).fill(0);
+  const dmP = new Array(n).fill(0);
+  const dmM = new Array(n).fill(0);
   for (let i = 1; i < n; i++) {
-    tr[i] = Math.max(
-      highs[i] - lows[i],
-      Math.abs(highs[i] - closes[i - 1]),
-      Math.abs(lows[i] - closes[i - 1])
-    );
-    const up = highs[i] - highs[i - 1];
-    const dn = lows[i - 1] - lows[i];
+    tr[i] = Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i-1]), Math.abs(lows[i] - closes[i-1]));
+    const up = highs[i] - highs[i-1], dn = lows[i-1] - lows[i];
     dmP[i] = (up > dn && up > 0) ? up : 0;
     dmM[i] = (dn > up && dn > 0) ? dn : 0;
   }
-
-  // Wilder smoothed sums
   const sTR  = new Array(n).fill(0);
   const sDMP = new Array(n).fill(0);
   const sDMM = new Array(n).fill(0);
@@ -121,7 +108,6 @@ function adxCalc(highs, lows, closes, period = 14) {
     sDMP[i] = sDMP[i-1] - sDMP[i-1] / period + dmP[i];
     sDMM[i] = sDMM[i-1] - sDMM[i-1] / period + dmM[i];
   }
-
   const diP = new Array(n).fill(null);
   const diM = new Array(n).fill(null);
   const dx  = new Array(n).fill(null);
@@ -132,28 +118,22 @@ function adxCalc(highs, lows, closes, period = 14) {
     const s = diP[i] + diM[i];
     if (s > 0) dx[i] = Math.abs(diP[i] - diM[i]) / s * 100;
   }
-
-  // ADX = Wilder smooth of DX, seeded at index 2*period-1
-  const adxArr  = new Array(n).fill(null);
-  const seedIdx = period * 2 - 1;
-  if (seedIdx >= n) return new Array(n).fill(null).map((_, i) => ({ adx: adxArr[i], diPlus: diP[i], diMinus: diM[i] }));
-
+  const adxArr = new Array(n).fill(null);
+  const seed   = period * 2 - 1;
+  if (seed >= n) return new Array(n).fill(null).map((_, i) => ({ adx: adxArr[i], diPlus: diP[i], diMinus: diM[i] }));
   let seedSum = 0, seedCnt = 0;
-  for (let i = period; i <= seedIdx; i++) {
-    if (dx[i] != null) { seedSum += dx[i]; seedCnt++; }
-  }
+  for (let i = period; i <= seed; i++) { if (dx[i] != null) { seedSum += dx[i]; seedCnt++; } }
   if (seedCnt === period) {
-    adxArr[seedIdx] = seedSum / period;
-    for (let i = seedIdx + 1; i < n; i++) {
-      if (dx[i] != null && adxArr[i - 1] != null)
-        adxArr[i] = (adxArr[i - 1] * (period - 1) + dx[i]) / period;
+    adxArr[seed] = seedSum / period;
+    for (let i = seed + 1; i < n; i++) {
+      if (dx[i] != null && adxArr[i-1] != null)
+        adxArr[i] = (adxArr[i-1] * (period - 1) + dx[i]) / period;
     }
   }
-
   return new Array(n).fill(null).map((_, i) => ({ adx: adxArr[i], diPlus: diP[i], diMinus: diM[i] }));
 }
 
-// ── Core indicator snapshot ──────────────────────────────────────
+// ── Core indicator snapshot ───────────────────────────────────────
 
 function computeIndicators(candles) {
   const closes  = candles.map(c => c.close);
@@ -161,293 +141,271 @@ function computeIndicators(candles) {
   const lows    = candles.map(c => c.low);
   const volumes = candles.map(c => c.volume);
   const n = candles.length - 1;
+  const p3 = Math.max(0, n - 3);
 
-  const ema20   = ema(closes, 20);
-  const ema50   = ema(closes, 50);
-  const rsi14   = rsiCalc(closes, 14);
+  const ema21  = ema(closes, 21);
+  const ema55  = ema(closes, 55);
+  const ema200 = ema(closes, 200);
+  const rsi14  = rsiCalc(closes, 14);
   const macdArr = macdCalc(closes);
-  const atr14   = atrCalc(highs, lows, closes, 14);
-  const volMA   = volMACalc(volumes, 20);
-  const adxArr  = adxCalc(highs, lows, closes, 14);
+  const atr14  = atrCalc(highs, lows, closes, 14);
+  const volMA  = volMACalc(volumes, 20);
+  const adxArr = adxCalc(highs, lows, closes, 14);
+
+  const atrWindow = [];
+  for (let i = Math.max(0, n - 19); i <= n; i++) {
+    if (atr14[i] !== null) atrWindow.push(atr14[i]);
+  }
+  const atrMA20 = atrWindow.length >= 5
+    ? atrWindow.reduce((a, b) => a + b, 0) / atrWindow.length
+    : null;
+
+  const adxNow  = adxArr[n]?.adx  ?? null;
+  const adxPrev = adxArr[p3]?.adx ?? null;
+  const adxSlope = adxNow !== null && adxPrev !== null ? adxNow - adxPrev : null;
+
+  const ema21Slope = ema21[n] !== null && ema21[p3] !== null ? ema21[n] - ema21[p3] : null;
+
+  const candleRange = highs[n] - lows[n];
+  const candleBodyRatio = candleRange > 0 ? (closes[n] - lows[n]) / candleRange : 0.5;
+
+  const lookback = Math.min(20, n);
+  let swingHigh = -Infinity, swingLow = Infinity;
+  for (let i = n - lookback; i <= n; i++) {
+    if (candles[i].high > swingHigh) swingHigh = candles[i].high;
+    if (candles[i].low  < swingLow)  swingLow  = candles[i].low;
+  }
 
   return {
-    price:         closes[n],
-    ema20:         ema20[n],
-    ema50:         ema50[n],
-    rsi:           rsi14[n],
-    macdHist:      macdArr[n]?.hist       ?? null,
-    macdPrevHist:  macdArr[n - 1]?.hist   ?? null,
-    macdLine:      macdArr[n]?.macd       ?? null,
-    macdSignal:    macdArr[n]?.signal     ?? null,
-    atr:           atr14[n],
-    volume:        volumes[n],
-    volumeMA:      volMA[n],
-    adx:           adxArr[n]?.adx         ?? null,
-    diPlus:        adxArr[n]?.diPlus      ?? null,
-    diMinus:       adxArr[n]?.diMinus     ?? null,
-    candleTime:    candles[n].time,
+    price:          closes[n],
+    ema21:          ema21[n],
+    ema55:          ema55[n],
+    ema200:         ema200[n],
+    rsi:            rsi14[n],
+    macdHist:       macdArr[n]?.hist     ?? null,
+    macdPrevHist:   macdArr[n-1]?.hist   ?? null,
+    macdLine:       macdArr[n]?.macd     ?? null,
+    macdSignal:     macdArr[n]?.signal   ?? null,
+    atr:            atr14[n],
+    atrMA20,
+    adxSlope,
+    ema21Slope,
+    candleBodyRatio,
+    volume:         volumes[n-1],
+    volumeMA:       volMA[n-1],
+    adx:            adxArr[n]?.adx        ?? null,
+    diPlus:         adxArr[n]?.diPlus     ?? null,
+    diMinus:        adxArr[n]?.diMinus    ?? null,
+    swingHigh,
+    swingLow,
+    candleTime:     candles[n].time,
   };
 }
 
-// ── Signal generation ────────────────────────────────────────────
-//
-// Strategy: ADX-Gated Multi-Confluence Trend Following v2
-//
-// Hard gate : ADX ≥ 20 (trending market — no ranging)
-// Entry     : all 6 conditions must pass (6/6) — quality over quantity
-//   1. ADX DI direction confirms trend side
-//   2. EMA20 vs EMA50 trend alignment
-//   3. Price vs EMA20 position
-//   4. RSI [50–67] long / [33–50] short  (non-overlapping zones)
-//   5. MACD Hist positive AND rising for 2 consecutive bars (long)
-//      MACD Hist negative AND falling for 2 consecutive bars (short)
-//   6. Volume > VolMA × 1.2
-//
-// Risk    : 1.5% per trade
-// SL      : max(2×ATR, 0.15% of price) — floor prevents noise-stops
-// TP      : SL × 2  (2:1 R:R)
-// Exit    : Incremental phase-based stop ratchet + time stop 30 candles
-//
-function generateSignal(candles) {
+// ── Signal — identical to Algo3/Algo4/Algo5 (EMA Ribbon Swing v2) ──
+function generateSignal(candles, state = {}) {
   const ind = computeIndicators(candles);
-  const { price, ema20, ema50, rsi, macdHist, macdPrevHist, atr, volume, volumeMA, adx, diPlus, diMinus } = ind;
+  const { price, ema21, ema55, ema200, rsi, macdHist,
+          atr, atrMA20, adxSlope, ema21Slope,
+          candleBodyRatio, adx, diPlus, diMinus } = ind;
 
-  if ([ema20, ema50, rsi, macdHist, atr, volumeMA, adx].some(v => v == null)) {
-    return { signal: 'HOLD', reason: ['Insufficient indicator data'], indicators: ind, buyScore: 0, sellScore: 0 };
+  if ([ema21, ema55, ema200, rsi, macdHist, atr, adx].some(v => v == null)) {
+    return { signal: 'HOLD', reason: ['Insufficient data — need 200+ candles for EMA200'], indicators: ind, buyScore: 0, sellScore: 0 };
   }
 
   const fmt = (v, d = 2) => v != null ? v.toFixed(d) : 'n/a';
+  const diSpread = Math.abs(diPlus - diMinus);
 
-  // Hard gate: market must be trending
-  if (adx < 20) {
-    return {
-      signal: 'HOLD',
-      reason: [`ADX(${fmt(adx, 1)}) < 20 — ranging market, skip`],
-      indicators: ind, buyScore: 0, sellScore: 0,
-    };
+  const ema21Rising  = ema21Slope !== null ? ema21Slope > 0 : false;
+  const ema21Falling = ema21Slope !== null ? ema21Slope < 0 : false;
+
+  const buyChecks = [
+    { ok: diPlus  > diMinus,            label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)})` },
+    { ok: ema21   > ema55,              label: `EMA21(${fmt(ema21)}) > EMA55(${fmt(ema55)})` },
+    { ok: ema55   > ema200,             label: `EMA55(${fmt(ema55)}) > EMA200(${fmt(ema200)})` },
+    { ok: ema21Rising,                  label: `EMA21 slope rising (${fmt(ema21Slope,1)})` },
+    { ok: rsi >= 42 && rsi <= 72,       label: `RSI(${fmt(rsi,1)}) ∈ [42–72]` },
+    { ok: macdHist > 0,                 label: `MACD hist > 0 (${fmt(macdHist, 4)})` },
+    { ok: candleBodyRatio >= 0.45,      label: `Candle close quality (${fmt(candleBodyRatio*100,0)}% upper)` },
+  ];
+  const buyScore  = buyChecks.filter(c => c.ok).length;
+  const buyPassed = buyChecks.filter(c => c.ok).map(c => c.label);
+  const buyFailed = buyChecks.filter(c => !c.ok).map(c => c.label);
+
+  const sellChecks = [
+    { ok: diMinus > diPlus,             label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)})` },
+    { ok: ema21   < ema55,              label: `EMA21 < EMA55` },
+    { ok: ema55   < ema200,             label: `EMA55 < EMA200` },
+    { ok: ema21Falling,                 label: `EMA21 slope falling (${fmt(ema21Slope,1)})` },
+    { ok: rsi >= 28 && rsi <= 58,       label: `RSI(${fmt(rsi,1)}) ∈ [28–58]` },
+    { ok: macdHist < 0,                 label: `MACD hist < 0 (${fmt(macdHist, 4)})` },
+    { ok: candleBodyRatio <= 0.55,      label: `Candle close quality (${fmt((1-candleBodyRatio)*100,0)}% lower)` },
+  ];
+  const sellScore  = sellChecks.filter(c => c.ok).length;
+  const sellPassed = sellChecks.filter(c => c.ok).map(c => c.label);
+  const sellFailed = sellChecks.filter(c => !c.ok).map(c => c.label);
+
+  if (adx < 25) {
+    return { signal: 'HOLD', reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend`], indicators: ind, buyScore, sellScore };
+  }
+  if (diSpread < 15) {
+    return { signal: 'HOLD', reason: [`DI spread(${fmt(diSpread, 1)}) < 15 — insufficient directional conviction`], indicators: ind, buyScore, sellScore };
+  }
+  if (adxSlope !== null && adxSlope <= 0) {
+    return { signal: 'HOLD', reason: [`ADX slope (${fmt(adxSlope, 2)}) ≤ 0 — trend fading`], indicators: ind, buyScore, sellScore };
+  }
+  if (atrMA20 !== null && atr > atrMA20 * 1.3) {
+    return { signal: 'HOLD', reason: [`ATR spike: ATR(${fmt(atr, 0)}) > 1.3×ATR_MA(${fmt(atrMA20, 0)})`], indicators: ind, buyScore, sellScore };
+  }
+  const ema21Dist = Math.abs(price - ema21);
+  if (ema21Dist > atr * 1.5) {
+    return { signal: 'HOLD', reason: [`Price overextended: |price−EMA21|(${fmt(ema21Dist, 0)}) > 1.5×ATR(${fmt(atr * 1.5, 0)})`], indicators: ind, buyScore, sellScore };
   }
 
-  // MACD 2-bar confirmation: both bars same side AND histogram moving in direction
-  const macdLongOk  = macdHist > 0 && macdPrevHist != null && macdPrevHist > 0 && macdHist > macdPrevHist;
-  const macdShortOk = macdHist < 0 && macdPrevHist != null && macdPrevHist < 0 && macdHist < macdPrevHist;
-
-  const buyC = [
-    { ok: diPlus > diMinus,                        label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)}) — ADX bullish` },
-    { ok: ema20 > ema50,                           label: `EMA20(${fmt(ema20)}) > EMA50(${fmt(ema50)})` },
-    { ok: price > ema20,                           label: `Price(${fmt(price)}) > EMA20(${fmt(ema20)})` },
-    { ok: rsi >= 50 && rsi <= 67,                  label: `RSI(${fmt(rsi,1)}) ∈ [50–67]` },
-    { ok: macdLongOk,                              label: `MACD 2×rising>0 (${fmt(macdPrevHist,5)}→${fmt(macdHist,5)})` },
-    { ok: volumeMA > 0 && volume > volumeMA * 1.2, label: `Vol > VolMA×1.2 (${fmt(volume/volumeMA,2)}x)` },
-  ];
-
-  const sellC = [
-    { ok: diMinus > diPlus,                        label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)}) — ADX bearish` },
-    { ok: ema20 < ema50,                           label: `EMA20(${fmt(ema20)}) < EMA50(${fmt(ema50)})` },
-    { ok: price < ema20,                           label: `Price(${fmt(price)}) < EMA20(${fmt(ema20)})` },
-    { ok: rsi >= 33 && rsi <= 50,                  label: `RSI(${fmt(rsi,1)}) ∈ [33–50]` },
-    { ok: macdShortOk,                             label: `MACD 2×falling<0 (${fmt(macdPrevHist,5)}→${fmt(macdHist,5)})` },
-    { ok: volumeMA > 0 && volume > volumeMA * 1.2, label: `Vol > VolMA×1.2 (${fmt(volume/volumeMA,2)}x)` },
-  ];
-
-  const buyScore  = buyC.filter(c => c.ok).length;
-  const sellScore = sellC.filter(c => c.ok).length;
-  let signal = 'HOLD';
-  let reason = [];
-
-  if (buyScore === 6) {
-    signal = 'BUY';
-    reason = buyC.map(c => `${c.ok ? '✓' : '✗'} ${c.label}`);
-  } else if (sellScore === 6) {
-    signal = 'SELL';
-    reason = sellC.map(c => `${c.ok ? '✓' : '✗'} ${c.label}`);
-  } else {
-    reason = [
-      `ADX(${fmt(adx,1)}) OK — BUY ${buyScore}/6 | SELL ${sellScore}/6`,
-      ...buyC.map(c => `B${c.ok ? '✓' : '✗'} ${c.label}`),
-      ...sellC.map(c => `S${c.ok ? '✓' : '✗'} ${c.label}`),
-    ];
+  const THRESHOLD = 6;
+  if (buyScore >= THRESHOLD && buyScore > sellScore) {
+    return { signal: 'BUY', reason: buyPassed, indicators: ind, buyScore, sellScore };
+  }
+  if (sellScore >= THRESHOLD && sellScore > buyScore) {
+    return { signal: 'SELL', reason: sellPassed, indicators: ind, buyScore, sellScore };
   }
 
-  return { signal, reason, indicators: ind, buyScore, sellScore };
+  const holdReason = buyScore > sellScore
+    ? [`BUY score ${buyScore}/7 — need 6 (missing: ${buyFailed.join(', ')})`]
+    : [`SELL score ${sellScore}/7 — need 6 (missing: ${sellFailed.join(', ')})`];
+  return { signal: 'HOLD', reason: holdReason, indicators: ind, buyScore, sellScore };
 }
 
-// ── Exit check — incremental phase-based stop ratchet ────────────
-//
-// Phase 1 (initial): hold, SL at entry ± stopDist
-// Phase 2 (profit ≥ 1×ATR): SL → breakeven (entry price)
-// Phase 3 (profit ≥ 2×ATR): SL → entry + 0.75×ATR (locked profit)
-// Phase 4 (profit ≥ 3×ATR): SL → trailing at price ∓ 1.5×ATR
-//
-// Also tracks: candlesHeld (by candle time), MAE (worst unrealized $)
-//
+// ── Exit check — NO fixed TP (trailing takes over at $300 profit) ──
 function checkExit(position, candles) {
   const ind = computeIndicators(candles);
-  const { price, ema20, rsi, macdHist, atr } = ind;
+  const { price } = ind;
+  const { side, entryPrice, stopLoss } = position;
+
   const reasons = [];
 
-  // candlesHeld increments only when a new candle closes (avoids counting same candle multiple times)
-  const curCandleTime = candles[candles.length - 1].time;
-  if (!position.lastCandleTime || curCandleTime > position.lastCandleTime) {
-    position.candlesHeld = (position.candlesHeld || 0) + 1;
-    position.lastCandleTime = curCandleTime;
+  if (side === 'long') {
+    if (price <= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≤ ${stopLoss.toFixed(2)}`);
+    if (price <= entryPrice - 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≤ ${(entryPrice - 1000).toFixed(2)}`);
+  } else {
+    if (price >= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≥ ${stopLoss.toFixed(2)}`);
+    if (price >= entryPrice + 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≥ ${(entryPrice + 1000).toFixed(2)}`);
   }
 
-  // Track MAE (max adverse excursion in $PnL — worst unrealized loss)
-  const unrealNow = position.side === 'long'
-    ? (price - position.entryPrice) * position.size
-    : (position.entryPrice - price) * position.size;
-  if (position.mae == null) position.mae = 0;
-  if (unrealNow < position.mae) position.mae = unrealNow;
-
-  const entry = position.entryPrice;
-
-  if (position.side === 'long') {
-    const profitDist = price - entry;
-
-    // Incremental stop ratchet (never moves SL down)
-    if (atr != null) {
-      if (profitDist >= 3 * atr) {
-        const trail = price - 1.5 * atr;
-        if (trail > position.stopLoss) position.stopLoss = trail;
-        position.phase = 4;
-      } else if (profitDist >= 2 * atr) {
-        const locked = entry + 0.75 * atr;
-        if (locked > position.stopLoss) position.stopLoss = locked;
-        if ((position.phase || 1) < 3) position.phase = 3;
-      } else if (profitDist >= atr) {
-        if (entry > position.stopLoss) position.stopLoss = entry;
-        if ((position.phase || 1) < 2) position.phase = 2;
-      }
-    }
-
-    if (rsi != null && rsi > 75)
-      reasons.push(`RSI overbought (${rsi.toFixed(1)} > 75)`);
-    if (ema20 != null && price < ema20 && macdHist != null && macdHist < 0)
-      reasons.push(`Reversal: Price < EMA20 + MACD bearish`);
-    if (price <= position.stopLoss)
-      reasons.push(`SL hit (${price.toFixed(2)} ≤ ${position.stopLoss.toFixed(2)}) phase:${position.phase||1}`);
-    if (price >= position.takeProfit)
-      reasons.push(`TP hit (${price.toFixed(2)} ≥ ${position.takeProfit.toFixed(2)})`);
-    if ((position.candlesHeld || 0) >= 30)
-      reasons.push(`Time stop: held ${position.candlesHeld} candles`);
-
-  } else if (position.side === 'short') {
-    const profitDist = entry - price;
-
-    if (atr != null) {
-      if (profitDist >= 3 * atr) {
-        const trail = price + 1.5 * atr;
-        if (trail < position.stopLoss) position.stopLoss = trail;
-        position.phase = 4;
-      } else if (profitDist >= 2 * atr) {
-        const locked = entry - 0.75 * atr;
-        if (locked < position.stopLoss) position.stopLoss = locked;
-        if ((position.phase || 1) < 3) position.phase = 3;
-      } else if (profitDist >= atr) {
-        if (entry < position.stopLoss) position.stopLoss = entry;
-        if ((position.phase || 1) < 2) position.phase = 2;
-      }
-    }
-
-    if (rsi != null && rsi < 25)
-      reasons.push(`RSI oversold (${rsi.toFixed(1)} < 25)`);
-    if (ema20 != null && price > ema20 && macdHist != null && macdHist > 0)
-      reasons.push(`Reversal: Price > EMA20 + MACD bullish`);
-    if (price >= position.stopLoss)
-      reasons.push(`SL hit (${price.toFixed(2)} ≥ ${position.stopLoss.toFixed(2)}) phase:${position.phase||1}`);
-    if (price <= position.takeProfit)
-      reasons.push(`TP hit (${price.toFixed(2)} ≤ ${position.takeProfit.toFixed(2)})`);
-    if ((position.candlesHeld || 0) >= 30)
-      reasons.push(`Time stop: held ${position.candlesHeld} candles`);
-  }
-
-  return reasons.length > 0
-    ? { exit: true, reasons, indicators: ind }
-    : { exit: false, reasons: [], indicators: ind };
+  return { exit: reasons.length > 0, reasons, indicators: ind };
 }
 
-// ── Kraken public OHLCV ──────────────────────────────────────────
+// ── Trailing SL computation ───────────────────────────────────────
+function computeTrailUpdate(position, unrealPnl) {
+  const { side, entryPrice, size, stopLoss } = position;
+  const band = Math.floor(unrealPnl / 50);
+  if (band < 6) return null;
+
+  const lockProfit = (band - 1) * 50;
+  const newSl = side === 'long'
+    ? entryPrice + lockProfit / size
+    : entryPrice - lockProfit / size;
+
+  const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
+  return improved ? { oldSl: stopLoss, newSl, lockProfit } : null;
+}
+
+// ── Kraken data fetchers ──────────────────────────────────────────
+
 const KRAKEN_PAIR = {
-  'BTCUSDT': 'XBTUSD', 'ETHUSDT': 'ETHUSD', 'SOLUSDT': 'SOLUSD',
-  'XRPUSDT': 'XRPUSD', 'ADAUSDT': 'ADAUSD', 'DOGEUSDT': 'DOGEUSD',
-  'LTCUSDT': 'LTCUSD', 'DOTUSDT': 'DOTUSD',
+  BTCUSDT:  'XBTUSD', ETHUSDT:  'ETHUSD',
+  SOLUSDT:  'SOLUSD', XRPUSDT:  'XRPUSD',
+  ADAUSDT:  'ADAUSD', LTCUSDT:  'LTCUSD',
+  DOGEUSDT: 'XDGUSD',
 };
 const KRAKEN_INTERVAL = {
   '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440,
 };
 
-// Low-level single-request fetch; since=null fetches latest 720 candles
 function fetchCandlesRaw(pair, ivMin, since) {
   return new Promise((resolve, reject) => {
-    let p = `/0/public/OHLC?pair=${encodeURIComponent(pair)}&interval=${ivMin}`;
-    if (since != null) p += `&since=${since}`;
-    const req = https.get({ hostname: 'api.kraken.com', path: p, timeout: 20000 }, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
+    const qs = `pair=${pair}&interval=${ivMin}${since ? `&since=${since}` : ''}`;
+    const opts = { hostname: 'api.kraken.com', path: `/0/public/OHLC?${qs}`, method: 'GET' };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
-          if (parsed.error && parsed.error.length > 0) throw new Error(parsed.error[0]);
-          const key = Object.keys(parsed.result).find(k => k !== 'last');
-          if (!key) throw new Error('No OHLCV data in Kraken response');
-          const candles = parsed.result[key].map(c => ({
-            time:   parseInt(c[0], 10) * 1000,
-            open:   parseFloat(c[1]), high:   parseFloat(c[2]),
-            low:    parseFloat(c[3]), close:  parseFloat(c[4]),
-            volume: parseFloat(c[6]),
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result).find(k => k !== 'last');
+          if (!key) return reject(new Error('No OHLC key in Kraken response'));
+          const candles = json.result[key].map(c => ({
+            time: c[0] * 1000, open: +c[1], high: +c[2], low: +c[3],
+            close: +c[4], volume: +c[6],
           }));
-          resolve({ candles, last: parseInt(parsed.result.last, 10) });
+          resolve({ candles, last: json.result.last });
         } catch (e) { reject(e); }
       });
     });
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Kraken request timed out')); });
+    req.end();
   });
 }
 
-function fetchCandles(symbol, interval, limit = 100) {
+async function fetchCandles(symbol, interval, limit = 200) {
   const pair  = KRAKEN_PAIR[symbol] || symbol;
-  const ivMin = KRAKEN_INTERVAL[interval] || 5;
-  return fetchCandlesRaw(pair, ivMin, null).then(({ candles }) => {
-    const recent = candles.slice(-limit);
-    if (recent.length < 60) throw new Error(`Only ${recent.length} candles returned`);
-    return recent;
-  });
+  const ivMin = KRAKEN_INTERVAL[interval] || 60;
+  const { candles } = await fetchCandlesRaw(pair, ivMin, null);
+  return candles.slice(-limit);
 }
 
-// Historical fetch with pagination for backtesting
-// Returns all candles from (months ago - 100 warmup bars) to now
 async function fetchCandlesHistorical(symbol, interval, months) {
   const pair  = KRAKEN_PAIR[symbol] || symbol;
   const ivMin = KRAKEN_INTERVAL[interval] || 60;
   const ivSec = ivMin * 60;
   const now   = Math.floor(Date.now() / 1000);
-  const startSec  = now - Math.ceil(months * 30.44 * 24 * 3600);
-  const fetchFrom = startSec - 100 * ivSec; // include warmup candles
-
-  // Safety cap: limit total API calls
+  const fetchFrom    = now - Math.ceil(months * 30.44 * 24 * 3600) - 100 * ivSec;
   const candlesNeeded = Math.ceil((now - fetchFrom) / ivSec);
-  const maxCalls = Math.min(50, Math.ceil(candlesNeeded / 700) + 2);
-
-  const allCandles = [];
+  const maxCalls      = Math.min(50, Math.ceil(candlesNeeded / 700) + 2);
+  const allCandles    = [];
   let since = fetchFrom;
-
   for (let i = 0; i < maxCalls; i++) {
     const { candles, last } = await fetchCandlesRaw(pair, ivMin, since);
     if (!candles.length) break;
-
-    // Deduplicate by timestamp
     const seen = new Set(allCandles.map(c => c.time));
     allCandles.push(...candles.filter(c => !seen.has(c.time)));
-
     const lastMs = allCandles[allCandles.length - 1].time;
-    if (lastMs / 1000 >= now - ivSec * 3) break; // reached current time
-
+    if (lastMs / 1000 >= now - ivSec * 3) break;
     since = last || Math.floor(lastMs / 1000) + 1;
-    if (i < maxCalls - 1) await new Promise(r => setTimeout(r, 350)); // rate-limit
+    if (i < maxCalls - 1) await new Promise(r => setTimeout(r, 350));
   }
-
   return allCandles;
 }
 
-module.exports = { computeIndicators, generateSignal, checkExit, fetchCandles, fetchCandlesHistorical };
+// Lightweight single-price fetch via Kraken Ticker endpoint.
+// Used by the 10-second fast poll to avoid fetching 250 candles every 10s.
+async function fetchCurrentPrice(symbol) {
+  const pair = KRAKEN_PAIR[symbol] || symbol;
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.kraken.com',
+      path: `/0/public/Ticker?pair=${pair}`,
+      method: 'GET',
+    };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result)[0];
+          resolve(parseFloat(json.result[key].c[0]));
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+module.exports = {
+  computeIndicators, generateSignal, checkExit, computeTrailUpdate,
+  fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
+};
