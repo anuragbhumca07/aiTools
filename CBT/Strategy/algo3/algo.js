@@ -141,7 +141,7 @@ function computeIndicators(candles) {
   const lows    = candles.map(c => c.low);
   const volumes = candles.map(c => c.volume);
   const n = candles.length - 1;
-  const p3 = Math.max(0, n - 3); // 3 bars ago index
+  const p3 = Math.max(0, n - 3);
 
   const ema21  = ema(closes, 21);
   const ema55  = ema(closes, 55);
@@ -152,7 +152,6 @@ function computeIndicators(candles) {
   const volMA  = volMACalc(volumes, 20);
   const adxArr = adxCalc(highs, lows, closes, 14);
 
-  // ATR 20-period simple MA — used for volatility regime filter
   const atrWindow = [];
   for (let i = Math.max(0, n - 19); i <= n; i++) {
     if (atr14[i] !== null) atrWindow.push(atr14[i]);
@@ -161,15 +160,12 @@ function computeIndicators(candles) {
     ? atrWindow.reduce((a, b) => a + b, 0) / atrWindow.length
     : null;
 
-  // ADX slope: compare current ADX vs 3 bars ago — positive = trend strengthening
   const adxNow  = adxArr[n]?.adx  ?? null;
   const adxPrev = adxArr[p3]?.adx ?? null;
   const adxSlope = adxNow !== null && adxPrev !== null ? adxNow - adxPrev : null;
 
-  // EMA21 slope: confirms medium-term momentum direction
   const ema21Slope = ema21[n] !== null && ema21[p3] !== null ? ema21[n] - ema21[p3] : null;
 
-  // Candle close quality: ratio of 0 (close=low) to 1 (close=high)
   const candleRange = highs[n] - lows[n];
   const candleBodyRatio = candleRange > 0 ? (closes[n] - lows[n]) / candleRange : 0.5;
 
@@ -195,7 +191,7 @@ function computeIndicators(candles) {
     adxSlope,
     ema21Slope,
     candleBodyRatio,
-    volume:         volumes[n-1],   // last CLOSED candle (volumes[n] is in-progress)
+    volume:         volumes[n-1],
     volumeMA:       volMA[n-1],
     adx:            adxArr[n]?.adx        ?? null,
     diPlus:         adxArr[n]?.diPlus     ?? null,
@@ -206,39 +202,7 @@ function computeIndicators(candles) {
   };
 }
 
-// ── Swing Trading Signal — Algo3 v2 ──────────────────────────────
-//
-// Strategy: EMA Ribbon Swing v2 — precision filtered with trend quality gates
-//
-// Hard gates (ALL must pass — each targets a specific loss pattern found in algo2 analysis):
-//
-//   Gate 1 — ADX ≥ 25           : strong directional trend required
-//   Gate 2 — |DI+−DI−| ≥ 15    : directional conviction (blocks weak DI splits)
-//   Gate 3 — ADX rising         : adx[n] > adx[n-3] — trend must be STRENGTHENING,
-//                                  not fading (blocks late entries into dying trends;
-//                                  prevented BTC SHORT $67k Mar-30 and LONG $81k May-14 loss)
-//   Gate 4 — ATR regime ≤ 1.3×  : current ATR ≤ 20-period ATR average × 1.3 — blocks
-//                                  entries during volatility spikes where SL is blown through
-//                                  (prevented most $150+ Phase-1 losses in ranging/spiking market)
-//   Gate 5 — Price proximity     : |price − EMA21| ≤ 1.5×ATR — forces entry at pullbacks,
-//                                  prevents chasing overextended moves
-//                                  (multiple $80-81k BTC re-entries were far above EMA21)
-//
-// Entry conditions (5/6 required — volume removed as unreliable on Kraken spot):
-//   1. DI direction confirms side
-//   2. EMA21 vs EMA55 alignment
-//   3. EMA55 vs EMA200 (macro)
-//   4. RSI ∈ [42, 72] buy / [28, 58] sell  — tighter than v1 (avoids overbought longs)
-//   5. MACD hist direction  (> 0 buy / < 0 sell) — relaxed from "growing" to allow
-//      more entries in sustained trends
-//   6. Candle close quality — close in upper 45% of bar range for buy, lower 45% for sell
-//      (replaces volume; confirms per-candle momentum direction at the moment of entry)
-//
-// Risk  : 1.5% per trade, hard-capped at $150
-// SL    : max(2.5×ATR, 0.25%)
-// TP    : SL × 3 (3:1 R:R)
-// Exit  : Phase-based SL ratchet (unchanged from v1) + time stop 60 candles
-//
+// ── Signal — identical to Algo5 (EMA Ribbon Swing v2) ────────────
 function generateSignal(candles, state = {}) {
   const ind = computeIndicators(candles);
   const { price, ema21, ema55, ema200, rsi, macdHist,
@@ -252,15 +216,9 @@ function generateSignal(candles, state = {}) {
   const fmt = (v, d = 2) => v != null ? v.toFixed(d) : 'n/a';
   const diSpread = Math.abs(diPlus - diMinus);
 
-  // EMA21 slope: positive = rising over last 3 bars — confirms active medium-term momentum
   const ema21Rising  = ema21Slope !== null ? ema21Slope > 0 : false;
   const ema21Falling = ema21Slope !== null ? ema21Slope < 0 : false;
 
-  // ── BUY scoring (7 conditions, need 6/7) ─────────────────────────
-  // 7-condition model: allows one miss from: macro alignment, EMA21 slope, candle quality,
-  // RSI, or MACD. Keeps EMA55>EMA200 as a scored condition (not a gate) so macro-bearish
-  // period longs (e.g. BTC recovery Mar-Apr when EMA55 < EMA200) are still allowed when
-  // 6 other conditions confirm. Two misses → blocked (prevents ETH "barely crossed" longs).
   const buyChecks = [
     { ok: diPlus  > diMinus,            label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)})` },
     { ok: ema21   > ema55,              label: `EMA21(${fmt(ema21)}) > EMA55(${fmt(ema55)})` },
@@ -274,7 +232,6 @@ function generateSignal(candles, state = {}) {
   const buyPassed = buyChecks.filter(c => c.ok).map(c => c.label);
   const buyFailed = buyChecks.filter(c => !c.ok).map(c => c.label);
 
-  // ── SELL scoring (7 conditions, need 6/7) ────────────────────────
   const sellChecks = [
     { ok: diMinus > diPlus,             label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)})` },
     { ok: ema21   < ema55,              label: `EMA21 < EMA55` },
@@ -288,60 +245,24 @@ function generateSignal(candles, state = {}) {
   const sellPassed = sellChecks.filter(c => c.ok).map(c => c.label);
   const sellFailed = sellChecks.filter(c => !c.ok).map(c => c.label);
 
-  // ── Hard gate 1: ADX strength ────────────────────────────────────
   if (adx < 25) {
-    return {
-      signal: 'HOLD',
-      reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend`], indicators: ind, buyScore, sellScore };
   }
-
-  // ── Hard gate 2: DI spread ───────────────────────────────────────
   if (diSpread < 15) {
-    return {
-      signal: 'HOLD',
-      reason: [`DI spread(${fmt(diSpread, 1)}) < 15 — insufficient directional conviction`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`DI spread(${fmt(diSpread, 1)}) < 15 — insufficient directional conviction`], indicators: ind, buyScore, sellScore };
   }
-
-  // ── Hard gate 3: ADX must be rising (trend strengthening) ────────
-  // Blocks entries into fading trends — the #1 cause of big losses in algo2.
-  // BTC SHORT $67k Mar-30: prior 2 shorts hit Phase-2/3 → ADX was declining.
-  // BTC LONG $81.3k May-14: 4th attempt in same zone → ADX slope was flat/negative.
   if (adxSlope !== null && adxSlope <= 0) {
-    return {
-      signal: 'HOLD',
-      reason: [`ADX slope (${fmt(adxSlope, 2)}) ≤ 0 — trend fading, not strengthening`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`ADX slope (${fmt(adxSlope, 2)}) ≤ 0 — trend fading`], indicators: ind, buyScore, sellScore };
   }
-
-  // ── Hard gate 4: ATR regime — block volatility spikes ────────────
-  // During BTC choppy range ($75-77k live), ATR was elevated → SL blown through.
-  // Require ATR ≤ 1.3× its 20-period average.
   if (atrMA20 !== null && atr > atrMA20 * 1.3) {
-    return {
-      signal: 'HOLD',
-      reason: [`ATR spike: ATR(${fmt(atr, 0)}) > 1.3×ATR_MA(${fmt(atrMA20, 0)}) — volatility too high`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`ATR spike: ATR(${fmt(atr, 0)}) > 1.3×ATR_MA(${fmt(atrMA20, 0)})`], indicators: ind, buyScore, sellScore };
   }
-
-  // ── Hard gate 5: Price proximity to EMA21 ────────────────────────
-  // Blocks overextended entries — prevents chasing moves already 1.5×ATR from EMA21.
-  // Forces entries at pullbacks/consolidations close to the trend anchor.
   const ema21Dist = Math.abs(price - ema21);
   if (ema21Dist > atr * 1.5) {
-    return {
-      signal: 'HOLD',
-      reason: [`Price overextended: |price−EMA21|(${fmt(ema21Dist, 0)}) > 1.5×ATR(${fmt(atr * 1.5, 0)})`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`Price overextended: |price−EMA21|(${fmt(ema21Dist, 0)}) > 1.5×ATR(${fmt(atr * 1.5, 0)})`], indicators: ind, buyScore, sellScore };
   }
 
-  const THRESHOLD = 6; // need 6/7 scored conditions (allows 1 miss — e.g. macro or EMA21 slope)
+  const THRESHOLD = 6;
   if (buyScore >= THRESHOLD && buyScore > sellScore) {
     return { signal: 'BUY', reason: buyPassed, indicators: ind, buyScore, sellScore };
   }
@@ -355,85 +276,61 @@ function generateSignal(candles, state = {}) {
   return { signal: 'HOLD', reason: holdReason, indicators: ind, buyScore, sellScore };
 }
 
-// ── Phase-based exit logic ────────────────────────────────────────
+// ── Exit check — NO fixed TP (trailing takes over at $300 profit) ──
 function checkExit(position, candles) {
   const ind = computeIndicators(candles);
-  const { price, atr, rsi, ema21, ema55, adx } = ind;
-  const { side, entryPrice, stopLoss, takeProfit, phase, mae } = position;
-
-  const profit = side === 'long' ? price - entryPrice : entryPrice - price;
-  const currentMAE = Math.min(mae || 0, side === 'long' ? price - entryPrice : entryPrice - price);
-
-  let newCandlesHeld = position.candlesHeld;
-  const currentCandleTime = candles[candles.length - 1].time;
-  if (currentCandleTime !== position.lastCandleTime) {
-    newCandlesHeld++;
-  }
-
-  let newPhase = phase;
-  let newSL    = stopLoss;
-
-  // Phase-2 SL is set at entry ± 0.15×ATR (not exactly breakeven) so that if price
-  // reverses after reaching Phase 2, we still lock in a small profit rather than $0.
-  // This converts "breakeven" exits to small wins, improving win rate.
-  const PHASE2_BUFFER = 0.15;
-
-  if (side === 'long') {
-    if (phase < 4 && profit >= atr * 4) {
-      newPhase = 4;
-      newSL    = price - atr * 2;
-    } else if (phase < 3 && profit >= atr * 2) {
-      newPhase = 3;
-      newSL    = entryPrice + atr * 1.5;
-    } else if (phase < 2 && profit >= atr) {
-      newPhase = 2;
-      newSL    = entryPrice + atr * PHASE2_BUFFER;
-    } else if (phase === 4) {
-      newSL = Math.max(newSL, price - atr * 2);
-    }
-  } else {
-    if (phase < 4 && profit >= atr * 4) {
-      newPhase = 4;
-      newSL    = price + atr * 2;
-    } else if (phase < 3 && profit >= atr * 2) {
-      newPhase = 3;
-      newSL    = entryPrice - atr * 1.5;
-    } else if (phase < 2 && profit >= atr) {
-      newPhase = 2;
-      newSL    = entryPrice - atr * PHASE2_BUFFER;
-    } else if (phase === 4) {
-      newSL = Math.min(newSL, price + atr * 2);
-    }
-  }
-
-  position.stopLoss       = newSL;
-  position.phase          = newPhase;
-  position.candlesHeld    = newCandlesHeld;
-  position.lastCandleTime = currentCandleTime;
-  position.mae            = currentMAE;
+  const { price } = ind;
+  const { side, entryPrice, stopLoss } = position;
 
   const reasons = [];
 
   if (side === 'long') {
-    if (price <= newSL) reasons.push(`SL hit (Phase ${newPhase}): price ${price.toFixed(2)} ≤ ${newSL.toFixed(2)}`);
-    if (price >= takeProfit) reasons.push(`TP hit: ${price.toFixed(2)} ≥ ${takeProfit.toFixed(2)}`);
+    if (price <= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≤ ${stopLoss.toFixed(2)}`);
+    if (price <= entryPrice - 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≤ ${(entryPrice - 1000).toFixed(2)}`);
   } else {
-    if (price >= newSL) reasons.push(`SL hit (Phase ${newPhase}): price ${price.toFixed(2)} ≥ ${newSL.toFixed(2)}`);
-    if (price <= takeProfit) reasons.push(`TP hit: ${price.toFixed(2)} ≤ ${takeProfit.toFixed(2)}`);
+    if (price >= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≥ ${stopLoss.toFixed(2)}`);
+    if (price >= entryPrice + 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≥ ${(entryPrice + 1000).toFixed(2)}`);
   }
-
-  if (side === 'long'  && rsi > 78) reasons.push(`RSI overbought (${rsi.toFixed(1)} > 78)`);
-  if (side === 'short' && rsi < 22) reasons.push(`RSI oversold (${rsi.toFixed(1)} < 22)`);
-
-  if (side === 'long'  && ema21 < ema55 && profit > 0) reasons.push('EMA trend reversed (bearish)');
-  if (side === 'short' && ema21 > ema55 && profit > 0) reasons.push('EMA trend reversed (bullish)');
-
-  if (newCandlesHeld >= 60) reasons.push(`Time stop: ${newCandlesHeld} candles held`);
 
   return { exit: reasons.length > 0, reasons, indicators: ind };
 }
 
-// ── Kraken data fetcher ───────────────────────────────────────────
+// ── Trailing SL computation ───────────────────────────────────────
+function computeTrailUpdate(position, unrealPnl) {
+  const { side, entryPrice, size, stopLoss } = position;
+  const band = Math.floor(unrealPnl / 50);
+  if (band < 6) return null;
+
+  const lockProfit = (band - 1) * 50;
+  const newSl = side === 'long'
+    ? entryPrice + lockProfit / size
+    : entryPrice - lockProfit / size;
+
+  const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
+  return improved ? { oldSl: stopLoss, newSl, lockProfit } : null;
+}
+
+// ── 1-hour HTF trend filter ───────────────────────────────────────
+//
+// Relaxed criteria vs the 1m signal generator — used only to confirm trend direction.
+// Skipped gates: ADX slope, DI spread≥15, RSI range, candle body ratio,
+//                ATR spike, EMA21 distance check, 6/7 scoring threshold.
+// Kept: full EMA21/55/200 stack alignment + DI direction + MACD hist direction.
+//
+// All three must agree → 'bull' or 'bear'.  Any disagreement → 'neutral' (no entry).
+//
+// Returns: 'bull' | 'bear' | 'neutral'
+//
+function getTrend1h(candles) {
+  const ind = computeIndicators(candles);
+  const { ema21, ema55, ema200, diPlus, diMinus, macdHist } = ind;
+  if ([ema21, ema55, ema200, diPlus, diMinus, macdHist].some(v => v == null)) return 'neutral';
+  if (ema21 > ema55 && ema55 > ema200 && diPlus > diMinus && macdHist > 0) return 'bull';
+  if (ema21 < ema55 && ema55 < ema200 && diMinus > diPlus && macdHist < 0) return 'bear';
+  return 'neutral';
+}
+
+// ── Kraken data fetchers ──────────────────────────────────────────
 
 const KRAKEN_PAIR = {
   BTCUSDT:  'XBTUSD', ETHUSDT:  'ETHUSD',
@@ -501,4 +398,33 @@ async function fetchCandlesHistorical(symbol, interval, months) {
   return allCandles;
 }
 
-module.exports = { computeIndicators, generateSignal, checkExit, fetchCandles, fetchCandlesHistorical };
+async function fetchCurrentPrice(symbol) {
+  const pair = KRAKEN_PAIR[symbol] || symbol;
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.kraken.com',
+      path: `/0/public/Ticker?pair=${pair}`,
+      method: 'GET',
+    };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result)[0];
+          resolve(parseFloat(json.result[key].c[0]));
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+module.exports = {
+  computeIndicators, generateSignal, checkExit, computeTrailUpdate,
+  getTrend1h,
+  fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
+};
