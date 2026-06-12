@@ -24,10 +24,10 @@ const WA_INSTANCE = process.env.WA_INSTANCE || '';
 const WA_TOKEN    = process.env.WA_TOKEN    || '';
 const WA_GROUP    = process.env.WA_GROUP    || '';
 
-// Fixed trade parameters (size=1 lot, SL=$50, TP=$150)
+// Fixed trade parameters (size=1 lot, SL=$100, TP=$500)
 const FIXED_SIZE = 1;
-const FIXED_SL   = 50;
-const FIXED_TP   = 150;
+const FIXED_SL   = 100;
+const FIXED_TP   = 500;
 
 const DATA_DIR = path.join(__dirname, 'data');
 const LOGS_DIR = path.join(__dirname, 'logs');
@@ -180,8 +180,8 @@ async function fetchCandlesHistoricalFromMT5(symbol, tf, months) {
   return r.data;
 }
 
-async function placeOrder(side, symbol, sl, tp) {
-  if (!mt5Connected) return { paper: true, orderId: `paper_${Date.now()}` };
+async function placeOrder(side, symbol, sl, tp, isLive) {
+  if (!isLive) return { paper: true, orderId: `paper_${Date.now()}` };
   try {
     const r = await bridgeCall({
       cmd: 'place_order', type: side === 'long' ? 'BUY' : 'SELL',
@@ -198,11 +198,12 @@ async function placeOrder(side, symbol, sl, tp) {
   }
 }
 
-async function closeOrder(orderId) {
-  if (!mt5Connected || !orderId || String(orderId).startsWith('paper_')) return { paper: true };
+async function closeOrder(orderId, isLive) {
+  if (!isLive || !orderId || String(orderId).startsWith('paper_')) return { paper: true };
   try {
     const r = await bridgeCall({ cmd: 'close_order', ticket: orderId });
     if (!r.ok) { console.error('[MT5Algo1] closeOrder failed:', r.error); return { error: r.error }; }
+    if (r.data?.already_closed) console.log(`[MT5Algo1] closeOrder: ticket ${orderId} already closed by MT5 SL/TP`);
     return { closed: true };
   } catch (err) {
     console.error('[MT5Algo1] closeOrder error:', err.message);
@@ -210,8 +211,8 @@ async function closeOrder(orderId) {
   }
 }
 
-async function modifySL(orderId, newSl) {
-  if (!mt5Connected || !orderId || String(orderId).startsWith('paper_')) return;
+async function modifySL(orderId, newSl, isLive) {
+  if (!isLive || !orderId || String(orderId).startsWith('paper_')) return;
   try {
     const r = await bridgeCall({ cmd: 'modify_sl', ticket: orderId, sl: newSl });
     if (!r.ok) console.error('[MT5Algo1] modifySL failed:', r.error);
@@ -267,7 +268,7 @@ const stmtInsert = db.prepare(`
 const STRATEGIES = {
   'mt5-v1-trail25': {
     name: 'mt5-v1-trail25: EMA Ribbon Swing (MT5 Fixed-SL + $25 Trail)',
-    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + No-Drift :01s Timer + Fixed SL $50 + Trailing $25/step after $100 profit + 5s fast poll + Opposite-Signal Exit + $500 Hard Stop — Executes on local MT5 terminal via Python bridge',
+    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + No-Drift :01s Timer + Fixed SL $100 + Phase1: breakeven @$100 | Phase2: lock $100 @$175 | Phase3: trail $50/step @$200+ (10s scan) + Opposite-Signal Exit + $500 Hard Stop — Executes on local MT5 terminal via Python bridge',
   },
 };
 
@@ -358,7 +359,8 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
 
   let closeResult = { paper: true };
   if (mt5Ticket && !String(mt5Ticket).startsWith('paper_')) {
-    closeResult = await closeOrder(mt5Ticket);
+    const isLive = sess.state.mode === 'live' && mt5Connected;
+    closeResult = await closeOrder(mt5Ticket, isLive);
   }
 
   state.balance   += pnl;
@@ -398,8 +400,8 @@ function manageFastTicker(sess) {
     ((pos.unrealizedPnl || 0) > 75 || pos.trailing);
 
   if (needFast && !sess.fastTicker) {
-    console.log(`[MT5Algo1] Starting 5s fast poll (unrealPnl=${(pos.unrealizedPnl||0).toFixed(2)})`);
-    sess.fastTicker = setInterval(() => fastTick(sess), 5000);
+    console.log(`[MT5Algo1] Starting 10s trail scan (unrealPnl=${(pos.unrealizedPnl||0).toFixed(2)})`);
+    sess.fastTicker = setInterval(() => fastTick(sess), 10000);
   } else if (!needFast && sess.fastTicker) {
     console.log('[MT5Algo1] Stopping fast poll');
     stopFastTicker(sess);
@@ -434,20 +436,23 @@ async function runFastTick(sess) {
 
     const trailUpdate = computeTrailUpdate(pos, unrealPnl);
     if (trailUpdate) {
-      const { oldSl, newSl, lockProfit } = trailUpdate;
+      const { oldSl, newSl, lockProfit, phase, newWatermark } = trailUpdate;
       pos.stopLoss        = newSl;
       pos.trailing        = true;
       pos.trailLockProfit = lockProfit;
+      if (phase === 3 && newWatermark != null) pos.trailWatermark = newWatermark;
 
       // Send SLTP modify to MT5 terminal
       if (pos.mt5Ticket) {
-        modifySL(pos.mt5Ticket, newSl).catch(err =>
+        const isLive = state.mode === 'live' && mt5Connected;
+        modifySL(pos.mt5Ticket, newSl, isLive).catch(err =>
           console.error('[MT5Algo1] modifySL error in fastTick:', err.message)
         );
       }
 
-      const note = `SL → $${newSl.toFixed(2)} (locks $${lockProfit} profit) [MT5 SLTP sent]`;
-      console.log(`[MT5Algo1] TRAIL: ${note}`);
+      const phaseLabel = phase === 1 ? 'breakeven' : phase === 2 ? 'lock $100' : 'trail';
+      const note = `SL → $${newSl.toFixed(2)} (${phaseLabel}, locks $${lockProfit} profit) [MT5 SLTP sent]`;
+      console.log(`[MT5Algo1] TRAIL Ph${phase}: ${note}`);
       pushLog(sess, {
         ts, type: 'TICK', signal: 'TRAIL-UPDATE', price,
         indicators: { ...(state.lastIndicators || {}), price },
@@ -521,15 +526,17 @@ async function runTick(sess) {
       // Belt-and-suspenders trail advance on candle close
       const trailUpdate = computeTrailUpdate(pos, unrealPnl);
       if (trailUpdate) {
-        const { oldSl, newSl, lockProfit } = trailUpdate;
+        const { oldSl, newSl, lockProfit, phase, newWatermark } = trailUpdate;
         pos.stopLoss        = newSl;
         pos.trailing        = true;
         pos.trailLockProfit = lockProfit;
-        if (pos.mt5Ticket) modifySL(pos.mt5Ticket, newSl).catch(() => {});
+        if (phase === 3 && newWatermark != null) pos.trailWatermark = newWatermark;
+        if (pos.mt5Ticket) modifySL(pos.mt5Ticket, newSl, state.mode === 'live' && mt5Connected).catch(() => {});
+        const phaseLabel = phase === 1 ? 'breakeven' : phase === 2 ? 'lock $100' : 'trail';
         pushLog(sess, {
           ts, type: 'TICK', signal: 'TRAIL-UPDATE', price: livePrice,
           indicators: state.lastIndicators || {},
-          reason: [`SL → $${newSl.toFixed(2)} (locks $${lockProfit} profit) [MT5 SLTP sent]`],
+          reason: [`SL → $${newSl.toFixed(2)} (${phaseLabel}, locks $${lockProfit} profit) [MT5 SLTP sent]`],
         });
       }
 
@@ -570,13 +577,26 @@ async function runTick(sess) {
       const sl   = side === 'long' ? price - FIXED_SL : price + FIXED_SL;
       const tp   = side === 'long' ? price + FIXED_TP : price - FIXED_TP;
 
-      const orderResult = await placeOrder(side, symbol, sl, tp);
+      const isLive = state.mode === 'live' && mt5Connected;
+      const orderResult = await placeOrder(side, symbol, sl, tp, isLive);
+
+      // In live mode, if MT5 rejected the order — surface error, don't enter a fake position
+      if (isLive && orderResult.paper) {
+        const raw = orderResult.error || 'MT5 order rejected';
+        const hint = raw.includes('10027') || raw.toLowerCase().includes('autotrading')
+          ? `${raw} — Enable AutoTrading in MT5 toolbar (Algo Trading button)`
+          : raw;
+        state.error = `[LIVE] Order failed: ${hint}`;
+        pushLog(sess, { ts, type: 'ERROR', message: state.error, indicators });
+        broadcast(sess, { type: 'error', message: state.error, state: publicState(state) });
+        return;
+      }
 
       state.position = {
         side, entryPrice: price, size: FIXED_SIZE,
         stopLoss: sl, takeProfit: tp,
         entryTime: ts, unrealizedPnl: 0, mae: 0,
-        trailing: false, trailLockProfit: 0,
+        trailing: false, trailLockProfit: 0, trailWatermark: null,
         mt5Ticket: orderResult.orderId,
       };
 
@@ -903,5 +923,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT MT5Algo1 (MT5 Fixed-SL + Trail $25) listening on :${PORT}`)
+  console.log(`CBT MT5Algo1 (MT5 SL $100 | BE@$100 | Lock$100@$175 | Trail$50@$200+) listening on :${PORT}`)
 );

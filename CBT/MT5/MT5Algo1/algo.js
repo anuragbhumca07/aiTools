@@ -266,28 +266,37 @@ function checkExitByPrice(position, price) {
   return { exit: reasons.length > 0, reasons };
 }
 
-// ── Trailing SL — activates at +$100, steps every $25 ────────────
-//
-// Rules (size=1, so price distance = dollar PnL):
-//   At unrealPnl ≥ $100: SL moves to entryPrice ± $50 (locks in $50)
-//   At unrealPnl ≥ $125: SL advances to lock in $75
-//   At unrealPnl ≥ $150: SL advances to lock in $100
-//   Every +$25 beyond that → SL locks in $25 more
-//
+// ── Trailing SL — three-phase protection ─────────────────────────
+// Phase 1 ($100): SL → entry (breakeven, lock $0)
+// Phase 2 ($175): SL → entry ± $100 (lock $100)
+// Phase 3 ($200+): trailing scan, +$50 SL per +$50 profit (watermark-based)
 function computeTrailUpdate(position, unrealPnl) {
-  const { side, entryPrice, stopLoss } = position;
-  if (unrealPnl < 100) return null;
+  const { side, entryPrice, stopLoss, trailWatermark } = position;
 
-  // steps = 0 at $100, 1 at $125, 2 at $150, ...
-  const steps = Math.floor((unrealPnl - 100) / 25);
-  const lockProfit = 50 + steps * 25;  // $50, $75, $100, ...
+  if (unrealPnl >= 100 && unrealPnl < 175) {
+    const newSl = entryPrice;
+    const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
+    return improved ? { oldSl: stopLoss, newSl, lockProfit: 0, phase: 1 } : null;
+  }
 
-  const newSl = side === 'long'
-    ? entryPrice + lockProfit
-    : entryPrice - lockProfit;
+  if (unrealPnl >= 175 && unrealPnl < 200) {
+    const newSl = side === 'long' ? entryPrice + 100 : entryPrice - 100;
+    const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
+    return improved ? { oldSl: stopLoss, newSl, lockProfit: 100, phase: 2 } : null;
+  }
 
-  const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
-  return improved ? { oldSl: stopLoss, newSl, lockProfit } : null;
+  if (unrealPnl >= 200) {
+    const wm = trailWatermark ?? 200;
+    if (unrealPnl < wm + 50) return null;
+    const steps = Math.floor((unrealPnl - wm) / 50);
+    const newSl = side === 'long' ? stopLoss + steps * 50 : stopLoss - steps * 50;
+    const improved = side === 'long' ? newSl > stopLoss : newSl < stopLoss;
+    if (!improved) return null;
+    const lockProfit = side === 'long' ? newSl - entryPrice : entryPrice - newSl;
+    return { oldSl: stopLoss, newSl, lockProfit, newWatermark: wm + steps * 50, phase: 3 };
+  }
+
+  return null;
 }
 
 module.exports = {

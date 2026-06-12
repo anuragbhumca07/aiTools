@@ -31,6 +31,13 @@ CBT/Strategy/algo5/logs/
 # Robinhood credentials
 Robinhood/.env
 
+# Fyers credentials & runtime data
+fyers/strategy/shared_data/fyers_token.json
+fyers/strategy/shared_data/*.db
+
+# MT5 server logs
+CBT/MT5/MT5Algo1/*.log
+
 # misc recordings / generated outputs
 misc/recordings/
 misc/graphify-cache/

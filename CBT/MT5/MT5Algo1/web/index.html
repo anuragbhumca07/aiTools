@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #0d1117; --card: #161b22; --border: #21262d;
-    --text: #c9d1d9; --muted: #8b949e; --accent: #1976d2;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #f0883e;
     --green: #3fb950; --red: #f85149; --yellow: #e3b341; --purple: #bc8cff;
     --orange: #f0883e; --teal: #39d353;
     --font: 'Courier New', Courier, monospace;
@@ -57,6 +57,21 @@
   .auth-card .logo { font-size: 2.5rem; margin-bottom: 12px; }
   .auth-card h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 6px; }
   .auth-card p { color: var(--muted); font-size: .82rem; margin-bottom: 24px; }
+  #google-signin-btn { margin: 0 auto; }
+  #user-info {
+    display: none; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px 4px 6px;
+  }
+  #user-info.show { display: flex; }
+  #user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+  #user-name { font-size: .75rem; color: var(--muted); }
+  .btn-signout {
+    padding: 3px 8px; font-size: .7rem; font-weight: 700;
+    background: rgba(248,81,73,.15); border: 1px solid var(--red);
+    color: var(--red); border-radius: 4px; cursor: pointer; font-family: var(--font);
+  }
+  .btn-signout:hover { background: rgba(248,81,73,.3); }
 
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -78,7 +93,7 @@
   .mode-tab:hover { border-color: var(--accent); color: var(--accent); }
   .mode-tab.active          { background: var(--yellow); border-color: var(--yellow); color: #000; }
   .mode-tab.active-live     { background: var(--green);  border-color: var(--green);  color: #000; }
-  .mode-tab.active-backtest { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .mode-tab.active-backtest { background: var(--accent); border-color: var(--accent); color: #000; }
 
   .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
   .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
@@ -100,13 +115,13 @@
   .btn:disabled { opacity: .4; cursor: default; transform: none; }
   .btn-start    { background: var(--teal);   color: #000; }
   .btn-stop     { background: var(--red);    color: #fff; }
-  .btn-backtest { background: var(--accent); color: #fff; }
+  .btn-backtest { background: var(--accent); color: #000; }
 
   #backtest-panel { display: none; }
   #backtest-panel.show { display: block; }
   .bt-progress {
     margin-top: 10px; padding: 8px 12px;
-    background: rgba(25,118,210,.1); border: 1px solid rgba(25,118,210,.3);
+    background: rgba(240,136,62,.1); border: 1px solid rgba(240,136,62,.3);
     border-radius: 6px; color: var(--accent); font-size: .82rem;
   }
   .bt-results { margin-top: 12px; }
@@ -146,14 +161,24 @@
   .logic-box .lh { font-size: .7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
   .logic-rule { font-size: .78rem; color: var(--muted); margin-bottom: 3px; }
   .logic-rule span { color: var(--accent); font-weight: 700; }
+  .logic-rule span.new { color: var(--teal); font-weight: 700; }
   .logic-gate {
     font-size: .78rem; color: var(--yellow); font-weight: 700;
     margin-bottom: 4px; padding: 4px 8px;
     background: rgba(227,179,65,.08); border-radius: 4px;
   }
-  .logic-gate.signal-gate { color: var(--teal);   background: rgba(57,211,83,.08);  border: 1px solid rgba(57,211,83,.2); }
-  .logic-gate.trail-gate  { color: var(--accent); background: rgba(25,118,210,.08); border: 1px solid rgba(25,118,210,.3); }
-  .logic-gate.closed-gate { color: #c9d1d9;       background: rgba(25,118,210,.12); border: 1px solid rgba(25,118,210,.35); }
+  .logic-gate.new-gate {
+    color: var(--teal); background: rgba(57,211,83,.08);
+    border: 1px solid rgba(57,211,83,.2);
+  }
+  .logic-gate.trail-gate {
+    color: var(--accent); background: rgba(240,136,62,.08);
+    border: 1px solid rgba(240,136,62,.25);
+  }
+  .logic-gate.closed-gate {
+    color: #c9d1d9; background: rgba(240,136,62,.12);
+    border: 1px solid rgba(240,136,62,.35);
+  }
 
   .ind-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
   .ind-chip {
@@ -191,6 +216,7 @@
   .clr-y { color: var(--yellow) !important; }
   .clr-a { color: var(--accent) !important; }
   .clr-p { color: var(--purple) !important; }
+  .clr-o { color: var(--orange) !important; }
   .type-tick  { color: var(--muted); }
   .type-entry { color: var(--teal);  font-weight: 700; }
   .type-exit  { color: var(--yellow); font-weight: 700; }
@@ -206,7 +232,7 @@
   #err-banner.show { display: block; }
   .setup-note {
     margin-top: 10px; padding: 9px 14px;
-    background: rgba(25,118,210,.08); border: 1px solid rgba(25,118,210,.25);
+    background: rgba(240,136,62,.08); border: 1px solid rgba(240,136,62,.25);
     border-radius: 6px; color: var(--muted); font-size: .78rem; line-height: 1.6;
   }
   .setup-note code { color: var(--accent); font-family: var(--font); }
@@ -217,7 +243,7 @@
 <div id="auth-wall">
   <div class="auth-card">
     <div class="logo">📊</div>
-    <h2>CBT MT5Algo1</h2>
+    <h2>CBT MT5Algo1 — MT5 Fixed-SL + Trail $25</h2>
     <p>Sign in to run your MT5 terminal trading session</p>
     <div id="google-signin-btn"></div>
   </div>
@@ -235,6 +261,11 @@
     <span id="mt5-label" style="font-size:.7rem;color:var(--muted)">MT5: paper</span>
   </div>
   <div class="spacer"></div>
+  <div id="user-info">
+    <img id="user-avatar" src="" alt=""/>
+    <span id="user-name"></span>
+    <button class="btn-signout" onclick="signOut()">Sign out</button>
+  </div>
   <span id="last-update">—</span>
 </header>
 
@@ -253,8 +284,7 @@
       <div class="ctrl-row" id="trading-controls">
         <div class="ctrl-group">
           <label>Symbol (MT5)</label>
-          <input id="ctrl-symbol" type="text" value="BTCUSD" style="width:110px"
-                 placeholder="e.g. BTCUSD"/>
+          <input id="ctrl-symbol" type="text" value="BTCUSD" style="width:110px" placeholder="e.g. BTCUSD"/>
         </div>
         <div class="ctrl-group">
           <label>Timeframe</label>
@@ -321,7 +351,7 @@
       </div>
 
       <div class="setup-note">
-        <strong>Setup:</strong> Install Python bridge: <code>pip install MetaTrader5</code> · Open MT5 terminal · Log into Tickmill account · Start this server — bridge auto-connects.<br>
+        <strong>Setup:</strong> Install Python bridge: <code>pip install MetaTrader5</code> · Open MT5 terminal · Log into account · Start this server — bridge auto-connects.<br>
         Symbol must match MT5 exactly (e.g. <code>BTCUSD</code>). Set <code>PYTHON_PATH</code> env var if Python is not on PATH.
       </div>
 
@@ -331,14 +361,14 @@
     <div class="card">
       <div class="card-title">PnL Dashboard</div>
       <div style="display:flex;align-items:baseline;gap:4px">
-        <div class="pnl-big" id="pnl-val">$0.00</div>
-        <div class="pnl-pct" id="pnl-pct">(0.00%)</div>
+        <div class="pnl-big" id="pnl-val">+$0.00</div>
+        <div class="pnl-pct" id="pnl-pct">(+0.00%)</div>
       </div>
       <div class="stat-grid">
         <div class="stat-box"><div class="lbl">Balance</div><div class="val" id="stat-balance">$10,000.00</div></div>
         <div class="stat-box"><div class="lbl">Trades</div><div class="val" id="stat-trades">0</div></div>
-        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="stat-wr">0%</div></div>
-        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r" id="stat-maxdd">$0</div></div>
+        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="stat-wr">0.0%</div></div>
+        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r" id="stat-maxdd">$0.00</div></div>
       </div>
       <div style="margin-top:14px">
         <div class="card-title" style="margin-bottom:6px">Open Position</div>
@@ -351,359 +381,569 @@
   <div class="card">
     <div class="card-title">Algo Logic — MT5 Local Terminal · Fixed-SL $50 · Closed Candle Eval · No-Drift :01s Timer · Trail $25/step after $100 profit</div>
     <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
-    <div class="logic-gate signal-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
-    <div class="logic-gate signal-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
-    <div class="logic-gate signal-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
-    <div class="logic-gate signal-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
-    <div class="logic-gate closed-gate" style="margin-top:4px">🕯 Closed Candle: fetches 251 bars from MT5 terminal (copy_rates_from_pos), drops forming candle, evaluates signal on fully-closed candle[250]</div>
-    <div class="logic-gate closed-gate" style="margin-top:4px">⏱ No-Drift Timer: self-rescheduling setTimeout always fires at :01s after candle boundary — zero drift over days</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">🕯 Closed Candle: fetches 251 bars from MT5 terminal (copy_rates_from_pos), drops forming candle, evaluates signal on fully-closed candle[250] — eliminates noisy early-candle signals</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">⏱ No-Drift Timer: self-rescheduling setTimeout always fires at :01s after candle boundary — zero cumulative drift over days</div>
     <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trailing Rule: fixed SL $50 · at +$100 profit → lock $50 · every +$25 → SL advances $25 · TRADE_ACTION_SLTP sent to MT5 · 5s fast poll · $500 hard stop</div>
-    <div class="logic-gate trail-gate" style="margin-top:4px">🐍 Python Bridge: Node.js spawns <code>mt5_bridge.py</code> once as persistent subprocess. Commands over stdin/stdout (JSON-RPC). Auto-restarts on crash.</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">🐍 Python Bridge: Node.js spawns <code style="color:var(--accent)">mt5_bridge.py</code> once as persistent subprocess. Commands over stdin/stdout (JSON-RPC). Auto-restarts on crash.</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
         <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
         <div class="logic-rule">1. <span>DI+ &gt; DI−</span></div>
         <div class="logic-rule">2. <span>EMA21 &gt; EMA55</span></div>
         <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span></div>
-        <div class="logic-rule">4. <span>EMA21 slope rising</span></div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope rising</span></div>
         <div class="logic-rule">5. <span>RSI ∈ [42–72]</span></div>
         <div class="logic-rule">6. <span>MACD hist &gt; 0</span></div>
-        <div class="logic-rule">7. <span>Candle close ≥ 45% of range</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≥ 45% of range</span></div>
+        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+          SL = entry − $50 fixed · 1 lot · TP = entry + $100
+        </div>
       </div>
       <div class="logic-box">
         <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/7</div>
         <div class="logic-rule">1. <span>DI− &gt; DI+</span></div>
         <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span></div>
         <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span></div>
-        <div class="logic-rule">4. <span>EMA21 slope falling</span></div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope falling</span></div>
         <div class="logic-rule">5. <span>RSI ∈ [28–58]</span></div>
         <div class="logic-rule">6. <span>MACD hist &lt; 0</span></div>
-        <div class="logic-rule">7. <span>Candle close ≤ 55% of range</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≤ 55% of range</span></div>
+        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+          SL = entry + $50 fixed · 1 lot · TP = entry − $100
+        </div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--yellow)">📈 TRAILING PHASE (profit ≥ $100)</div>
+        <div class="logic-rule">• <span>$100 profit hit</span> → SL moved to lock in $50 · 5s fast poll starts</div>
+        <div class="logic-rule">• <span>$125 profit</span> → SL advances to lock in $75</div>
+        <div class="logic-rule">• <span>$150 profit</span> → SL advances to lock in $100</div>
+        <div class="logic-rule">• <span>Every +$25</span> → SL locks in $25 more profit</div>
+        <div class="logic-rule">• SL never retreats — only moves in trade direction</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
+          TRADE_ACTION_SLTP sent to MT5 on each SL update
+        </div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--yellow)">🚪 EXIT — any trigger</div>
+        <div class="logic-rule">• <span>Static SL</span> at entry ± $50 (pre-$100 profit)</div>
+        <div class="logic-rule">• <span>Trailing SL</span> (post-$100) — advances in $25 steps</div>
+        <div class="logic-rule">• <span class="new">$500 hard stop</span> — price moves $500 against entry</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--muted)">
+          MT5 manages SL/TP natively via TRADE_ACTION_SLTP
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-title">Latest Indicators</div>
-      <div class="ind-chips" id="ind-chips">
-        <div class="empty-msg">Waiting for first tick…</div>
-      </div>
-      <div class="scores-row" id="scores-row" style="display:none">
-        <div class="score-bar">
-          <span style="color:var(--teal)">B</span>
-          <div class="score-dots" id="buy-dots"></div>
-          <span id="buy-score-lbl" style="color:var(--teal)">0/7</span>
-        </div>
-        <div class="score-bar">
-          <span style="color:var(--red)">S</span>
-          <div class="score-dots" id="sell-dots"></div>
-          <span id="sell-score-lbl" style="color:var(--red)">0/7</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Trade History</div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>Time</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>Ticket</th><th>Trail</th><th>Reason</th>
-          </tr></thead>
-          <tbody id="trades-body"><tr><td colspan="8" class="empty-msg">No trades yet</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
+  <!-- Live Indicators -->
   <div class="card">
-    <div class="card-title">Activity Log</div>
-    <div class="tbl-wrap log-wrap">
-      <table>
-        <thead><tr>
-          <th>Time</th><th>Type</th><th>Signal</th><th>Price</th><th>Reason</th>
-        </tr></thead>
-        <tbody id="log-body"><tr><td colspan="5" class="empty-msg">No activity yet</td></tr></tbody>
+    <div class="card-title">Live Indicators</div>
+    <div class="ind-chips">
+      <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ic-price">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 21</div><div class="ic-val" id="ic-ema21">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 55</div><div class="ic-val" id="ic-ema55">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">EMA 200</div><div class="ic-val" id="ic-ema200">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">RSI 14</div><div class="ic-val" id="ic-rsi">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">MACD Hist</div><div class="ic-val" id="ic-macd">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">ATR 14</div><div class="ic-val" id="ic-atr">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">ADX 14</div><div class="ic-val" id="ic-adx">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">DI+ / DI−</div><div class="ic-val" id="ic-di">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">DI Spread</div><div class="ic-val" id="ic-dispread">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">MACD Prev</div><div class="ic-val" id="ic-macdprev">—</div></div>
+    </div>
+    <div class="scores-row">
+      <div class="score-bar">
+        <span style="color:var(--teal);font-size:.75rem;font-weight:700">BUY</span>
+        <div class="score-dots" id="buy-dots">
+          <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
+          <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
+          <div class="dot-pip"></div>
+        </div>
+        <span id="buy-score-txt" style="font-size:.75rem;color:var(--muted)">0/7</span>
+      </div>
+      <div class="score-bar">
+        <span style="color:var(--red);font-size:.75rem;font-weight:700">SELL</span>
+        <div class="score-dots" id="sell-dots">
+          <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
+          <div class="dot-pip"></div><div class="dot-pip"></div><div class="dot-pip"></div>
+          <div class="dot-pip"></div>
+        </div>
+        <span id="sell-score-txt" style="font-size:.75rem;color:var(--muted)">0/7</span>
+      </div>
+      <div style="margin-left:auto;font-size:.8rem">
+        Last signal: <span id="last-signal-txt" style="font-weight:700;color:var(--accent)">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entry / Exit Records -->
+  <div class="card">
+    <div class="card-title">Entry / Exit Records <span id="trades-count" style="color:var(--muted);font-weight:400">(0)</span></div>
+    <div class="tbl-wrap">
+      <table id="trades-tbl">
+        <thead>
+          <tr>
+            <th>Time</th><th>Type</th><th>Side</th>
+            <th>Price</th><th>Size</th><th>Stop Loss</th><th>Take Profit</th>
+            <th>PnL</th><th>MAE $</th><th>Balance</th><th>Ticket</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="12" class="empty-msg">No trades yet — start the algo to begin</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 
-</div><!-- .wrap -->
+  <!-- Tick Log -->
+  <div class="card">
+    <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span>
+      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRAIL-UPDATE entries show SL moves · TRAIL-WATCH fires every 5s while trailing · ticks always on closed candles at :01s</span>
+    </div>
+    <div class="tbl-wrap log-wrap">
+      <table id="log-tbl">
+        <thead>
+          <tr>
+            <th>Time</th><th>Type</th><th>Signal</th>
+            <th>Price</th><th>EMA21</th><th>EMA55</th><th>EMA200</th>
+            <th>RSI</th><th>MACD Hist</th><th>ATR</th>
+            <th>ADX</th><th>DI+/−</th><th>DI Spread</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="14" class="empty-msg">Waiting for first tick…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 
 <script>
-const f2 = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fTime = iso => iso ? new Date(iso).toLocaleTimeString() : '—';
+const $ = id => document.getElementById(id);
+const fmt      = (v, d=2) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
+const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
+const fmtTime  = iso => { const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+const fmtDate  = iso => { const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }); };
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-let state = {};
+let appState    = {};
+let logCount    = 0;
+let tradeCount  = 0;
 let currentMode = 'paper';
-let es = null;
+let es;
 
-function connectSSE() {
-  if (es) { es.close(); es = null; }
-  es = new EventSource('/events');
-  es.onmessage = e => { try { handleEvent(JSON.parse(e.data)); } catch {} };
-  es.onerror = () => {};
-}
-connectSSE();
-
-function handleEvent(ev) {
-  if (ev.state) updateState(ev.state);
-  if (ev.type === 'log'  && ev.entry) prependLog(ev.entry);
-  if (ev.type === 'trade' && ev.trade) prependTrade(ev.trade);
-  if (ev.type === 'connected' && ev.logs) {
-    document.getElementById('log-body').innerHTML = '';
-    ev.logs.forEach(l => appendLog(l));
-  }
-}
-
-function updateState(s) {
-  state = s;
-  document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
-
-  const modeBadge   = document.getElementById('mode-badge');
-  const statusBadge = document.getElementById('status-badge');
-  const mt5Dot      = document.getElementById('mt5-dot');
-  const mt5Label    = document.getElementById('mt5-label');
-
-  modeBadge.textContent  = s.mode === 'live' ? 'LIVE' : 'PAPER';
-  modeBadge.className    = 'badge ' + (s.mode === 'live' ? 'badge-live' : 'badge-paper');
-  statusBadge.textContent = s.running ? '● RUNNING' : '● STOPPED';
-  statusBadge.className   = 'badge ' + (s.running ? 'badge-running' : 'badge-stopped');
-
-  mt5Dot.className  = 'mt5-dot ' + (s.mt5Connected ? 'live' : 'paper');
-  mt5Label.textContent = 'MT5: ' + (s.mt5Connected ? 'connected' : 'paper');
-
-  document.getElementById('btn-start').disabled = s.running;
-  document.getElementById('btn-stop').disabled  = !s.running;
-
-  const pnl    = s.pnl || 0;
-  const pnlPct = s.pnlPct || '0.00';
-  const pnlEl  = document.getElementById('pnl-val');
-  pnlEl.textContent  = (pnl >= 0 ? '+$' : '-$') + f2(Math.abs(pnl));
-  pnlEl.style.color  = pnl >= 0 ? 'var(--green)' : 'var(--red)';
-  document.getElementById('pnl-pct').textContent = '(' + (pnl >= 0 ? '+' : '') + pnlPct + '%)';
-  document.getElementById('stat-balance').textContent = '$' + f2(s.balance || 0);
-  document.getElementById('stat-trades').textContent  = s.totalTrades || 0;
-  document.getElementById('stat-wr').textContent      = (s.winRate || '0.0') + '%';
-  document.getElementById('stat-maxdd').textContent   = '$' + f2(s.maxDrawdownDollar || 0);
-
-  renderPosition(s.position);
-  if (s.lastIndicators) renderIndicators(s.lastIndicators, s.lastSignal);
-  if (s.error) showErr(s.error); else hideErr();
-}
-
-function renderPosition(pos) {
-  const el = document.getElementById('pos-display');
-  if (!pos) { el.innerHTML = '<div class="pos-none">No open position</div>'; return; }
-  const { side, entryPrice, stopLoss, takeProfit, unrealizedPnl, trailing, trailLockProfit, mt5Ticket } = pos;
-  const upnl    = unrealizedPnl || 0;
-  const upnlClr = upnl >= 0 ? 'var(--green)' : 'var(--red)';
-  const sideClr = side === 'long' ? 'var(--teal)' : 'var(--red)';
-  const tBadge  = trailing
-    ? `<span class="trail-badge active">TRAILING — locked $${trailLockProfit}</span>`
-    : `<span class="trail-badge inactive">NOT TRAILING</span>`;
-  el.innerHTML = `
-    <div class="pos-row">
-      <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${sideClr}">${side.toUpperCase()}</div></div>
-      <div class="pos-item"><div class="lbl">Entry</div><div class="val">$${f2(entryPrice)}</div></div>
-      <div class="pos-item"><div class="lbl">Size</div><div class="val">1 lot</div></div>
-      <div class="pos-item"><div class="lbl">SL</div><div class="val clr-r">$${f2(stopLoss)}</div></div>
-      <div class="pos-item"><div class="lbl">TP</div><div class="val clr-g">$${f2(takeProfit)}</div></div>
-      <div class="pos-item"><div class="lbl">Unreal PnL</div><div class="val" style="color:${upnlClr}">${upnl >= 0 ? '+$' : '-$'}${f2(Math.abs(upnl))}</div></div>
-      <div class="pos-item"><div class="lbl">MT5 Ticket</div><div class="val clr-a">${mt5Ticket || '—'}</div></div>
-      <div class="pos-item"><div class="lbl">Trail</div><div class="val">${tBadge}</div></div>
-    </div>`;
-}
-
-function renderIndicators(ind, sig) {
-  const chips = document.getElementById('ind-chips');
-  const f     = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
-  const clr   = (v, target, dir='above') => {
-    if (v == null || target == null) return '';
-    return (dir === 'above' ? v >= target : v <= target) ? 'style="color:var(--teal)"' : 'style="color:var(--red)"';
-  };
-  chips.innerHTML = `
-    <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val">$${f(ind.price)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">EMA21</div><div class="ic-val" ${clr(ind.price, ind.ema21)}>$${f(ind.ema21)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">EMA55</div><div class="ic-val">$${f(ind.ema55)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">EMA200</div><div class="ic-val">$${f(ind.ema200)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">ADX</div><div class="ic-val" ${clr(ind.adx, 25)}>${f(ind.adx,1)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">DI+</div><div class="ic-val" ${clr(ind.diPlus, ind.diMinus)}>${f(ind.diPlus,1)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">DI−</div><div class="ic-val">${f(ind.diMinus,1)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">RSI</div><div class="ic-val">${f(ind.rsi,1)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">ATR</div><div class="ic-val">$${f(ind.atr)}</div></div>
-    <div class="ind-chip"><div class="ic-lbl">MACD-H</div><div class="ic-val" ${clr(ind.macdHist, 0)}>${f(ind.macdHist,4)}</div></div>
-  `;
-  if (sig) {
-    const bScore = sig.buyScore || 0, sScore = sig.sellScore || 0;
-    document.getElementById('scores-row').style.display = 'flex';
-    document.getElementById('buy-score-lbl').textContent  = bScore + '/7';
-    document.getElementById('sell-score-lbl').textContent = sScore + '/7';
-    const bdots = document.getElementById('buy-dots');
-    const sdots = document.getElementById('sell-dots');
-    bdots.innerHTML = Array.from({length:7},(_,i)=>`<div class="dot-pip ${i<bScore?'active':''}"></div>`).join('');
-    sdots.innerHTML = Array.from({length:7},(_,i)=>`<div class="dot-pip ${i<sScore?'active sell':''}"></div>`).join('');
-  }
-}
-
-function prependLog(entry) {
-  const tbody = document.getElementById('log-body');
-  const empty = tbody.querySelector('.empty-msg');
-  if (empty) tbody.innerHTML = '';
-  tbody.insertBefore(buildLogRow(entry), tbody.firstChild);
-  while (tbody.children.length > 200) tbody.removeChild(tbody.lastChild);
-}
-function appendLog(entry) {
-  const tbody = document.getElementById('log-body');
-  const empty = tbody.querySelector('.empty-msg');
-  if (empty) tbody.innerHTML = '';
-  tbody.appendChild(buildLogRow(entry));
-}
-function buildLogRow(e) {
-  const tr = document.createElement('tr');
-  const typeClass = {
-    TICK: 'type-tick', ENTRY: 'type-entry', EXIT: 'type-exit', ERROR: 'type-error',
-    'TRAIL-UPDATE': 'type-trail', 'TRAIL-WATCH': 'type-trail',
-  }[e.type] || '';
-  const sig    = e.signal || e.type;
-  const reason = Array.isArray(e.reason) ? e.reason.join(' · ') : (e.message || '');
-  const price  = e.price ? '$' + f2(e.price) : '—';
-  tr.innerHTML = `
-    <td>${fTime(e.ts)}</td>
-    <td class="${typeClass}">${e.type}</td>
-    <td class="main">${sig}</td>
-    <td>${price}</td>
-    <td class="reason-cell" title="${reason}">${reason}</td>`;
-  return tr;
-}
-
-function prependTrade(t) {
-  if (t.type !== 'exit') return;
-  const tbody = document.getElementById('trades-body');
-  const empty = tbody.querySelector('.empty-msg');
-  if (empty) tbody.innerHTML = '';
-  const tr  = document.createElement('tr');
-  const pnl = t.pnl || 0;
-  const sided = t.side === 'long' ? '<span class="clr-g">LONG</span>' : '<span class="clr-r">SHORT</span>';
-  tr.innerHTML = `
-    <td>${fTime(t.timestamp)}</td>
-    <td>${sided}</td>
-    <td>$${f2(t.price)}</td>
-    <td>$${f2(t.price)}</td>
-    <td class="${pnl>=0?'clr-g':'clr-r'}">${pnl>=0?'+$':'-$'}${f2(Math.abs(pnl))}</td>
-    <td class="clr-a">${t.mt5_ticket || '—'}</td>
-    <td>${t.reason && t.reason.includes('Trail') ? '<span class="clr-a">YES</span>' : '—'}</td>
-    <td class="reason-cell" title="${t.reason}">${t.reason}</td>`;
-  tbody.insertBefore(tr, tbody.firstChild);
-}
+const shownTradeKeys = new Set();
+function tradeKey(t) { return `${t.timestamp||''}_${t.type||''}_${t.side||''}`; }
 
 function setMode(m) {
   currentMode = m;
-  ['paper','live','backtest'].forEach(x => {
-    const btn = document.getElementById('tab-' + x);
-    btn.className = 'mode-tab' + (m === x ? ' active' + (x === 'live' ? '-live' : x === 'backtest' ? '-backtest' : '') : '');
+  ['paper','live','backtest'].forEach(id => {
+    const tab = $('tab-' + id);
+    tab.className = 'mode-tab' + (m === id ? (id === 'live' ? ' active-live' : id === 'backtest' ? ' active-backtest' : ' active') : '');
   });
-  document.getElementById('trading-controls').style.display = m === 'backtest' ? 'none' : 'flex';
-  document.getElementById('backtest-panel').className = m === 'backtest' ? 'show' : '';
+  const tradingCtrl = $('trading-controls');
+  const btPanel     = $('backtest-panel');
+  if (m === 'backtest') { tradingCtrl.style.display = 'none'; btPanel.classList.add('show'); }
+  else { tradingCtrl.style.display = ''; btPanel.classList.remove('show'); }
+  const mb = $('mode-badge');
+  if (m === 'live') { mb.textContent = 'LIVE'; mb.className = 'badge badge-live'; }
+  else if (m === 'backtest') { mb.textContent = 'BACKTEST'; mb.className = 'badge'; mb.style.cssText = 'color:var(--accent);border-color:var(--accent)'; }
+  else { mb.textContent = 'PAPER'; mb.className = 'badge badge-paper'; }
 }
 
+const TF_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600 };
 function syncCheckInterval() {
-  const map = { '1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600 };
-  const v = map[document.getElementById('ctrl-tf').value];
-  if (v) document.getElementById('ctrl-interval').value = v;
+  const tf  = $('ctrl-tf').value;
+  const inp = $('ctrl-interval');
+  if (TF_SECONDS[tf]) inp.value = TF_SECONDS[tf];
 }
 
-async function startAlgo() {
-  const symbol    = document.getElementById('ctrl-symbol').value.trim() || 'BTCUSD';
-  const timeframe = document.getElementById('ctrl-tf').value;
-  const balance   = parseFloat(document.getElementById('ctrl-balance').value);
-  const interval  = parseInt(document.getElementById('ctrl-interval').value, 10);
-  const strategyId = document.getElementById('ctrl-strategy').value;
-  const r = await fetch('/api/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol, timeframe, balance, interval, strategyId, mode: currentMode }),
-  });
-  const d = await r.json();
-  if (d.state) updateState(d.state);
-}
-
-async function stopAlgo() {
-  const r = await fetch('/api/stop', { method: 'POST' });
-  const d = await r.json();
-  if (d.state) updateState(d.state);
-}
-
-async function runBacktest() {
-  const symbol    = document.getElementById('bt-symbol').value.trim() || 'BTCUSD';
-  const timeframe = document.getElementById('bt-tf').value;
-  const months    = parseInt(document.getElementById('bt-months').value, 10);
-  const btn = document.getElementById('btn-run-bt');
-  btn.disabled = true; btn.textContent = '⏳ Running…';
-  document.getElementById('bt-status').innerHTML =
-    '<div class="bt-progress">⏳ Fetching MT5 history and running backtest… (may take 10–30s for 1m data)</div>';
-  document.getElementById('bt-results').style.display = 'none';
+async function loadStrategies() {
   try {
-    const r = await fetch('/api/backtest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol, timeframe, months }),
-    });
-    const d = await r.json();
-    if (!d.ok) {
-      document.getElementById('bt-status').innerHTML =
-        `<div class="bt-progress" style="color:var(--red)">❌ ${d.error}</div>`;
-      return;
-    }
-    const s = d.summary;
-    document.getElementById('bt-status').innerHTML = '';
-    document.getElementById('bt-results').style.display = 'block';
-    document.getElementById('bt-results').innerHTML = `
-      <div class="bt-stat-grid">
-        <div class="stat-box"><div class="lbl">Total PnL</div><div class="val ${s.totalPnl>=0?'clr-g':'clr-r'}">${s.totalPnl>=0?'+$':'-$'}${f2(Math.abs(s.totalPnl))}</div></div>
-        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val">${s.winRate}%</div></div>
-        <div class="stat-box"><div class="lbl">Trades</div><div class="val">${s.totalTrades} (${s.wins}W/${s.losses}L)</div></div>
-        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r">$${f2(s.maxDrawdown)}</div></div>
-      </div>
-      <div class="tbl-wrap bt-tbl-wrap">
-        <table>
-          <thead><tr><th>Entry Time</th><th>Side</th><th>Entry $</th><th>Exit $</th><th>PnL</th><th>Trailed</th><th>Reason</th></tr></thead>
-          <tbody>${d.trades.slice(-100).reverse().map(t=>`
-            <tr>
-              <td>${fTime(t.entryTime)}</td>
-              <td class="${t.side==='long'?'clr-g':'clr-r'}">${t.side.toUpperCase()}</td>
-              <td>$${f2(t.entryPrice)}</td>
-              <td>$${f2(t.exitPrice)}</td>
-              <td class="${t.pnl>=0?'clr-g':'clr-r'}">${t.pnl>=0?'+$':'-$'}${f2(Math.abs(t.pnl))}</td>
-              <td>${t.trailed?'<span class="clr-a">YES</span>':'—'}</td>
-              <td class="reason-cell" title="${t.reason}">${t.reason}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  } catch (err) {
-    document.getElementById('bt-status').innerHTML =
-      `<div class="bt-progress" style="color:var(--red)">❌ ${err.message}</div>`;
-  } finally {
-    btn.disabled = false; btn.textContent = '▶ RUN BACKTEST';
+    const list = await fetch('/api/strategies', { credentials: 'same-origin' }).then(r => r.json());
+    const sel  = $('ctrl-strategy');
+    sel.innerHTML = list.map(s => `<option value="${esc(s.id)}" title="${esc(s.description||'')}">${esc(s.name)}</option>`).join('');
+  } catch {}
+}
+
+function connectSSE() {
+  if (es) { es.close(); es = null; }
+  es = new EventSource('/events', { withCredentials: true });
+  es.onmessage = e => handle(JSON.parse(e.data));
+  es.onerror   = () => { if (es) { es.close(); es = null; } setTimeout(connectSSE, 3000); };
+}
+
+function handle(d) {
+  switch (d.type) {
+    case 'connected':
+      if (d.state) applyState(d.state);
+      if (d.logs && d.logs.length) { $('log-body').innerHTML = ''; logCount = 0; [...d.logs].reverse().forEach(e => prependLog(e)); updateLogCount(); }
+      loadTrades();
+      break;
+    case 'started': case 'stopped': case 'tick': if (d.state) applyState(d.state); break;
+    case 'log':   prependLog(d.entry); updateLogCount(); break;
+    case 'trade': if (d.state) applyState(d.state); prependTrade(d.trade); break;
+    case 'error': if (d.state) applyState(d.state); showErr(d.message); break;
+  }
+  $('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+function applyState(s) {
+  if (!s) return;
+  appState = s;
+  const badge = $('status-badge');
+  if (s.running) {
+    if (s.symbol)    $('ctrl-symbol').value    = s.symbol;
+    if (s.timeframe) $('ctrl-tf').value         = s.timeframe;
+    badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
+    $('btn-start').disabled = true; $('btn-stop').disabled = false;
+    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = true);
+  } else {
+    badge.textContent = '● STOPPED'; badge.className = 'badge badge-stopped';
+    $('btn-start').disabled = false; $('btn-stop').disabled = true;
+    ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = false);
+  }
+
+  const pnl = parseFloat(s.pnl || 0);
+  const pnlEl = $('pnl-val');
+  pnlEl.textContent = fmtMoney(pnl);
+  pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text)';
+  $('pnl-pct').textContent = '(' + (s.pnlPct || '0.00') + '%)';
+  $('stat-balance').textContent = '$' + parseFloat(s.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+  $('stat-trades').textContent  = s.totalTrades || 0;
+  $('stat-wr').textContent      = (s.winRate || '0.0') + '%';
+  const dd = s.maxDrawdownDollar || 0;
+  const ddEl = $('stat-maxdd');
+  ddEl.textContent = '$' + parseFloat(dd).toFixed(2);
+  ddEl.style.color = dd > 0 ? 'var(--red)' : 'var(--muted)';
+
+  const dot   = $('mt5-dot');
+  const label = $('mt5-label');
+  if (s.mt5Connected) {
+    dot.className = 'mt5-dot live'; label.textContent = 'MT5: connected'; label.style.color = 'var(--green)';
+  } else if (s.mode === 'live') {
+    dot.className = 'mt5-dot paper'; dot.style.background = 'var(--red)';
+    label.textContent = 'MT5: not connected'; label.style.color = 'var(--red)';
+  } else {
+    dot.className = 'mt5-dot paper'; label.textContent = 'MT5: paper'; label.style.color = 'var(--muted)';
+  }
+
+  if (s.mode) {
+    const mb = $('mode-badge');
+    if (s.mode === 'live')     { mb.textContent = 'LIVE';     mb.className = 'badge badge-live'; }
+    else if (s.mode === 'backtest') { mb.textContent = 'BACKTEST'; mb.style.cssText = 'color:var(--accent);border-color:var(--accent)'; }
+    else                            { mb.textContent = 'PAPER';    mb.className = 'badge badge-paper'; }
+  }
+
+  const ind = s.lastIndicators;
+  if (ind) {
+    $('ic-price').textContent  = fmt(ind.price);
+    const colorEma = (el, val, ref) => { el.textContent = fmt(val); el.style.color = val >= ref ? 'var(--green)' : 'var(--red)'; };
+    colorEma($('ic-ema21'),  ind.ema21,  ind.ema55  || 0);
+    colorEma($('ic-ema55'),  ind.ema55,  ind.ema200 || 0);
+    colorEma($('ic-ema200'), ind.ema200, 0);
+    $('ic-ema21').style.color  = ind.price >= ind.ema21  ? 'var(--green)' : 'var(--red)';
+    $('ic-ema55').style.color  = ind.ema21 >= ind.ema55  ? 'var(--green)' : 'var(--red)';
+    $('ic-ema200').style.color = ind.ema55 >= ind.ema200 ? 'var(--green)' : 'var(--red)';
+    const rsiV = ind.rsi;
+    $('ic-rsi').textContent = fmt(rsiV, 1);
+    $('ic-rsi').style.color = rsiV > 70 ? 'var(--red)' : rsiV < 30 ? 'var(--green)' : 'var(--text)';
+    const mh = ind.macdHist;
+    $('ic-macd').textContent = mh != null ? (mh >= 0 ? '+' : '') + parseFloat(mh).toFixed(5) : '—';
+    $('ic-macd').style.color = mh > 0 ? 'var(--green)' : mh < 0 ? 'var(--red)' : 'var(--text)';
+    const mph = ind.macdPrevHist;
+    $('ic-macdprev').textContent = mph != null ? (mph >= 0 ? '+' : '') + parseFloat(mph).toFixed(5) : '—';
+    $('ic-macdprev').style.color = (mh != null && mph != null)
+      ? (mh > mph ? 'var(--green)' : mh < mph ? 'var(--red)' : 'var(--text)') : 'var(--text)';
+    $('ic-atr').textContent = fmt(ind.atr);
+    const adxV = ind.adx;
+    $('ic-adx').textContent = adxV != null ? fmt(adxV, 1) : '—';
+    $('ic-adx').style.color = adxV >= 25 ? 'var(--green)' : adxV != null ? 'var(--red)' : 'var(--text)';
+    const dip = ind.diPlus, dim = ind.diMinus;
+    $('ic-di').textContent  = (dip != null && dim != null) ? fmt(dip,1) + '/' + fmt(dim,1) : '—';
+    $('ic-di').style.color  = (dip != null && dim != null) ? (dip > dim ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    const spread = (dip != null && dim != null) ? Math.abs(dip - dim) : null;
+    $('ic-dispread').textContent = spread != null ? fmt(spread, 1) : '—';
+    $('ic-dispread').style.color = spread != null ? (spread >= 15 ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+  }
+
+  const ls = s.lastSignal;
+  if (ls) {
+    updateDots('buy-dots',  ls.buyScore,  false);
+    updateDots('sell-dots', ls.sellScore, true);
+    $('buy-score-txt').textContent  = (ls.buyScore  || 0) + '/7';
+    $('sell-score-txt').textContent = (ls.sellScore || 0) + '/7';
+    const sigEl = $('last-signal-txt');
+    sigEl.textContent = ls.signal || '—';
+    sigEl.style.color = ls.signal === 'BUY' ? 'var(--teal)' : ls.signal === 'SELL' ? 'var(--red)' : 'var(--accent)';
+  }
+
+  renderPosition(s.position, s.lastIndicators);
+  if (s.error) showErr(s.error);
+}
+
+function updateDots(id, score, isSell) {
+  const dots = $(id).children;
+  for (let i = 0; i < dots.length; i++) {
+    dots[i].classList.toggle('active', i < score);
+    dots[i].classList.toggle('sell',   i < score && isSell);
   }
 }
 
-function showErr(msg) { const el = document.getElementById('err-banner'); el.textContent = '⚠ ' + msg; el.className = 'show'; }
-function hideErr()    { document.getElementById('err-banner').className = ''; }
-
-async function init() {
-  const [stateR, stratsR] = await Promise.all([
-    fetch('/api/state'), fetch('/api/strategies'),
-  ]);
-  const s = await stateR.json();
-  updateState(s);
-  const strats = await stratsR.json();
-  const sel = document.getElementById('ctrl-strategy');
-  sel.innerHTML = strats.map(x => `<option value="${x.id}">${x.name.split(':')[0]}</option>`).join('');
-  if (s.strategyId) sel.value = s.strategyId;
+function renderPosition(pos, ind) {
+  const el = $('pos-display');
+  if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
+  const unreal  = pos.unrealizedPnl || 0;
+  const urColor = unreal >= 0 ? 'var(--green)' : 'var(--red)';
+  const trailBadge = pos.trailing
+    ? `<span class="trail-badge active">▲ TRAILING — locked $${pos.trailLockProfit || 0}</span>`
+    : `<span class="trail-badge inactive">STATIC SL</span>`;
+  el.innerHTML = `
+    <div class="pos-row">
+      <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--teal)':'var(--red)'}">${(pos.side||'').toUpperCase()}</div></div>
+      <div class="pos-item"><div class="lbl">Entry</div><div class="val">${fmt(pos.entryPrice)}</div></div>
+      <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Size</div><div class="val">1 lot</div></div>
+      <div class="pos-item"><div class="lbl">Stop Loss</div><div class="val clr-r">${fmt(pos.stopLoss)}</div></div>
+      <div class="pos-item"><div class="lbl">Take Profit</div><div class="val clr-g">${fmt(pos.takeProfit)}</div></div>
+      <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
+      <div class="pos-item"><div class="lbl">SL Mode</div><div class="val">${trailBadge}</div></div>
+      ${pos.mt5Ticket ? `<div class="pos-item"><div class="lbl">MT5 Ticket</div><div class="val clr-a">${esc(String(pos.mt5Ticket))}</div></div>` : ''}
+    </div>`;
 }
-init();
+
+function prependLog(entry) {
+  const tbody = $('log-body');
+  const emp = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr  = document.createElement('tr');
+  const ind = entry.indicators || {};
+  const adxV = ind.adx;
+  const dip  = ind.diPlus, dim = ind.diMinus;
+  const spread = (dip != null && dim != null) ? Math.abs(dip - dim).toFixed(1) : '—';
+
+  const sig = entry.signal || entry.type || '—';
+  const isTrail = sig === 'TRAIL-UPDATE' || sig === 'TRAIL-WATCH';
+  let typeCls = 'type-tick';
+  if (entry.type === 'ENTRY')       typeCls = 'type-entry';
+  else if (entry.type === 'EXIT')   typeCls = 'type-exit';
+  else if (entry.type === 'ERROR')  typeCls = 'type-error';
+  else if (isTrail)                 typeCls = 'type-trail';
+
+  const notes = Array.isArray(entry.reason) ? entry.reason.join(' · ') : (entry.message || '');
+  tr.innerHTML = `
+    <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
+    <td class="${typeCls}">${esc(entry.type || '—')}</td>
+    <td class="${typeCls}">${esc(sig)}</td>
+    <td class="main">${fmt(ind.price || entry.price)}</td>
+    <td>${fmt(ind.ema21)}</td>
+    <td>${fmt(ind.ema55)}</td>
+    <td>${fmt(ind.ema200)}</td>
+    <td style="color:${ind.rsi>70?'var(--red)':ind.rsi<30?'var(--green)':'var(--text)'}">${fmt(ind.rsi,1)}</td>
+    <td style="color:${ind.macdHist>0?'var(--green)':ind.macdHist<0?'var(--red)':'var(--text)'}">${ind.macdHist!=null?(ind.macdHist>=0?'+':'')+parseFloat(ind.macdHist).toFixed(5):'—'}</td>
+    <td>${fmt(ind.atr)}</td>
+    <td style="color:${adxV>=25?'var(--green)':adxV!=null?'var(--red)':'var(--text)'}">${adxV!=null?fmt(adxV,1):'—'}</td>
+    <td style="color:${dip!=null&&dim!=null?(dip>dim?'var(--green)':'var(--red)'):'var(--text)'}">${dip!=null&&dim!=null?fmt(dip,1)+'/'+fmt(dim,1):'—'}</td>
+    <td style="color:${spread!=='—'&&parseFloat(spread)>=15?'var(--green)':'var(--red)'}">${spread}</td>
+    <td class="reason-cell" title="${esc(notes)}">${isTrail?`<strong style="color:var(--accent)">${esc(notes.substring(0,60))}</strong>`:esc(notes.substring(0,60))}${notes.length>60?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  logCount++;
+  if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
+}
+
+function updateLogCount() { $('log-count').textContent = `(${logCount} / 500)`; }
+
+function prependTrade(trade) {
+  const key = tradeKey(trade);
+  if (shownTradeKeys.has(key)) return;
+  shownTradeKeys.add(key);
+  const tbody  = $('trades-body');
+  const emp    = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr     = document.createElement('tr');
+  const isEntry = trade.type === 'entry';
+  const isLong  = trade.side === 'long';
+  const pnl     = trade.pnl || 0;
+  const mae     = trade.mae || 0;
+  const pnlClr  = pnl > 0 ? 'clr-g' : pnl < 0 ? 'clr-r' : '';
+  const typeClr = isEntry ? 'type-entry' : 'type-exit';
+  const sideClr = isLong  ? 'clr-g'     : 'clr-r';
+  const ticket  = trade.mt5_ticket || '';
+  tr.innerHTML = `
+    <td class="main">${fmtTime(trade.timestamp)}</td>
+    <td class="${typeClr}">${(trade.type||'').toUpperCase()}</td>
+    <td class="${sideClr}">${(trade.side||'').toUpperCase()}</td>
+    <td class="main">${fmt(trade.price)}</td>
+    <td>1 lot</td>
+    <td class="clr-r">${fmt(trade.stop_loss)}</td>
+    <td class="clr-g">${fmt(trade.take_profit)}</td>
+    <td class="${pnlClr}">${isEntry ? '—' : fmtMoney(pnl)}</td>
+    <td class="clr-r">${isEntry ? '—' : (mae < 0 ? fmtMoney(mae) : '$0.00')}</td>
+    <td>$${parseFloat(trade.balance_after || 0).toFixed(2)}</td>
+    <td class="clr-a" style="font-size:.72rem">${ticket ? esc(String(ticket)) : '—'}</td>
+    <td class="reason-cell" title="${esc(trade.reason||'')}">${esc((trade.reason||'').substring(0,40))}${(trade.reason||'').length>40?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  tradeCount++;
+  $('trades-count').textContent = `(${tradeCount})`;
+}
+
+function loadTrades() {
+  if (!appState.sessionId) return;
+  fetch('/api/trades?session=' + appState.sessionId, { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(rows => {
+      const tbody = $('trades-body');
+      tbody.innerHTML = '';
+      tradeCount = 0;
+      shownTradeKeys.clear();
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No trades yet</td></tr>'; return; }
+      [...rows].reverse().forEach(t => prependTrade(t));
+    }).catch(() => {});
+}
+
+async function runBacktest() {
+  const btn = $('btn-run-bt');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching MT5 history and running backtest… (may take 10–30s for 1m data)</div>';
+  $('bt-results').style.display = 'none';
+  const body = {
+    symbol:    $('bt-symbol').value.trim() || 'BTCUSD',
+    timeframe: $('bt-tf').value,
+    months:    parseInt($('bt-months').value, 10),
+  };
+  try {
+    const r = await fetch('/api/backtest', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    btn.disabled = false; btn.textContent = '▶ RUN BACKTEST';
+    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`; return; }
+    $('bt-status').innerHTML = '';
+    renderBacktestResults(d);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '▶ RUN BACKTEST';
+    $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderBacktestResults(d) {
+  const s = d.summary;
+  const pnlColor = s.totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const res = $('bt-results');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="card-title" style="margin-bottom:8px">
+      Backtest: ${esc(s.symbol)} ${esc(s.timeframe)} · ${esc(s.period)} · ${s.candlesAnalyzed || '—'} candles
+    </div>
+    <div class="bt-stat-grid">
+      <div class="stat-box"><div class="lbl">Trades</div><div class="val">${s.totalTrades} (W:${s.wins} L:${s.losses})</div></div>
+      <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" style="color:${parseFloat(s.winRate)>=50?'var(--green)':'var(--red)'}">${s.winRate}%</div></div>
+      <div class="stat-box"><div class="lbl">Net PnL</div><div class="val" style="color:${pnlColor}">${fmtMoney(s.totalPnl)}</div></div>
+      <div class="stat-box"><div class="lbl">Max Drawdown</div><div class="val clr-r">$${parseFloat(s.maxDrawdown||0).toFixed(2)}</div></div>
+    </div>
+    <div class="tbl-wrap bt-tbl-wrap" style="margin-top:8px">
+      <table><thead><tr>
+        <th>Entry Time</th><th>Exit Time</th><th>Side</th>
+        <th>Entry $</th><th>Exit $</th><th>PnL</th><th>MAE $</th><th>Trailed</th><th>Reason</th>
+      </tr></thead><tbody id="bt-trades-body"></tbody></table>
+    </div>`;
+  const tbody = document.getElementById('bt-trades-body');
+  if (!d.trades || !d.trades.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No trades triggered — try longer duration or different timeframe</td></tr>';
+    return;
+  }
+  [...d.trades].reverse().forEach(t => {
+    const pnlCls  = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
+    const sideCls = t.side === 'long' ? 'clr-g' : 'clr-r';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="main">${fmtDate(t.entryTime)}</td>
+      <td>${fmtDate(t.exitTime)}</td>
+      <td class="${sideCls}">${(t.side||'').toUpperCase()}</td>
+      <td>${fmt(t.entryPrice)}</td><td>${fmt(t.exitPrice)}</td>
+      <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
+      <td class="clr-r">${t.mae < 0 ? fmtMoney(t.mae) : '$0.00'}</td>
+      <td style="color:${t.trailed?'var(--teal)':'var(--muted)'}">${t.trailed ? '▲ YES' : 'no'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,45))}${(t.reason||'').length>45?'…':''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function startAlgo() {
+  $('btn-start').disabled = true;
+  hideErr();
+  const body = {
+    symbol:     $('ctrl-symbol').value.trim() || 'BTCUSD',
+    timeframe:  $('ctrl-tf').value,
+    strategyId: $('ctrl-strategy').value,
+    balance:    parseFloat($('ctrl-balance').value) || 10000,
+    interval:   parseInt($('ctrl-interval').value, 10) || 60,
+    mode:       currentMode,
+  };
+  try {
+    const r = await fetch('/api/start', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.state) applyState(d.state);
+    if (!d.ok) { showErr(d.msg || 'Could not start'); $('btn-start').disabled = false; }
+  } catch(e) { showErr(e.message); $('btn-start').disabled = false; }
+}
+
+async function stopAlgo() {
+  $('btn-stop').disabled = true;
+  try {
+    const r = await fetch('/api/stop', { method: 'POST', credentials: 'same-origin' });
+    const d = await r.json();
+    if (d.state) applyState(d.state);
+  } catch(e) { showErr(e.message); }
+}
+
+function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
+function hideErr()    { $('err-banner').classList.remove('show'); }
+
+let googleInitialized = false;
+async function bootAuth() {
+  try {
+    const cfg = await fetch('/api/config', { credentials: 'same-origin' }).then(r => r.json());
+    if (cfg.user) { showUserBadge(cfg.user); }
+    else if (cfg.authRequired && cfg.googleClientId) { showAuthWall(cfg.googleClientId); return; }
+    initApp();
+  } catch { initApp(); }
+}
+function showAuthWall(clientId) {
+  $('auth-wall').classList.add('show');
+  if (!googleInitialized) {
+    googleInitialized = true;
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = () => {
+      window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleSignIn, auto_select: false });
+      window.google.accounts.id.renderButton($('google-signin-btn'), { theme: 'outline', size: 'large' });
+    };
+    document.head.appendChild(s);
+  }
+}
+async function handleGoogleSignIn(response) {
+  try {
+    const data = await fetch('/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ credential: response.credential }) }).then(r => r.json());
+    if (data.ok) { $('auth-wall').classList.remove('show'); showUserBadge(data.user); initApp(); }
+  } catch(e) { console.error('Sign-in failed', e); }
+}
+function showUserBadge(user) {
+  if (!user) return;
+  $('user-avatar').src = user.picture || ''; $('user-avatar').style.display = user.picture ? '' : 'none';
+  $('user-name').textContent = user.name || user.email || ''; $('user-info').classList.add('show');
+}
+async function signOut() {
+  try { await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+  $('user-info').classList.remove('show'); $('auth-wall').classList.add('show');
+  if (es) { es.close(); es = null; }
+}
+function initApp() { loadStrategies(); connectSSE(); }
+
+bootAuth();
 </script>
 </body>
 </html>
