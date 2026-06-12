@@ -1,8 +1,12 @@
 """Kronos Trader CLI — outputs JSON for Node.js server integration."""
 import sys
+import os
+# Ensure the kronos_trader package root is always on sys.path,
+# regardless of how Python was invoked (subprocess with full path).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import json
 import argparse
-import os
 import traceback
 
 # Resolve config relative to this file
