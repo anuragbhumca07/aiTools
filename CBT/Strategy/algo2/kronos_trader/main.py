@@ -3,19 +3,8 @@ import sys
 import os
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
-# Always force _DIR to front of sys.path
-if _DIR in sys.path:
-    sys.path.remove(_DIR)
-sys.path.insert(0, _DIR)
-
-# ── Runtime diagnostics (appear in Railway trade log on error) ────────
-sys.stderr.write(f"[DIAG] __file__={__file__}\n")
-sys.stderr.write(f"[DIAG] _DIR={_DIR}\n")
-sys.stderr.write(f"[DIAG] PYTHONPATH={os.environ.get('PYTHONPATH','NOT SET')}\n")
-sys.stderr.write(f"[DIAG] sys.path[0:4]={sys.path[:4]}\n")
-sys.stderr.write(f"[DIAG] data/ exists={os.path.isdir(os.path.join(_DIR,'data'))}\n")
-sys.stderr.write(f"[DIAG] data/__init__.py exists={os.path.isfile(os.path.join(_DIR,'data','__init__.py'))}\n")
-sys.stderr.flush()
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
 
 import json
 import argparse
