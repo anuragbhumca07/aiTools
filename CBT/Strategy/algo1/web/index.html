@@ -246,7 +246,7 @@
 <header>
   <div>
     <div class="title">CBT Algo1 — Closed Candle + Trailing SL</div>
-    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1.5×ATR SL · Trails $50/step after $300 profit · 10s fast poll · Opposite-Signal Exit · $1000 Hard Stop</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1.5×ATR SL · Trail: BE@$200 → lock$100@$250 → lock$200@$300 → +$100/step (10s) · Opposite-Signal Exit · $1000 Hard Stop</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -383,7 +383,7 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — Swing v3 · Closed Candle Eval · No-Drift :01s Timer · Trailing SL after $300 profit</div>
+    <div class="card-title">Algo Logic — Swing v3 · Closed Candle Eval · No-Drift :01s Timer · Stepped Trailing SL</div>
     <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
     <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
     <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
@@ -391,7 +391,7 @@
     <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
     <div class="logic-gate closed-gate" style="margin-top:4px">🕯 Closed Candle: fetches 251 candles, drops forming candle, evaluates signal on fully-closed candle[250] — eliminates noisy early-candle signals</div>
     <div class="logic-gate closed-gate" style="margin-top:4px">⏱ No-Drift Timer: self-rescheduling setTimeout recomputes delay from Date.now() every tick → always fires at :01s after candle boundary, zero cumulative drift over days</div>
-    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trailing Rule: once profit ≥ $300, SL locks in $250 · every +$50 profit → SL advances $50 · fast poll every 10s while trailing active</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trailing Rule: <strong>profit ≥ $200</strong> → SL to break-even · <strong>≥ $250</strong> → lock $100 · <strong>≥ $300</strong> → lock $200 · then every +$100 profit → SL advances $100 (10s fast poll) · SL never retreats</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
         <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
@@ -420,11 +420,13 @@
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">📈 TRAILING PHASE (profit ≥ $300)</div>
-        <div class="logic-rule">• <span>$300 profit hit</span> → SL moved to lock in $250 · 10s fast poll starts</div>
-        <div class="logic-rule">• <span>$350 profit</span> → SL advances to lock in $300</div>
-        <div class="logic-rule">• <span>$400 profit</span> → SL advances to lock in $350</div>
-        <div class="logic-rule">• <span>Every +$50</span> → SL locks in $50 more profit</div>
+        <div class="lh" style="color:var(--yellow)">📈 TRAILING PHASE — stepped milestones</div>
+        <div class="logic-rule">• <span>+$200 profit</span> → SL → <span>break-even</span> (entry price) · 10s fast poll starts</div>
+        <div class="logic-rule">• <span>+$250 profit</span> → SL locks <span>$100</span> profit</div>
+        <div class="logic-rule">• <span>+$300 profit</span> → SL locks <span>$200</span> profit</div>
+        <div class="logic-rule">• <span>+$400 profit</span> → SL locks <span>$300</span> profit</div>
+        <div class="logic-rule">• <span>+$500 profit</span> → SL locks <span>$400</span> profit</div>
+        <div class="logic-rule">• <span>Every +$100</span> above $300 → SL locks $100 more (10s scan)</div>
         <div class="logic-rule">• SL never retreats — only moves in trade direction</div>
         <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
           Each SL update logged in Tick Log with old → new value
@@ -432,8 +434,8 @@
       </div>
       <div class="logic-box">
         <div class="lh" style="color:var(--yellow)">🚪 EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Static SL</span> at entry ± 1.5×ATR (pre-$300)</div>
-        <div class="logic-rule">• <span>Trailing SL</span> (post-$300) — advances in $50 steps</div>
+        <div class="logic-rule">• <span>Static SL</span> at entry ± 1.5×ATR (pre-$200)</div>
+        <div class="logic-rule">• <span>Trailing SL</span> (post-$200) — steps: BE → $100 → $200 → +$100/step</div>
         <div class="logic-rule">• <span class="new">Opposite signal</span> — fires while in position → exit &amp; reverse</div>
         <div class="logic-rule">• <span class="new">$1000 hard stop</span> — price moves $1000 against entry</div>
         <div class="logic-rule" style="margin-top:4px;color:var(--muted)">

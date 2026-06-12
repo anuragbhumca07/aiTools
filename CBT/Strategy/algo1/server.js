@@ -68,7 +68,7 @@ function waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, balance)
     `${dir} *[Algo1] ENTRY — ${label} ${sym} ${timeframe}*\n` +
     `Price  : $${f(price)}\n` +
     `Size   : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
-    `SL     : $${f(sl)}  (1.5×ATR — static until $300 profit)\n` +
+    `SL     : $${f(sl)}  (1.5×ATR → BE@$200, lock$100@$250, lock$200@$300, +$100/step)\n` +
     `Init TP: $${f(tp)}  (3×ATR — trailing SL takes over beyond)\n` +
     `Risk   : $${f(riskAmt)}\n` +
     `Balance: $${f(balance)}`
@@ -136,7 +136,7 @@ const stmtInsert = db.prepare(`
 const STRATEGIES = {
   'swing-v3-closed-candle': {
     name: 'swing-v3-closed-candle: EMA Ribbon Swing (Closed Candle + No-Drift Timer)',
-    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + :01s No-Drift Timer + 1.5×ATR SL + trailing $50/step after $300 profit + Opposite Signal Exit + $1000 Hard Stop',
+    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + :01s No-Drift Timer + 1.5×ATR SL + Trail: BE@$200 → lock$100@$250 → lock$200@$300 → $100/step every 10s + Opposite Signal Exit + $1000 Hard Stop',
   },
 };
 
@@ -365,7 +365,7 @@ function manageFastTicker(sess) {
   const { state } = sess;
   const pos = state.position;
   const needFast = state.running && pos &&
-    ((pos.unrealizedPnl || 0) > 250 || pos.trailing);
+    ((pos.unrealizedPnl || 0) > 150 || pos.trailing);
 
   if (needFast && !sess.fastTicker) {
     console.log(`[Algo1] Starting fast 10s poll (unrealPnl=${(pos.unrealizedPnl||0).toFixed(2)})`);

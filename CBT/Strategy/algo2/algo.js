@@ -141,6 +141,7 @@ function computeIndicators(candles) {
   const lows    = candles.map(c => c.low);
   const volumes = candles.map(c => c.volume);
   const n = candles.length - 1;
+  const p3 = Math.max(0, n - 3);
 
   const ema21  = ema(closes, 21);
   const ema55  = ema(closes, 55);
@@ -151,7 +152,23 @@ function computeIndicators(candles) {
   const volMA  = volMACalc(volumes, 20);
   const adxArr = adxCalc(highs, lows, closes, 14);
 
-  // Recent swing high/low over 20 candles for stop reference
+  const atrWindow = [];
+  for (let i = Math.max(0, n - 19); i <= n; i++) {
+    if (atr14[i] !== null) atrWindow.push(atr14[i]);
+  }
+  const atrMA20 = atrWindow.length >= 5
+    ? atrWindow.reduce((a, b) => a + b, 0) / atrWindow.length
+    : null;
+
+  const adxNow  = adxArr[n]?.adx  ?? null;
+  const adxPrev = adxArr[p3]?.adx ?? null;
+  const adxSlope = adxNow !== null && adxPrev !== null ? adxNow - adxPrev : null;
+
+  const ema21Slope = ema21[n] !== null && ema21[p3] !== null ? ema21[n] - ema21[p3] : null;
+
+  const candleRange = highs[n] - lows[n];
+  const candleBodyRatio = candleRange > 0 ? (closes[n] - lows[n]) / candleRange : 0.5;
+
   const lookback = Math.min(20, n);
   let swingHigh = -Infinity, swingLow = Infinity;
   for (let i = n - lookback; i <= n; i++) {
@@ -160,94 +177,92 @@ function computeIndicators(candles) {
   }
 
   return {
-    price:         closes[n],
-    ema21:         ema21[n],
-    ema55:         ema55[n],
-    ema200:        ema200[n],
-    rsi:           rsi14[n],
-    macdHist:      macdArr[n]?.hist      ?? null,
-    macdPrevHist:  macdArr[n-1]?.hist    ?? null,
-    macdLine:      macdArr[n]?.macd      ?? null,
-    macdSignal:    macdArr[n]?.signal    ?? null,
-    atr:           atr14[n],
-    volume:        volumes[n],
-    volumeMA:      volMA[n],
-    adx:           adxArr[n]?.adx        ?? null,
-    diPlus:        adxArr[n]?.diPlus     ?? null,
-    diMinus:       adxArr[n]?.diMinus    ?? null,
+    price:          closes[n],
+    ema21:          ema21[n],
+    ema55:          ema55[n],
+    ema200:         ema200[n],
+    rsi:            rsi14[n],
+    macdHist:       macdArr[n]?.hist     ?? null,
+    macdPrevHist:   macdArr[n-1]?.hist   ?? null,
+    macdLine:       macdArr[n]?.macd     ?? null,
+    macdSignal:     macdArr[n]?.signal   ?? null,
+    atr:            atr14[n],
+    atrMA20,
+    adxSlope,
+    ema21Slope,
+    candleBodyRatio,
+    volume:         volumes[n-1],
+    volumeMA:       volMA[n-1],
+    adx:            adxArr[n]?.adx        ?? null,
+    diPlus:         adxArr[n]?.diPlus     ?? null,
+    diMinus:        adxArr[n]?.diMinus    ?? null,
     swingHigh,
     swingLow,
-    candleTime:    candles[n].time,
+    candleTime:     candles[n].time,
   };
 }
 
-// ── Swing Trading Signal — Algo2 v1 ──────────────────────────────
-//
-// Strategy: EMA Ribbon Swing Trade with ADX Confirmation
-//
-// Hard gate : ADX ≥ 25 (strong directional trend required)
-// Entry     : 5/6 conditions (slightly lenient for fewer but higher-quality swings)
-//   1. ADX DI direction confirms side
-//   2. EMA21 vs EMA55 alignment (fast > slow or vice versa)
-//   3. EMA55 vs EMA200 (macro direction)
-//   4. RSI ∈ [38, 65] — pulled back to neutral zone (not extended)
-//   5. MACD Hist direction matches trade side
-//   6. Volume ≥ VolMA × 1.0 (average participation)
-//
-// Risk    : 1.5% per trade
-// SL      : max(3×ATR, 0.25% of price) — wider for swing noise
-// TP      : SL × 3  (3:1 R:R)
-// Exit    : Phase-based SL ratchet + time stop 60 candles
-//
-function generateSignal(candles) {
+// ── Signal — identical to Algo3/Algo4/Algo5 (EMA Ribbon Swing v2) ──
+function generateSignal(candles, state = {}) {
   const ind = computeIndicators(candles);
-  const { price, ema21, ema55, ema200, rsi, macdHist, macdPrevHist,
-          atr, volume, volumeMA, adx, diPlus, diMinus } = ind;
+  const { price, ema21, ema55, ema200, rsi, macdHist,
+          atr, atrMA20, adxSlope, ema21Slope,
+          candleBodyRatio, adx, diPlus, diMinus } = ind;
 
-  if ([ema21, ema55, ema200, rsi, macdHist, atr, volumeMA, adx].some(v => v == null)) {
+  if ([ema21, ema55, ema200, rsi, macdHist, atr, adx].some(v => v == null)) {
     return { signal: 'HOLD', reason: ['Insufficient data — need 200+ candles for EMA200'], indicators: ind, buyScore: 0, sellScore: 0 };
   }
 
   const fmt = (v, d = 2) => v != null ? v.toFixed(d) : 'n/a';
+  const diSpread = Math.abs(diPlus - diMinus);
 
-  const volOk  = volume >= volumeMA * 1.0;
+  const ema21Rising  = ema21Slope !== null ? ema21Slope > 0 : false;
+  const ema21Falling = ema21Slope !== null ? ema21Slope < 0 : false;
 
-  // ── BUY (LONG) conditions — evaluated regardless of ADX gate ──
   const buyChecks = [
-    { ok: diPlus  > diMinus,   label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)})` },
-    { ok: ema21   > ema55,     label: `EMA21(${fmt(ema21)}) > EMA55(${fmt(ema55)})` },
-    { ok: ema55   > ema200,    label: `EMA55(${fmt(ema55)}) > EMA200(${fmt(ema200)})` },
-    { ok: rsi >= 38 && rsi <= 65, label: `RSI(${fmt(rsi,1)}) ∈ [38–65]` },
-    { ok: macdHist > 0,        label: `MACD Hist > 0 (${fmt(macdHist, 5)})` },
-    { ok: volOk,               label: `Vol/VolMA ≥ 1.0x` },
+    { ok: diPlus  > diMinus,            label: `DI+(${fmt(diPlus,1)}) > DI-(${fmt(diMinus,1)})` },
+    { ok: ema21   > ema55,              label: `EMA21(${fmt(ema21)}) > EMA55(${fmt(ema55)})` },
+    { ok: ema55   > ema200,             label: `EMA55(${fmt(ema55)}) > EMA200(${fmt(ema200)})` },
+    { ok: ema21Rising,                  label: `EMA21 slope rising (${fmt(ema21Slope,1)})` },
+    { ok: rsi >= 42 && rsi <= 72,       label: `RSI(${fmt(rsi,1)}) ∈ [42–72]` },
+    { ok: macdHist > 0,                 label: `MACD hist > 0 (${fmt(macdHist, 4)})` },
+    { ok: candleBodyRatio >= 0.45,      label: `Candle close quality (${fmt(candleBodyRatio*100,0)}% upper)` },
   ];
   const buyScore  = buyChecks.filter(c => c.ok).length;
   const buyPassed = buyChecks.filter(c => c.ok).map(c => c.label);
   const buyFailed = buyChecks.filter(c => !c.ok).map(c => c.label);
 
-  // ── SELL (SHORT) conditions — evaluated regardless of ADX gate ─
   const sellChecks = [
-    { ok: diMinus > diPlus,    label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)})` },
-    { ok: ema21   < ema55,     label: `EMA21 < EMA55` },
-    { ok: ema55   < ema200,    label: `EMA55 < EMA200` },
-    { ok: rsi >= 38 && rsi <= 65, label: `RSI ∈ [38–65]` },
-    { ok: macdHist < 0,        label: `MACD Hist < 0` },
-    { ok: volOk,               label: `Vol ≥ VolMA` },
+    { ok: diMinus > diPlus,             label: `DI-(${fmt(diMinus,1)}) > DI+(${fmt(diPlus,1)})` },
+    { ok: ema21   < ema55,              label: `EMA21 < EMA55` },
+    { ok: ema55   < ema200,             label: `EMA55 < EMA200` },
+    { ok: ema21Falling,                 label: `EMA21 slope falling (${fmt(ema21Slope,1)})` },
+    { ok: rsi >= 28 && rsi <= 58,       label: `RSI(${fmt(rsi,1)}) ∈ [28–58]` },
+    { ok: macdHist < 0,                 label: `MACD hist < 0 (${fmt(macdHist, 4)})` },
+    { ok: candleBodyRatio <= 0.55,      label: `Candle close quality (${fmt((1-candleBodyRatio)*100,0)}% lower)` },
   ];
   const sellScore  = sellChecks.filter(c => c.ok).length;
   const sellPassed = sellChecks.filter(c => c.ok).map(c => c.label);
   const sellFailed = sellChecks.filter(c => !c.ok).map(c => c.label);
 
-  // Hard gate: need strong trend (scores still returned for UI dots)
   if (adx < 25) {
-    return {
-      signal: 'HOLD',
-      reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend, waiting for swing setup`],
-      indicators: ind, buyScore, sellScore,
-    };
+    return { signal: 'HOLD', reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend`], indicators: ind, buyScore, sellScore };
+  }
+  if (diSpread < 15) {
+    return { signal: 'HOLD', reason: [`DI spread(${fmt(diSpread, 1)}) < 15 — insufficient directional conviction`], indicators: ind, buyScore, sellScore };
+  }
+  if (adxSlope !== null && adxSlope <= 0) {
+    return { signal: 'HOLD', reason: [`ADX slope (${fmt(adxSlope, 2)}) ≤ 0 — trend fading`], indicators: ind, buyScore, sellScore };
+  }
+  if (atrMA20 !== null && atr > atrMA20 * 1.3) {
+    return { signal: 'HOLD', reason: [`ATR spike: ATR(${fmt(atr, 0)}) > 1.3×ATR_MA(${fmt(atrMA20, 0)})`], indicators: ind, buyScore, sellScore };
+  }
+  const ema21Dist = Math.abs(price - ema21);
+  if (ema21Dist > atr * 1.5) {
+    return { signal: 'HOLD', reason: [`Price overextended: |price−EMA21|(${fmt(ema21Dist, 0)}) > 1.5×ATR(${fmt(atr * 1.5, 0)})`], indicators: ind, buyScore, sellScore };
   }
 
-  const THRESHOLD = 5; // need 5/6
+  const THRESHOLD = 6;
   if (buyScore >= THRESHOLD && buyScore > sellScore) {
     return { signal: 'BUY', reason: buyPassed, indicators: ind, buyScore, sellScore };
   }
@@ -256,101 +271,67 @@ function generateSignal(candles) {
   }
 
   const holdReason = buyScore > sellScore
-    ? [`BUY score ${buyScore}/6 — need 5 (missing: ${buyFailed.join(', ')})`]
-    : [`SELL score ${sellScore}/6 — need 5 (missing: ${sellFailed.join(', ')})`];
+    ? [`BUY score ${buyScore}/7 — need 6 (missing: ${buyFailed.join(', ')})`]
+    : [`SELL score ${sellScore}/7 — need 6 (missing: ${sellFailed.join(', ')})`];
   return { signal: 'HOLD', reason: holdReason, indicators: ind, buyScore, sellScore };
 }
 
-// ── Phase-based exit logic (swing variant) ────────────────────────
-//
-// Phases (wider margins for swing trades):
-//   1 → Initial SL at 3×ATR
-//   2 → Profit ≥ 1×ATR  → SL to breakeven
-//   3 → Profit ≥ 2×ATR  → SL locked at +1.5×ATR
-//   4 → Profit ≥ 4×ATR  → Trailing SL at price ∓ 2×ATR
-//
-// Time stop: 60 candles
-//
+// ── Exit check — NO fixed TP (trailing takes over at $300 profit) ──
 function checkExit(position, candles) {
   const ind = computeIndicators(candles);
-  const { price, atr, rsi, ema21, ema55, adx } = ind;
-  const { side, entryPrice, stopLoss, takeProfit, phase, mae } = position;
-
-  const profit = side === 'long' ? price - entryPrice : entryPrice - price;
-  const currentMAE = Math.min(mae || 0, side === 'long' ? price - entryPrice : entryPrice - price);
-
-  // Track candle progress for time-based exit
-  let newCandlesHeld = position.candlesHeld;
-  const currentCandleTime = candles[candles.length - 1].time;
-  if (currentCandleTime !== position.lastCandleTime) {
-    newCandlesHeld++;
-  }
-
-  // ── Phase advancement & dynamic SL ─────────────────────────────
-  let newPhase = phase;
-  let newSL    = stopLoss;
-
-  if (side === 'long') {
-    if (phase < 4 && profit >= atr * 4) {
-      newPhase = 4;
-      newSL    = price - atr * 2;
-    } else if (phase < 3 && profit >= atr * 2) {
-      newPhase = 3;
-      newSL    = entryPrice + atr * 1.5;
-    } else if (phase < 2 && profit >= atr) {
-      newPhase = 2;
-      newSL    = entryPrice;
-    } else if (phase === 4) {
-      newSL = Math.max(newSL, price - atr * 2);
-    }
-  } else {
-    if (phase < 4 && profit >= atr * 4) {
-      newPhase = 4;
-      newSL    = price + atr * 2;
-    } else if (phase < 3 && profit >= atr * 2) {
-      newPhase = 3;
-      newSL    = entryPrice - atr * 1.5;
-    } else if (phase < 2 && profit >= atr) {
-      newPhase = 2;
-      newSL    = entryPrice;
-    } else if (phase === 4) {
-      newSL = Math.min(newSL, price + atr * 2);
-    }
-  }
-
-  // Mutate position
-  position.stopLoss      = newSL;
-  position.phase         = newPhase;
-  position.candlesHeld   = newCandlesHeld;
-  position.lastCandleTime = currentCandleTime;
-  position.mae           = currentMAE;
+  const { price } = ind;
+  const { side, entryPrice, stopLoss } = position;
 
   const reasons = [];
 
-  // SL/TP check
   if (side === 'long') {
-    if (price <= newSL) reasons.push(`SL hit (Phase ${newPhase}): price ${price.toFixed(2)} ≤ ${newSL.toFixed(2)}`);
-    if (price >= takeProfit) reasons.push(`TP hit: ${price.toFixed(2)} ≥ ${takeProfit.toFixed(2)}`);
+    if (price <= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≤ ${stopLoss.toFixed(2)}`);
+    if (price <= entryPrice - 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≤ ${(entryPrice - 1000).toFixed(2)}`);
   } else {
-    if (price >= newSL) reasons.push(`SL hit (Phase ${newPhase}): price ${price.toFixed(2)} ≥ ${newSL.toFixed(2)}`);
-    if (price <= takeProfit) reasons.push(`TP hit: ${price.toFixed(2)} ≤ ${takeProfit.toFixed(2)}`);
+    if (price >= stopLoss)          reasons.push(`SL hit: ${price.toFixed(2)} ≥ ${stopLoss.toFixed(2)}`);
+    if (price >= entryPrice + 1000) reasons.push(`$1000 adverse: ${price.toFixed(2)} ≥ ${(entryPrice + 1000).toFixed(2)}`);
   }
-
-  // RSI extreme exit
-  if (side === 'long'  && rsi > 78) reasons.push(`RSI overbought (${rsi.toFixed(1)} > 78)`);
-  if (side === 'short' && rsi < 22) reasons.push(`RSI oversold (${rsi.toFixed(1)} < 22)`);
-
-  // EMA alignment broken (trend reversal)
-  if (side === 'long'  && ema21 < ema55 && profit > 0) reasons.push('EMA trend reversed (bearish)');
-  if (side === 'short' && ema21 > ema55 && profit > 0) reasons.push('EMA trend reversed (bullish)');
-
-  // Time stop: 60 candles max for swing trades
-  if (newCandlesHeld >= 60) reasons.push(`Time stop: ${newCandlesHeld} candles held`);
 
   return { exit: reasons.length > 0, reasons, indicators: ind };
 }
 
-// ── Kraken data fetcher (shared with algo1) ───────────────────────
+// ── Trailing SL computation (dollar-based decremental) ───────────
+// Phase 1: profit >= $100 → SL = entry (breakeven)
+// Phase 2: profit >= $200 → SL = entry + $125 (locks $125)
+// Phase 3: profit >= $250 → SL = entry + $200 (locks $200), then trail $25 from peak
+function computeTrailUpdate(position, unrealPnl) {
+  const { side, entryPrice, size, stopLoss, trailHigh } = position;
+
+  const currentHigh = trailHigh !== undefined ? trailHigh : entryPrice;
+  const newHigh = side === 'long'
+    ? Math.max(currentHigh, entryPrice + unrealPnl / size)
+    : Math.min(currentHigh, entryPrice - unrealPnl / size);
+
+  let newSl = stopLoss;
+  let lockProfit = position.trailLockProfit || 0;
+
+  if (unrealPnl >= 250) {
+    const trailSL   = side === 'long' ? newHigh - 25 / size : newHigh + 25 / size;
+    const minSL     = side === 'long' ? entryPrice + 200 / size : entryPrice - 200 / size;
+    const candidate = side === 'long' ? Math.max(trailSL, minSL) : Math.min(trailSL, minSL);
+    if (side === 'long' ? candidate > stopLoss : candidate < stopLoss) {
+      newSl = candidate;
+      lockProfit = Math.max(lockProfit, Math.max(0, Math.floor((unrealPnl - 25) / 25) * 25));
+    }
+  } else if (unrealPnl >= 200) {
+    const target = side === 'long' ? entryPrice + 125 / size : entryPrice - 125 / size;
+    if (side === 'long' ? target > stopLoss : target < stopLoss) { newSl = target; lockProfit = 125; }
+  } else if (unrealPnl >= 100) {
+    if (side === 'long' ? entryPrice > stopLoss : entryPrice < stopLoss) { newSl = entryPrice; lockProfit = 0; }
+  }
+
+  const slChanged   = newSl !== stopLoss;
+  const highChanged = newHigh !== currentHigh;
+  if (!slChanged && !highChanged) return null;
+  return { oldSl: stopLoss, newSl, lockProfit, trailHigh: newHigh };
+}
+
+// ── Kraken data fetchers ──────────────────────────────────────────
 
 const KRAKEN_PAIR = {
   BTCUSDT:  'XBTUSD', ETHUSDT:  'ETHUSD',
@@ -418,4 +399,34 @@ async function fetchCandlesHistorical(symbol, interval, months) {
   return allCandles;
 }
 
-module.exports = { computeIndicators, generateSignal, checkExit, fetchCandles, fetchCandlesHistorical };
+// Lightweight single-price fetch via Kraken Ticker endpoint.
+// Used by the 10-second fast poll to avoid fetching 250 candles every 10s.
+async function fetchCurrentPrice(symbol) {
+  const pair = KRAKEN_PAIR[symbol] || symbol;
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.kraken.com',
+      path: `/0/public/Ticker?pair=${pair}`,
+      method: 'GET',
+    };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result)[0];
+          resolve(parseFloat(json.result[key].c[0]));
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+module.exports = {
+  computeIndicators, generateSignal, checkExit, computeTrailUpdate,
+  fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
+};

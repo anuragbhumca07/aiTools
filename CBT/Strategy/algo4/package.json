@@ -1,7 +1,7 @@
 {
   "name": "cbt-algo4",
-  "version": "1.0.0",
-  "description": "CBT Algo4 — Swing Trading v2 fixed SL/TP (no trailing)",
+  "version": "2.0.0",
+  "description": "CBT Algo4 — BTC/USD 1-min Scalp: Regime+OB+Liquidity Sweep+R-Ladder Trail",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

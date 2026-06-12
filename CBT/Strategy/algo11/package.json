@@ -1,0 +1,16 @@
+{
+  "name": "cbt-algo11",
+  "version": "1.0.0",
+  "description": "CBT Algo11 — Algo1 Entry + Algo5 $50/step Trailing SL",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "express": "^4.18.2",
+    "express-session": "^1.18.0",
+    "google-auth-library": "^9.0.0"
+  }
+}

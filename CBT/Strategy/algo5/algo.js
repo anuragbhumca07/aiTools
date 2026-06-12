@@ -237,7 +237,7 @@ function generateSignal(candles, state = {}) {
     { ok: ema21   < ema55,              label: `EMA21 < EMA55` },
     { ok: ema55   < ema200,             label: `EMA55 < EMA200` },
     { ok: ema21Falling,                 label: `EMA21 slope falling (${fmt(ema21Slope,1)})` },
-    { ok: rsi >= 28 && rsi <= 58,       label: `RSI(${fmt(rsi,1)}) ∈ [28–58]` },
+    { ok: rsi >= 28 && rsi <= 50,       label: `RSI(${fmt(rsi,1)}) ∈ [28–50]` },
     { ok: macdHist < 0,                 label: `MACD hist < 0 (${fmt(macdHist, 4)})` },
     { ok: candleBodyRatio <= 0.55,      label: `Candle close quality (${fmt((1-candleBodyRatio)*100,0)}% lower)` },
   ];
@@ -248,11 +248,14 @@ function generateSignal(candles, state = {}) {
   if (adx < 25) {
     return { signal: 'HOLD', reason: [`ADX(${fmt(adx, 1)}) < 25 — weak trend`], indicators: ind, buyScore, sellScore };
   }
-  if (diSpread < 15) {
-    return { signal: 'HOLD', reason: [`DI spread(${fmt(diSpread, 1)}) < 15 — insufficient directional conviction`], indicators: ind, buyScore, sellScore };
+  if (diSpread < 20) {
+    return { signal: 'HOLD', reason: [`DI spread(${fmt(diSpread, 1)}) < 20 — insufficient directional conviction`], indicators: ind, buyScore, sellScore };
   }
   if (adxSlope !== null && adxSlope <= 0) {
     return { signal: 'HOLD', reason: [`ADX slope (${fmt(adxSlope, 2)}) ≤ 0 — trend fading`], indicators: ind, buyScore, sellScore };
+  }
+  if (ema21Slope !== null && Math.abs(ema21Slope) < 12) {
+    return { signal: 'HOLD', reason: [`EMA21 slope flat (${fmt(ema21Slope, 1)}) — |slope| < 12 (sideways filter)`], indicators: ind, buyScore, sellScore };
   }
   if (atrMA20 !== null && atr > atrMA20 * 1.3) {
     return { signal: 'HOLD', reason: [`ATR spike: ATR(${fmt(atr, 0)}) > 1.3×ATR_MA(${fmt(atrMA20, 0)})`], indicators: ind, buyScore, sellScore };
@@ -264,9 +267,15 @@ function generateSignal(candles, state = {}) {
 
   const THRESHOLD = 6;
   if (buyScore >= THRESHOLD && buyScore > sellScore) {
+    if (ema55 < ema200) {
+      return { signal: 'HOLD', reason: [`BUY blocked: macro bearish — EMA55(${fmt(ema55)}) < EMA200(${fmt(ema200)})`], indicators: ind, buyScore, sellScore };
+    }
     return { signal: 'BUY', reason: buyPassed, indicators: ind, buyScore, sellScore };
   }
   if (sellScore >= THRESHOLD && sellScore > buyScore) {
+    if (ema55 > ema200) {
+      return { signal: 'HOLD', reason: [`SELL blocked: macro bullish — EMA55(${fmt(ema55)}) > EMA200(${fmt(ema200)})`], indicators: ind, buyScore, sellScore };
+    }
     return { signal: 'SELL', reason: sellPassed, indicators: ind, buyScore, sellScore };
   }
 

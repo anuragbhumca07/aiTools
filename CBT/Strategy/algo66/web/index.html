@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CBT Algo66 — NY Session 4H+5M + MT5 Live</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #e3b341; --purple: #bc8cff;
+    --orange: #f0883e; --teal: #39d353; --pink: #ff7b72;
+    --font: 'Courier New', Courier, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 12px 16px; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header .title    { font-size: 1.1rem; font-weight: 700; color: var(--orange); }
+  header .subtitle { font-size: .75rem; color: var(--muted); }
+  header .badge {
+    padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700;
+    border: 1px solid; letter-spacing: .5px;
+  }
+  .badge-paper   { color: var(--yellow); border-color: var(--yellow); }
+  .badge-live    { color: var(--green);  border-color: var(--green); }
+  .badge-running { color: var(--teal);   border-color: var(--teal); animation: pulse 1.5s infinite; }
+  .badge-stopped { color: var(--muted);  border-color: var(--muted); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .spacer { flex: 1; }
+  #last-update { color: var(--muted); font-size: .72rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+  }
+  .card-title {
+    font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media(max-width:900px){ .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  /* MT5 panel */
+  .mt5-panel {
+    background: rgba(63,185,80,.05); border: 1px solid rgba(63,185,80,.2);
+    border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+  }
+  .mt5-panel.disconnected {
+    background: rgba(248,81,73,.05); border-color: rgba(248,81,73,.25);
+  }
+  .mt5-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+  .mt5-item { display: flex; flex-direction: column; gap: 2px; }
+  .mt5-item .lbl { font-size: .65rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .mt5-item .val { font-size: .9rem; font-weight: 700; }
+  .mt5-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* Phase banner */
+  .phase-banner {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; margin-top: 12px;
+    transition: border-color .3s;
+  }
+  .phase-banner.phase-wait    { border-color: rgba(139,148,158,.4); }
+  .phase-banner.phase-forming { border-color: var(--yellow); }
+  .phase-banner.phase-flag    { border-color: var(--orange); }
+  .phase-banner.phase-buy     { border-color: var(--teal); }
+  .phase-banner.phase-trade   { border-color: var(--green); }
+  .phase-banner.phase-done    { border-color: var(--purple); }
+  .phase-icon { font-size: 2rem; }
+  .phase-title { font-size: 1rem; font-weight: 700; margin-bottom: 3px; }
+  .phase-sub   { font-size: .78rem; color: var(--muted); }
+
+  /* Level display */
+  .level-row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .level-box {
+    flex: 1; min-width: 140px;
+    background: rgba(0,0,0,.25); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; text-align: center;
+  }
+  .level-box.high  { border-color: rgba(63,185,80,.4); }
+  .level-box.price { border-color: rgba(88,166,255,.4); }
+  .level-box.low   { border-color: rgba(248,81,73,.4); }
+  .level-box.flag  { border-color: rgba(240,136,62,.5); }
+  .level-label { font-size: .65rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 6px; }
+  .level-val   { font-size: 1.4rem; font-weight: 700; }
+  .level-sub   { font-size: .7rem; color: var(--muted); margin-top: 3px; }
+
+  /* Mode tabs */
+  .mode-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .mode-tab {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--font);
+    font-size: .75rem; font-weight: 700; cursor: pointer; letter-spacing: .5px; transition: all .15s;
+  }
+  .mode-tab:hover { border-color: var(--orange); color: var(--orange); }
+  .mode-tab.active          { background: var(--yellow); border-color: var(--yellow); color: #000; }
+  .mode-tab.active-live     { background: var(--green);  border-color: var(--green);  color: #000; }
+  .mode-tab.active-backtest { background: var(--purple); border-color: var(--purple); color: #000; }
+
+  /* Controls */
+  .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  select, input[type=number] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 13px;
+    outline: none; transition: border-color .2s;
+  }
+  select:focus, input:focus { border-color: var(--orange); }
+  .btn {
+    padding: 7px 18px; border: none; border-radius: 6px;
+    font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: opacity .15s, transform .1s; letter-spacing: .4px;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: default; transform: none; }
+  .btn-start    { background: var(--teal);   color: #000; }
+  .btn-stop     { background: var(--red);    color: #fff; }
+  .btn-backtest { background: var(--purple); color: #000; }
+  .btn-mt5      { background: var(--accent); color: #000; padding: 5px 12px; font-size: .75rem; }
+  .btn-deploy   { background: var(--yellow); color: #000; padding: 5px 12px; font-size: .75rem; }
+
+  /* Backtest panel */
+  #backtest-panel { display: none; }
+  #backtest-panel.show { display: block; }
+  .bt-progress {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(188,140,255,.1); border: 1px solid rgba(188,140,255,.3);
+    border-radius: 6px; color: var(--purple); font-size: .82rem;
+  }
+  .bt-results { margin-top: 12px; }
+  .bt-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
+  @media(max-width:700px){ .bt-stat-grid { grid-template-columns: repeat(2,1fr); } }
+
+  /* PnL */
+  .pnl-big { font-size: 2rem; font-weight: 700; transition: color .3s; }
+  .pnl-pct { font-size: .95rem; color: var(--muted); margin-left: 6px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 10px; }
+  @media(max-width:700px){ .stat-grid { grid-template-columns: repeat(2,1fr); } }
+  .stat-box {
+    background: rgba(255,255,255,.03); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .stat-box .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+  .stat-box .val { font-size: .95rem; font-weight: 700; }
+
+  /* Position */
+  .pos-row  { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; }
+  .pos-item { display: flex; flex-direction: column; gap: 2px; }
+  .pos-item .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .pos-item .val { font-size: .88rem; font-weight: 700; }
+  .pos-none { color: var(--muted); font-style: italic; margin-top: 4px; }
+
+  /* Algo logic */
+  .logic-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
+  @media(max-width:900px){ .logic-grid { grid-template-columns: 1fr; } }
+  .logic-box {
+    background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px;
+  }
+  .logic-box .lh { font-size: .7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
+  .logic-rule { font-size: .78rem; color: var(--muted); margin-bottom: 4px; line-height: 1.4; }
+  .logic-rule span { color: var(--orange); font-weight: 700; }
+
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; margin-top: 8px; max-height: 340px; overflow-y: auto; }
+  .tbl-wrap.log-wrap    { max-height: 420px; }
+  .tbl-wrap.bt-tbl-wrap { max-height: 400px; }
+  table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  thead th {
+    background: var(--bg); color: var(--muted); text-transform: uppercase;
+    letter-spacing: .8px; font-size: .68rem; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  tbody td { padding: 5px 8px; white-space: nowrap; color: var(--muted); }
+  tbody td.main { color: var(--text); }
+  .clr-g { color: var(--green)  !important; }
+  .clr-r { color: var(--red)    !important; }
+  .clr-y { color: var(--yellow) !important; }
+  .clr-a { color: var(--accent) !important; }
+  .clr-p { color: var(--purple) !important; }
+  .clr-o { color: var(--orange) !important; }
+  .type-wait   { color: var(--muted); }
+  .type-info   { color: var(--accent); }
+  .type-4h     { color: var(--yellow); }
+  .type-level  { color: var(--yellow); font-weight: 700; }
+  .type-flag   { color: var(--orange); font-weight: 700; }
+  .type-signal { color: var(--teal); font-weight: 700; }
+  .type-entry  { color: var(--teal); font-weight: 700; }
+  .type-exit   { color: var(--yellow); font-weight: 700; }
+  .type-trail  { color: var(--green); font-weight: 700; }
+  .type-mt5    { color: var(--accent); font-weight: 700; }
+  .type-error  { color: var(--red); font-weight: 700; }
+  .type-warn   { color: var(--yellow); font-weight: 700; }
+  .type-done   { color: var(--purple); }
+  .empty-msg   { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+  .reason-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #err-banner {
+    display: none; margin-top: 10px; padding: 9px 14px;
+    background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3);
+    border-radius: 6px; color: var(--red); font-size: .82rem;
+  }
+  #err-banner.show { display: block; }
+  .trail-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .68rem;
+    background: rgba(63,185,80,.15); border: 1px solid var(--green); color: var(--green);
+    font-weight: 700; letter-spacing: .5px; animation: pulse 1.5s infinite;
+  }
+  .live-warn {
+    padding: 8px 12px; border-radius: 6px; margin-top: 8px;
+    background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.3);
+    color: var(--red); font-size: .78rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title">CBT Algo66 — NY Session + MT5 Live</div>
+    <div class="subtitle">4H Level (12:00 UTC) · 5M FLAG · Reclaim BUY · Decremental SL · MetaAPI Tickmill Demo</div>
+  </div>
+  <span class="badge badge-paper" id="mode-badge">PAPER</span>
+  <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
+  <div class="spacer"></div>
+  <span id="last-update">—</span>
+</header>
+
+<div class="wrap">
+
+  <!-- MT5 Account Panel -->
+  <div class="mt5-panel disconnected" id="mt5-panel">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      <div class="card-title" style="margin:0">MT5 Accounts — MetaAPI</div>
+      <span id="mt5-status-badge" style="font-size:.72rem;color:var(--muted)">● Not checked</span>
+      <div class="spacer"></div>
+      <select id="mt5-acct-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-family:var(--font);font-size:.75rem" onchange="onAccountChange()">
+        <option value="">Loading accounts…</option>
+      </select>
+    </div>
+    <div class="mt5-row">
+      <div class="mt5-item"><div class="lbl">MetaAPI ID</div><div class="val" id="mt5-acct-id" style="font-size:.72rem;color:var(--muted)">—</div></div>
+      <div class="mt5-item"><div class="lbl">Region</div><div class="val" id="mt5-region" style="font-size:.75rem">—</div></div>
+      <div class="mt5-item"><div class="lbl">Balance</div><div class="val clr-g" id="mt5-balance">—</div></div>
+      <div class="mt5-item"><div class="lbl">Equity</div><div class="val clr-a" id="mt5-equity">—</div></div>
+      <div class="mt5-item"><div class="lbl">Leverage</div><div class="val" id="mt5-leverage">—</div></div>
+      <div class="mt5-item"><div class="lbl">Server State</div><div class="val" id="mt5-server-state">—</div></div>
+    </div>
+    <div class="mt5-actions">
+      <button class="btn btn-mt5" onclick="checkMt5Status()">Check MT5 Status</button>
+      <button class="btn btn-deploy" onclick="deployMt5()">MetaAPI Dashboard</button>
+    </div>
+    <div id="mt5-msg" style="margin-top:6px;font-size:.75rem;color:var(--muted)"></div>
+  </div>
+
+  <!-- How to add accounts -->
+  <div class="card" id="add-account-card">
+    <div class="card-title" style="cursor:pointer" onclick="toggleAddCard()">
+      ▶ How to add MT5 accounts (multi-account support) <span id="add-card-hint" style="font-weight:400;color:var(--accent)">&nbsp;— click to expand</span>
+    </div>
+    <div id="add-account-body" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+        <div class="logic-box">
+          <div class="lh" style="color:var(--accent)">Step 1 — Add account on MetaAPI</div>
+          <div class="logic-rule">1. Go to <span>app.metaapi.cloud</span> → Accounts → <span>Add Account</span></div>
+          <div class="logic-rule">2. Platform: <span>MT5</span></div>
+          <div class="logic-rule">3. Broker server: <span>Tickmill-Demo</span> (or Tickmill-Live)</div>
+          <div class="logic-rule">4. Login: your <span>account number</span> (e.g. 25329025)</div>
+          <div class="logic-rule">5. Password: your <span>MT5 password</span></div>
+          <div class="logic-rule">6. Click Deploy — copy the <span>Account ID</span> it generates</div>
+        </div>
+        <div class="logic-box">
+          <div class="lh" style="color:var(--yellow)">Step 2 — Set Railway env vars</div>
+          <div class="logic-rule" style="margin-bottom:8px">Set <span>METAAPI_ACCOUNTS</span> as a JSON array on Railway:</div>
+          <div style="background:rgba(0,0,0,.35);border-radius:4px;padding:8px 10px;font-size:.72rem;color:var(--teal);line-height:1.6;word-break:break-all">
+            [<br>
+            &nbsp;&nbsp;{"id":"&lt;metaapi-id-1&gt;","label":"Demo 1 (#25329025)"},<br>
+            &nbsp;&nbsp;{"id":"&lt;metaapi-id-2&gt;","label":"Demo 2 (#99999)"}<br>
+            ]
+          </div>
+          <div class="logic-rule" style="margin-top:8px">Keep <span>METAAPI_TOKEN</span> — it covers all accounts under the same MetaAPI user.</div>
+          <div class="logic-rule"><span>METAAPI_ACCOUNT_ID</span> still works for a single account (backward compat).</div>
+        </div>
+      </div>
+      <div class="logic-box" style="margin-top:8px">
+        <div class="lh" style="color:var(--green)">Step 3 — Select account &amp; start</div>
+        <div class="logic-rule">• After setting env vars, redeploy on Railway and refresh this page</div>
+        <div class="logic-rule">• Use the <span>account dropdown</span> (top-right of MT5 panel) to pick which account to trade on</div>
+        <div class="logic-rule">• Each account trades independently — open multiple browser tabs to monitor both simultaneously</div>
+        <div class="logic-rule">• Risk sizing uses that account's live <span>MT5 equity</span> — each account sizes its own trades</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Controls</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-paper"    onclick="setMode('paper')">PAPER TRADE</button>
+        <button class="mode-tab"        id="tab-live"     onclick="setMode('live')">LIVE MT5</button>
+        <button class="mode-tab"        id="tab-backtest" onclick="setMode('backtest')">BACKTEST</button>
+      </div>
+      <div id="live-warn" class="live-warn" style="display:none">
+        ⚠ LIVE MT5 MODE — trades will be placed on the selected MT5 account via MetaAPI. Ensure account is connected first.
+      </div>
+      <div class="ctrl-row" id="trading-controls">
+        <div class="ctrl-group">
+          <label>Symbol</label>
+          <select id="ctrl-symbol">
+            <option value="BTCUSDT">BTC/USD</option>
+            <option value="ETHUSDT">ETH/USD</option>
+            <option value="XRPUSDT">XRP/USD</option>
+            <option value="LTCUSDT">LTC/USD</option>
+          </select>
+        </div>
+        <div class="ctrl-group" id="ctrl-acct-group">
+          <label>MT5 Account</label>
+          <select id="ctrl-account" style="max-width:200px">
+            <option value="">Paper (no MT5)</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Capital ($)</label>
+          <input id="ctrl-balance" type="number" value="10000" min="100" step="100" style="width:100px"/>
+        </div>
+        <div class="ctrl-group">
+          <label>&nbsp;</label>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-start" id="btn-start" onclick="startAlgo()">▶ START</button>
+            <button class="btn btn-stop"  id="btn-stop"  onclick="stopAlgo()" disabled>■ STOP</button>
+          </div>
+        </div>
+      </div>
+      <!-- Backtest Panel -->
+      <div id="backtest-panel">
+        <div style="height:10px"></div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label>Symbol</label>
+            <select id="bt-symbol">
+              <option value="BTCUSDT">BTC/USD</option>
+              <option value="ETHUSDT">ETH/USD</option>
+              <option value="XRPUSDT">XRP/USD</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>Duration</label>
+            <select id="bt-months">
+              <option value="1">1 month</option>
+              <option value="3" selected>3 months</option>
+              <option value="6">6 months</option>
+              <option value="12">12 months</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-backtest" id="btn-run-bt" onclick="runBacktest()">▶ RUN BACKTEST</button>
+          </div>
+        </div>
+        <div id="bt-status"></div>
+        <div id="bt-results" class="bt-results" style="display:none"></div>
+      </div>
+      <div id="err-banner"></div>
+    </div>
+
+    <!-- PnL Dashboard -->
+    <div class="card">
+      <div class="card-title">PnL Dashboard</div>
+      <div style="display:flex;align-items:baseline;gap:4px">
+        <div class="pnl-big" id="pnl-val">$0.00</div>
+        <div class="pnl-pct" id="pnl-pct">(0.00%)</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="lbl">Balance</div><div class="val" id="stat-balance">$10,000.00</div></div>
+        <div class="stat-box"><div class="lbl">MT5 Equity</div><div class="val clr-a" id="stat-mt5-equity">—</div></div>
+        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="stat-wr">0%</div></div>
+        <div class="stat-box"><div class="lbl">Trades</div><div class="val" id="stat-trades">0</div></div>
+        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r" id="stat-maxdd">$0</div></div>
+        <div class="stat-box"><div class="lbl">MT5 Balance</div><div class="val clr-g" id="stat-mt5-balance">—</div></div>
+        <div class="stat-box"><div class="lbl">Leverage</div><div class="val" id="stat-mt5-leverage">—</div></div>
+        <div class="stat-box"><div class="lbl">MT5 State</div><div class="val" id="stat-mt5-state" style="font-size:.72rem">—</div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="card-title" style="margin-bottom:6px">Open Position</div>
+        <div id="pos-display"><div class="pos-none">No open position — FLAT</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase + Level Status -->
+  <div class="phase-banner phase-wait" id="phase-banner">
+    <div class="phase-icon" id="phase-icon">⏳</div>
+    <div style="flex:1">
+      <div class="phase-title" id="phase-title">Waiting for NY Session 4h Candle</div>
+      <div class="phase-sub" id="phase-sub">Start the algo to begin monitoring. NY session 4h candle opens at 12:00 UTC daily.</div>
+    </div>
+  </div>
+
+  <div class="level-row" id="level-row">
+    <div class="level-box high">
+      <div class="level-label">4H Level High</div>
+      <div class="level-val clr-g" id="lvl-high">—</div>
+      <div class="level-sub" id="lvl-high-sub">NY session 4h candle high</div>
+    </div>
+    <div class="level-box price">
+      <div class="level-label">Current Price</div>
+      <div class="level-val" id="lvl-price">—</div>
+      <div class="level-sub" id="lvl-price-sub">—</div>
+    </div>
+    <div class="level-box low">
+      <div class="level-label">4H Level Low</div>
+      <div class="level-val clr-r" id="lvl-low">—</div>
+      <div class="level-sub" id="lvl-low-sub">NY session 4h candle low</div>
+    </div>
+    <div class="level-box flag" id="flag-box" style="display:none">
+      <div class="level-label">Lowest Low (SL)</div>
+      <div class="level-val clr-o" id="lvl-flag">—</div>
+      <div class="level-sub" id="lvl-flag-sub">Lowest low: FLAG → entry candle</div>
+    </div>
+  </div>
+
+  <!-- Algo Logic -->
+  <div class="card">
+    <div class="card-title">Strategy Logic — NY Session 4H Level + 5M Flag/Reclaim · MetaAPI MT5 Execution</div>
+    <div class="logic-grid">
+      <div class="logic-box">
+        <div class="lh" style="color:var(--yellow)">Step 1 · Find NY Session 4h Level</div>
+        <div class="logic-rule">• Find the <span>first 4h candle</span> of the New York session each day</div>
+        <div class="logic-rule">• NY session 4h candle = opens at <span>12:00 UTC</span>, closes at <span>16:00 UTC</span></div>
+        <div class="logic-rule">• <span>LevelHigh</span> = High · <span>LevelLow</span> = Low of that candle</div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--orange)">Step 2 · Find FLAG Candle (after 16:00 UTC)</div>
+        <div class="logic-rule">• After the 4h candle closes, switch to the <span>5-minute chart</span></div>
+        <div class="logic-rule">• Watch for a 5m candle whose <span>close &lt; LevelLow</span></div>
+        <div class="logic-rule">• That candle becomes the <span>FLAG candle</span></div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--teal)">Step 3 · BUY Entry (LevelLow Reclaim)</div>
+        <div class="logic-rule">• After FLAG candle forms, watch for 5m close <span>&gt; LevelLow</span></div>
+        <div class="logic-rule">• <span>SL</span> = Lowest low of all 5m candles from FLAG → entry</div>
+        <div class="logic-rule">• <span>Size</span> = (MT5 Equity × 2%) / SL-dist | capped 0.01–10 lots</div>
+        <div class="logic-rule">• Risk per trade: <span>2% of equity</span> · Leverage: <span>1:500</span></div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--green)">Step 4 · Decremental SL Trail (5s checks)</div>
+        <div class="logic-rule">• <span>1R profit</span> → SL = entry (breakeven)</div>
+        <div class="logic-rule">• <span>1.5R profit</span> → SL = entry + 1×dist (1R locked)</div>
+        <div class="logic-rule">• <span>2R profit</span> → Phase 4 trail: SL = max(price) − min($25, 0.25×dist)</div>
+        <div class="logic-rule">• SL changes sync to MT5 via <span>POSITION_MODIFY</span> in live mode</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade Records -->
+  <div class="card">
+    <div class="card-title">Entry / Exit Records <span id="trades-count" style="color:var(--muted);font-weight:400">(0)</span></div>
+    <div class="tbl-wrap">
+      <table id="trades-tbl">
+        <thead>
+          <tr>
+            <th>Time</th><th>Type</th><th>Side</th>
+            <th>Price</th><th>LvlLow</th><th>FlagLow</th>
+            <th>Stop Loss</th><th>PnL</th><th>Balance</th>
+            <th>MT5 ID</th><th>Mode</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="12" class="empty-msg">No trades yet — start the algo to begin</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tick Log -->
+  <div class="card">
+    <div class="card-title">Activity Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span></div>
+    <div class="tbl-wrap log-wrap">
+      <table id="log-tbl">
+        <thead>
+          <tr><th>Time</th><th>Type</th><th>Message</th></tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="3" class="empty-msg">Waiting for first tick…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt      = (v, d=4) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
+const fmt2     = v => fmt(v, 2);
+const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
+const fmtTime  = iso => { const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let appState      = {};
+let logCount      = 0;
+let tradeCount    = 0;
+let currentMode   = 'paper';
+let es;
+let statusPollTimer = null;
+const shownTradeKeys = new Set();
+
+// Load account list from server and populate dropdowns
+async function loadAccounts() {
+  try {
+    const r = await fetch('/api/mt5/accounts', { credentials: 'same-origin' });
+    const d = await r.json();
+    if (!d.ok || !d.accounts.length) return;
+    const sel    = $('ctrl-account');
+    const mtSel  = $('mt5-acct-select');
+    sel.innerHTML = '';
+    mtSel.innerHTML = '';
+    d.accounts.forEach(a => {
+      const o1 = new Option(a.label, a.id);
+      const o2 = new Option(a.label, a.id);
+      sel.appendChild(o1);
+      mtSel.appendChild(o2);
+    });
+    // Auto-check status for first account
+    checkMt5Status();
+  } catch {}
+}
+
+function onAccountChange() {
+  // Sync the two dropdowns
+  const id = $('mt5-acct-select').value;
+  $('ctrl-account').value = id;
+  // Reset displayed data and re-check
+  ['mt5-balance','mt5-equity','mt5-leverage','mt5-server-state'].forEach(i => $(i).textContent = '—');
+  $('mt5-status-badge').textContent = '● Checking…';
+  $('mt5-status-badge').style.color = 'var(--muted)';
+  clearTimeout(statusPollTimer);
+  checkMt5Status();
+}
+
+function toggleAddCard() {
+  const body = $('add-account-body');
+  const hint = $('add-card-hint');
+  const open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  hint.textContent = open ? ' — click to collapse' : ' — click to expand';
+}
+
+function setMode(m) {
+  currentMode = m;
+  ['paper','live','backtest'].forEach(id => {
+    const tab = $('tab-' + id);
+    tab.className = 'mode-tab' + (m === id ? (id === 'live' ? ' active-live' : id === 'backtest' ? ' active-backtest' : ' active') : '');
+  });
+  const tradingCtrl = $('trading-controls');
+  const btPanel     = $('backtest-panel');
+  const liveWarn    = $('live-warn');
+  if (m === 'backtest') { tradingCtrl.style.display = 'none'; btPanel.classList.add('show'); liveWarn.style.display = 'none'; }
+  else { tradingCtrl.style.display = ''; btPanel.classList.remove('show'); }
+  liveWarn.style.display = m === 'live' ? '' : 'none';
+  const mb = $('mode-badge');
+  if (m === 'live') { mb.textContent = 'LIVE MT5'; mb.className = 'badge badge-live'; }
+  else if (m === 'backtest') { mb.textContent = 'BACKTEST'; mb.className = 'badge'; mb.style.cssText = 'color:var(--purple);border-color:var(--purple)'; }
+  else { mb.textContent = 'PAPER'; mb.className = 'badge badge-paper'; mb.style.cssText = ''; }
+}
+
+function connectSSE() {
+  if (es) { es.close(); es = null; }
+  es = new EventSource('/events', { withCredentials: true });
+  es.onmessage = e => handle(JSON.parse(e.data));
+  es.onerror   = () => { if (es) { es.close(); es = null; } setTimeout(connectSSE, 3000); };
+}
+
+function handle(d) {
+  switch (d.type) {
+    case 'connected':
+      applyState(d.state);
+      if (d.logs && d.logs.length) {
+        $('log-body').innerHTML = ''; logCount = 0;
+        [...d.logs].reverse().forEach(e => prependLog(e));
+        updateLogCount();
+      }
+      loadTrades();
+      break;
+    case 'started': case 'stopped': case 'tick': applyState(d.state); break;
+    case 'flag':  applyState(d.state); break;
+    case 'log':   prependLog(d.entry); updateLogCount(); break;
+    case 'trade': applyState(d.state); loadTrades(); break;
+    case 'error': applyState(d.state); showErr(d.message); break;
+  }
+  $('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+const PHASE_CONFIG = {
+  'WAIT_4H':    { icon: '⏳', cls: 'phase-wait',    color: 'var(--muted)' },
+  '4H_FORMING': { icon: '📊', cls: 'phase-forming',  color: 'var(--yellow)' },
+  'WAIT_FLAG':  { icon: '🔍', cls: 'phase-flag',     color: 'var(--orange)' },
+  'WAIT_BUY':   { icon: '⚡', cls: 'phase-buy',      color: 'var(--teal)' },
+  'IN_TRADE':   { icon: '🟢', cls: 'phase-trade',    color: 'var(--green)' },
+  'DONE':       { icon: '✅', cls: 'phase-done',     color: 'var(--purple)' },
+};
+const PHASE_LABELS = {
+  'WAIT_4H':    'Waiting for NY Session 4h Candle (12:00 UTC)',
+  '4H_FORMING': 'NY Session 4h Candle Forming…',
+  'WAIT_FLAG':  'Watching 5m Chart for FLAG Candle (close < LevelLow)',
+  'WAIT_BUY':   'FLAG Set — Waiting for LevelLow Reclaim (close > LevelLow)',
+  'IN_TRADE':   'Trade Active',
+  'DONE':       'Day Complete — Trade Finished',
+};
+
+function applyState(s) {
+  if (!s) return;
+  appState = s;
+
+  const badge = $('status-badge');
+  if (s.running) {
+    badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
+    $('btn-start').disabled = true; $('btn-stop').disabled = false;
+    ['ctrl-symbol','ctrl-balance'].forEach(id => $(id).disabled = true);
+  } else {
+    badge.textContent = '● STOPPED'; badge.className = 'badge badge-stopped';
+    $('btn-start').disabled = false; $('btn-stop').disabled = true;
+    ['ctrl-symbol','ctrl-balance'].forEach(id => $(id).disabled = false);
+  }
+
+  const pnl = parseFloat(s.pnl || 0);
+  const pnlEl = $('pnl-val');
+  pnlEl.textContent = fmtMoney(pnl);
+  pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text)';
+  $('pnl-pct').textContent = '(' + (s.pnlPct || '0.00') + '%)';
+  $('stat-balance').textContent = '$' + parseFloat(s.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+  $('stat-trades').textContent  = s.totalTrades || 0;
+  $('stat-wr').textContent      = (s.winRate || '0.0') + '%';
+  const dd = s.maxDrawdownDollar || 0;
+  $('stat-maxdd').textContent = '$' + parseFloat(dd).toFixed(2);
+  $('stat-maxdd').style.color = dd > 0 ? 'var(--red)' : 'var(--muted)';
+
+  // MT5 stats from state
+  if (s.mt5Balance != null) {
+    $('stat-mt5-balance').textContent = '$' + parseFloat(s.mt5Balance).toFixed(2);
+    $('mt5-balance').textContent = '$' + parseFloat(s.mt5Balance).toFixed(2);
+  }
+  if (s.mt5Equity != null) {
+    $('stat-mt5-equity').textContent = '$' + parseFloat(s.mt5Equity).toFixed(2);
+    $('mt5-equity').textContent = '$' + parseFloat(s.mt5Equity).toFixed(2);
+  }
+  if (s.mt5Leverage != null) {
+    $('stat-mt5-leverage').textContent = '1:' + s.mt5Leverage;
+    $('mt5-leverage').textContent = '1:' + s.mt5Leverage;
+  }
+  if (s.mt5AccountState) {
+    $('stat-mt5-state').textContent = s.mt5AccountState;
+    $('stat-mt5-state').style.color = s.mt5AccountState === 'CONNECTED' ? 'var(--green)' : 'var(--red)';
+  }
+
+  const phase  = s.phase || 'WAIT_4H';
+  const pcfg   = PHASE_CONFIG[phase] || PHASE_CONFIG['WAIT_4H'];
+  const banner = $('phase-banner');
+  banner.className = 'phase-banner ' + pcfg.cls;
+  $('phase-icon').textContent = pcfg.icon;
+  $('phase-title').textContent = PHASE_LABELS[phase] || phase;
+  $('phase-title').style.color = pcfg.color;
+
+  let sub = '';
+  const now = Date.now();
+  if (phase === 'WAIT_4H' && s.nyOpen) {
+    const mins = Math.max(0, Math.round((s.nyOpen - now) / 60000));
+    sub = mins > 0 ? `NY 4h candle opens in ${mins}m (${new Date(s.nyOpen).toISOString().substring(11,16)} UTC)` : 'NY 4h candle opening now…';
+  } else if (phase === '4H_FORMING') {
+    const mins = s.nyClose ? Math.max(0, Math.round((s.nyClose - now) / 60000)) : 0;
+    const h = s.interim4hHigh, l = s.interim4hLow;
+    sub = `Closes in ${mins}m` + (h ? ` | Current HIGH=${fmt2(h)} LOW=${fmt2(l)}` : '');
+  } else if (phase === 'WAIT_FLAG') {
+    sub = s.levelHigh ? `LevelHigh=${fmt2(s.levelHigh)} LevelLow=${fmt2(s.levelLow)} | Watching for 5m close < LevelLow` : '';
+  } else if (phase === 'WAIT_BUY') {
+    const llSF = s.lowestLowSinceFlag != null ? ` | Lowest low (SL)=${fmt2(s.lowestLowSinceFlag)}` : '';
+    sub = s.flagCandle ? `FLAG low=${fmt2(s.flagCandle.low)}${llSF} | Watching for 5m close > LevelLow=${fmt2(s.levelLow)}` : '';
+  } else if (phase === 'IN_TRADE' && s.position) {
+    const pos = s.position;
+    const rVal = pos.slDist > 0 ? ((pos.trailHigh - pos.entryPrice) / pos.slDist).toFixed(2) : '0.00';
+    const trailTxt = pos.trailActive ? ' | PHASE 4 TRAIL (5s)' : ` | ${rVal}R high`;
+    const mt5Txt = pos.mt5PositionId ? ` | MT5#${pos.mt5PositionId}` : '';
+    sub = `Entry=${fmt2(pos.entryPrice)} SL=${fmt2(pos.sl)} lots=${pos.lots||pos.size}${trailTxt}${mt5Txt}`;
+  }
+  $('phase-sub').textContent = sub;
+
+  const hlv = s.levelHigh || s.interim4hHigh;
+  const llv = s.levelLow  || s.interim4hLow;
+  $('lvl-high').textContent = hlv ? fmt2(hlv) : '—';
+  $('lvl-low').textContent  = llv ? fmt2(llv) : '—';
+  $('lvl-high-sub').textContent = phase === '4H_FORMING' ? 'Forming (provisional)' : 'NY session 4h candle high';
+  $('lvl-low-sub').textContent  = phase === '4H_FORMING' ? 'Forming (provisional)' : 'NY session 4h candle low';
+
+  const price = s.currentPrice || (s.position && s.position.entryPrice);
+  if (price) {
+    $('lvl-price').textContent = '$' + parseFloat(price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    $('lvl-price').style.color = llv ? (price > llv ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    $('lvl-price-sub').textContent = llv ? (price > llv ? `▲ Above LevelLow` : `▼ Below LevelLow`) : '';
+  }
+
+  if (s.flagCandle) {
+    $('flag-box').style.display = '';
+    const slVal = s.lowestLowSinceFlag != null ? s.lowestLowSinceFlag : s.flagCandle.low;
+    $('lvl-flag').textContent = fmt2(slVal);
+    const flagTime = new Date(s.flagCandle.time).toISOString().substring(11, 16);
+    $('lvl-flag-sub').textContent = `Flag @ ${flagTime} UTC | FLAG low=${fmt2(s.flagCandle.low)}`;
+  } else if (s.position && s.position.originalSL != null) {
+    $('flag-box').style.display = '';
+    $('lvl-flag').textContent = fmt2(s.position.originalSL);
+    $('lvl-flag-sub').textContent = `SL in trade (lowest low flag→entry)`;
+  } else {
+    $('flag-box').style.display = 'none';
+  }
+
+  renderPosition(s.position, s.currentPrice);
+  if (s.error) showErr(s.error);
+}
+
+function renderPosition(pos, currentPrice) {
+  const el = $('pos-display');
+  if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
+  const price  = currentPrice || pos.entryPrice;
+  const unreal = pos.unrealizedPnl || 0;
+  const urColor = unreal >= 0 ? 'var(--green)' : 'var(--red)';
+  const profitR2 = pos.slDist > 0 ? (pos.trailHigh - pos.entryPrice) / pos.slDist : 0;
+  let trailBadge;
+  if (profitR2 >= 2.0)      trailBadge = '<span class="trail-badge">PHASE 4 TRAIL 5s</span>';
+  else if (profitR2 >= 1.5) trailBadge = '<span style="color:var(--green);font-weight:700">✓ 1R LOCKED</span>';
+  else if (profitR2 >= 1.0) trailBadge = '<span style="color:var(--teal);font-weight:700">✓ BREAKEVEN</span>';
+  else                       trailBadge = '<span style="color:var(--muted)">Original SL</span>';
+  const profitPct = pos.slDist > 0 ? ((price - pos.entryPrice) / pos.slDist).toFixed(2) : '?';
+  const mt5Badge = pos.mt5PositionId
+    ? `<span style="color:var(--accent);font-size:.7rem">MT5 #${esc(pos.mt5PositionId)}</span>` : '';
+  el.innerHTML = `
+    <div class="pos-row">
+      <div class="pos-item"><div class="lbl">Side</div><div class="val clr-g">LONG</div></div>
+      <div class="pos-item"><div class="lbl">Entry</div><div class="val">$${parseFloat(pos.entryPrice).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">Current</div><div class="val">$${price ? parseFloat(price).toFixed(2) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Lots</div><div class="val">${pos.lots != null ? parseFloat(pos.lots).toFixed(2) : parseFloat(pos.size).toFixed(4)}</div></div>
+      <div class="pos-item"><div class="lbl">Stop Loss</div><div class="val clr-r">$${parseFloat(pos.sl).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">2R Trigger</div><div class="val clr-g">$${parseFloat(pos.tp).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">SL Distance</div><div class="val">$${parseFloat(pos.slDist||0).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
+      <div class="pos-item"><div class="lbl">Profit in R</div><div class="val" style="color:${parseFloat(profitPct)>=0?'var(--green)':'var(--red)'}">${profitPct}R</div></div>
+      <div class="pos-item"><div class="lbl">Trail High</div><div class="val clr-g">$${parseFloat(pos.trailHigh||pos.entryPrice).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">SL Tier</div><div class="val">${trailBadge}</div></div>
+      ${pos.mt5PositionId ? `<div class="pos-item"><div class="lbl">MT5 Position</div><div class="val">${mt5Badge}</div></div>` : ''}
+    </div>`;
+}
+
+const TYPE_CLS = {
+  'WAIT': 'type-wait', 'INFO': 'type-info', '4H': 'type-4h',
+  'LEVEL': 'type-level', 'FLAG': 'type-flag', 'BUY_SIGNAL': 'type-signal',
+  'ENTRY': 'type-entry', 'EXIT': 'type-exit', 'TRAIL': 'type-trail',
+  'MT5': 'type-mt5', 'ERROR': 'type-error', 'WARN': 'type-warn',
+  'DONE': 'type-done', 'SCAN': 'type-wait',
+};
+
+function prependLog(entry) {
+  const tbody = $('log-body');
+  const emp = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr  = document.createElement('tr');
+  const cls = TYPE_CLS[entry.type] || 'type-info';
+  const msg = entry.message || entry.reason || '';
+  tr.innerHTML = `
+    <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
+    <td class="${cls}">${esc(entry.type)}</td>
+    <td class="reason-cell ${cls}" title="${esc(msg)}">${esc(msg.substring(0,120))}${msg.length>120?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  logCount++;
+  if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
+}
+function updateLogCount() { $('log-count').textContent = `(${logCount} / 500)`; }
+
+function loadTrades() {
+  if (!appState.sessionId) return;
+  fetch('/api/trades?session=' + appState.sessionId, { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(rows => {
+      const tbody = $('trades-body');
+      tbody.innerHTML = '';
+      tradeCount = 0;
+      shownTradeKeys.clear();
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No trades yet</td></tr>'; return; }
+      [...rows].reverse().forEach(t => prependTrade(t));
+    }).catch(() => {});
+}
+
+function prependTrade(t) {
+  const key = `${t.timestamp||''}_${t.type||''}`;
+  if (shownTradeKeys.has(key)) return;
+  shownTradeKeys.add(key);
+  const tbody   = $('trades-body');
+  const emp     = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr      = document.createElement('tr');
+  const isEntry = t.type === 'entry';
+  const pnl     = t.pnl || 0;
+  const pnlClr  = pnl > 0 ? 'clr-g' : pnl < 0 ? 'clr-r' : '';
+  const typeClr = isEntry ? 'type-entry' : 'type-exit';
+  const mt5Cls  = t.mt5_mode === 'live' ? 'clr-g' : 'clr-y';
+  tr.innerHTML = `
+    <td class="main">${fmtTime(t.timestamp)}</td>
+    <td class="${typeClr}">${(t.type||'').toUpperCase()}</td>
+    <td class="clr-g">${(t.side||'').toUpperCase()}</td>
+    <td class="main">$${parseFloat(t.price||0).toFixed(2)}</td>
+    <td class="clr-r">${t.level_low  ? '$'+parseFloat(t.level_low).toFixed(2)  : '—'}</td>
+    <td class="clr-o">${t.flag_low   ? '$'+parseFloat(t.flag_low).toFixed(2)   : '—'}</td>
+    <td class="clr-r">$${parseFloat(t.stop_loss||0).toFixed(2)}</td>
+    <td class="${pnlClr}">${isEntry ? '—' : fmtMoney(pnl)}</td>
+    <td>$${parseFloat(t.balance_after||0).toFixed(2)}</td>
+    <td class="${mt5Cls}">${t.mt5_position_id ? t.mt5_position_id : '—'}</td>
+    <td class="${mt5Cls}">${esc(t.mt5_mode || 'paper')}</td>
+    <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,45))}${(t.reason||'').length>45?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  tradeCount++;
+  $('trades-count').textContent = `(${tradeCount})`;
+}
+
+// MT5 status check — uses currently selected account dropdown
+async function checkMt5Status() {
+  clearTimeout(statusPollTimer);
+  const accountId = $('mt5-acct-select').value;
+  $('mt5-msg').textContent = 'Checking… (retrying up to 12s server-side)';
+  $('mt5-status-badge').textContent = '● Checking…';
+  $('mt5-status-badge').style.color = 'var(--muted)';
+  try {
+    const url = '/api/mt5/status' + (accountId ? '?id=' + encodeURIComponent(accountId) : '');
+    const r   = await fetch(url, { credentials: 'same-origin' });
+    const d   = await r.json();
+
+    if (d.accountId) $('mt5-acct-id').textContent = d.accountId;
+    if (d.region)    $('mt5-region').textContent  = d.region;
+
+    if (!d.ok) {
+      if (d.softError) {
+        const hasData = $('mt5-balance').textContent !== '—';
+        $('mt5-status-badge').textContent = hasData ? '● Syncing' : '● Connecting…';
+        $('mt5-status-badge').style.color = 'var(--yellow)';
+        if (!hasData) $('mt5-panel').classList.add('disconnected');
+        $('mt5-msg').textContent = hasData
+          ? '↻ MT5 terminal syncing — balance above is cached. Auto-retrying in 10s…'
+          : '↻ MT5 terminal connecting, please wait… auto-retrying in 10s.';
+        statusPollTimer = setTimeout(checkMt5Status, 10000);
+      } else {
+        $('mt5-msg').textContent = '❌ ' + (d.error || 'Error');
+        $('mt5-panel').classList.add('disconnected');
+        $('mt5-status-badge').textContent = '● Error';
+        $('mt5-status-badge').style.color = 'var(--red)';
+      }
+      return;
+    }
+
+    const info  = d.accountInfo || {};
+    const prov  = d.provisioning || {};
+    const state = prov.state || 'DEPLOYED';
+    $('mt5-server-state').textContent = state;
+    $('mt5-server-state').style.color = state === 'DEPLOYED' ? 'var(--green)' : 'var(--yellow)';
+    if (info.balance  != null) { $('mt5-balance').textContent  = '$' + parseFloat(info.balance).toFixed(2);  $('stat-mt5-balance').textContent  = '$' + parseFloat(info.balance).toFixed(2); }
+    if (info.equity   != null) { $('mt5-equity').textContent   = '$' + parseFloat(info.equity).toFixed(2);   $('stat-mt5-equity').textContent   = '$' + parseFloat(info.equity).toFixed(2); }
+    if (info.leverage != null) { $('mt5-leverage').textContent = '1:' + info.leverage; $('stat-mt5-leverage').textContent = '1:' + info.leverage; }
+    $('mt5-panel').classList.remove('disconnected');
+    $('mt5-status-badge').textContent = '● Connected';
+    $('mt5-status-badge').style.color = 'var(--green)';
+    const lbl = d.label || d.accountId || '';
+    $('mt5-msg').textContent = '✓ Connected — ' + lbl + ' | ' + (prov.server || 'Tickmill-Demo') + ' | equity $' + parseFloat(info.equity || info.balance || 0).toFixed(2) + ' | 1:' + (info.leverage || 500);
+  } catch(e) {
+    $('mt5-msg').textContent = '❌ ' + e.message;
+    $('mt5-panel').classList.add('disconnected');
+    $('mt5-status-badge').textContent = '● Error';
+    $('mt5-status-badge').style.color = 'var(--red)';
+  }
+}
+
+function deployMt5() {
+  window.open('https://app.metaapi.cloud/accounts', '_blank');
+  $('mt5-msg').textContent = 'MetaAPI dashboard opened — add/deploy your account there, then click Check MT5 Status.';
+}
+
+async function runBacktest() {
+  const btn = $('btn-run-bt');
+  btn.disabled = true;
+  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching candles from Kraken…</div>';
+  $('bt-results').style.display = 'none';
+  const body = { symbol: $('bt-symbol').value, months: parseInt($('bt-months').value, 10) };
+  try {
+    const r = await fetch('/api/backtest', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    btn.disabled = false;
+    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`; return; }
+    $('bt-status').innerHTML = '';
+    renderBacktestResults(d);
+  } catch (e) {
+    btn.disabled = false;
+    $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderBacktestResults(d) {
+  const s = d.summary;
+  const pnlColor = s.totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const res = $('bt-results');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="card-title" style="margin-bottom:8px">
+      Backtest: ${esc(s.symbol)} · ${esc(s.period)} · ${s.daysScanned} NY days scanned · ${s.daysWithSetup} setups fired
+    </div>
+    <div class="bt-stat-grid">
+      <div class="stat-box"><div class="lbl">Trades</div><div class="val">${s.totalTrades} (W:${s.wins} L:${s.losses})</div></div>
+      <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" style="color:${parseFloat(s.winRate)>=50?'var(--green)':'var(--red)'}">${s.winRate}%</div></div>
+      <div class="stat-box"><div class="lbl">Net PnL</div><div class="val" style="color:${pnlColor}">${fmtMoney(s.totalPnl)} (${s.pnlPct}%)</div></div>
+      <div class="stat-box"><div class="lbl">Max Drawdown</div><div class="val clr-r">$${parseFloat(s.maxDrawdown).toFixed(2)}</div></div>
+      <div class="stat-box"><div class="lbl">Final Balance</div><div class="val" style="color:${pnlColor}">$${parseFloat(s.finalBalance).toFixed(2)}</div></div>
+      <div class="stat-box"><div class="lbl">Setup Rate</div><div class="val">${s.daysScanned > 0 ? ((s.daysWithSetup/s.daysScanned)*100).toFixed(0) : 0}% of days</div></div>
+      <div class="stat-box"><div class="lbl">4h Candles</div><div class="val">${s.fourHCandles}</div></div>
+      <div class="stat-box"><div class="lbl">1h Candles</div><div class="val">${s.oneHCandles}</div></div>
+    </div>
+    <div class="tbl-wrap bt-tbl-wrap" style="margin-top:8px">
+      <table><thead><tr>
+        <th>Date</th><th>Entry Price</th><th>Exit Price</th>
+        <th>LvlLow</th><th>FLAG Low</th><th>SL (Lowest Low)</th>
+        <th>PnL</th><th>Balance</th><th>Trail?</th><th>Reason</th>
+      </tr></thead><tbody id="bt-trades-body"></tbody></table>
+    </div>`;
+  const tbody = document.getElementById('bt-trades-body');
+  if (!d.trades.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-msg">No setups triggered — try a longer period or different symbol</td></tr>';
+    return;
+  }
+  d.trades.forEach(t => {
+    const pnlCls = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="main">${esc(t.date)}</td>
+      <td>$${parseFloat(t.entryPrice).toFixed(2)}</td>
+      <td>$${parseFloat(t.exitPrice).toFixed(2)}</td>
+      <td class="clr-r">$${parseFloat(t.levelLow).toFixed(2)}</td>
+      <td class="clr-o">$${parseFloat(t.flagLow).toFixed(2)}</td>
+      <td class="clr-r">$${parseFloat(t.lowestLow != null ? t.lowestLow : t.flagLow).toFixed(2)}</td>
+      <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
+      <td>$${parseFloat(t.balance).toFixed(2)}</td>
+      <td>${t.trailActive ? '<span style="color:var(--green)">✓ Trail</span>' : '<span style="color:var(--muted)">SL</span>'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'…':''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function startAlgo() {
+  $('btn-start').disabled = true;
+  hideErr();
+  const body = {
+    symbol:    $('ctrl-symbol').value,
+    balance:   parseFloat($('ctrl-balance').value) || 10000,
+    mode:      currentMode,
+    accountId: $('ctrl-account').value || undefined,
+  };
+  try {
+    const r = await fetch('/api/start', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!d.ok) { showErr(d.msg || 'Could not start'); $('btn-start').disabled = false; }
+  } catch(e) { showErr(e.message); $('btn-start').disabled = false; }
+}
+async function stopAlgo() {
+  $('btn-stop').disabled = true;
+  try { await fetch('/api/stop', { method: 'POST', credentials: 'same-origin' }); } catch(e) { showErr(e.message); }
+}
+function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
+function hideErr()    { $('err-banner').classList.remove('show'); }
+
+connectSSE();
+loadAccounts();
+</script>
+</body>
+</html>

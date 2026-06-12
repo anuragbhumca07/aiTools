@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Dashboard — uLearn</title>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--accent:var(--purple);--accent-glow:rgba(139,92,246,.25);--teal:#14b8a6;}
+
+/* LAYOUT */
+.page{max-width:1200px;margin:0 auto;padding:2rem 5%;display:grid;grid-template-columns:240px 1fr;gap:2rem;min-height:calc(100vh - 66px);}
+.sidebar{position:sticky;top:82px;height:fit-content;}
+
+.user-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;text-align:center;margin-bottom:1rem;}
+.user-avatar{width:72px;height:72px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;color:#fff;margin:0 auto 1rem;overflow:hidden;}
+.user-avatar img{width:100%;height:100%;object-fit:cover;}
+.user-name{font-weight:700;font-size:1rem;margin-bottom:.2rem;}
+.user-role{font-size:.78rem;color:var(--muted);}
+
+.nav-menu{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.8rem 1.1rem;cursor:pointer;transition:all .2s;border-left:3px solid transparent;font-size:.875rem;font-weight:500;color:var(--muted);}
+.nav-item:hover{background:rgba(139,92,246,.05);color:var(--text);}
+.nav-item.active{background:rgba(139,92,246,.08);border-left-color:var(--purple);color:var(--purple);}
+.nav-item i{color:inherit;width:16px;height:16px;}
+
+/* MAIN CONTENT */
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;
+  transition:border-color .2s,box-shadow .2s;
+}
+.stat-card:hover{border-color:var(--border2);}
+.stat-card .label{font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem;}
+.stat-card .value{font-size:1.8rem;font-weight:800;font-family:var(--font-display);}
+.stat-card .sub{font-size:.75rem;color:var(--muted);margin-top:.2rem;}
+
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem;}
+.section-title{font-weight:700;font-size:.95rem;margin-bottom:1.1rem;display:flex;align-items:center;justify-content:space-between;color:var(--text);}
+.section-title a{font-size:.78rem;color:var(--purple);font-weight:600;}
+
+/* BOOKING ITEMS */
+.booking-item{display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--border);}
+.booking-item:last-child{border-bottom:none;}
+.booking-avatar{width:40px;height:40px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.875rem;color:#fff;overflow:hidden;flex-shrink:0;}
+.booking-avatar img{width:100%;height:100%;object-fit:cover;}
+.booking-info .tutor-name{font-weight:600;font-size:.875rem;}
+.booking-info .session-info{color:var(--muted);font-size:.78rem;margin-top:.1rem;}
+.booking-meta{margin-left:auto;text-align:right;}
+
+.status-badge{display:inline-block;padding:.2rem .6rem;border-radius:100px;font-size:.72rem;font-weight:600;}
+.status-pending{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.28);}
+.status-confirmed{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.28);}
+.status-completed{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.28);}
+.status-cancelled{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.28);}
+
+.subjects-quick{display:flex;flex-wrap:wrap;gap:.6rem;}
+.quick-subject{
+  background:var(--card2);border:1px solid var(--border);border-radius:8px;
+  padding:.45rem .85rem;font-size:.82rem;cursor:pointer;transition:all .2s;color:var(--muted);
+}
+.quick-subject:hover{border-color:var(--purple);color:var(--purple);}
+
+.bookmarks-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.85rem;}
+.bookmark-card{
+  background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1rem;display:flex;gap:.75rem;align-items:flex-start;transition:border-color .2s;
+}
+.bookmark-card:hover{border-color:rgba(139,92,246,.4);}
+.bm-avatar{width:44px;height:44px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.95rem;color:#fff;flex-shrink:0;overflow:hidden;}
+.bm-avatar img{width:100%;height:100%;object-fit:cover;}
+
+/* PROFILE FORM */
+.form-group{margin-bottom:1rem;}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;}
+.form-control{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:.6rem .85rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;transition:border-color .2s;}
+.form-control:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+
+/* MESSAGES */
+.msg-preview{display:flex;align-items:center;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .2s;border-radius:6px;}
+.msg-preview:hover{background:rgba(139,92,246,.04);}
+.msg-preview:last-child{border-bottom:none;}
+.msg-avatar{width:38px;height:38px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.8rem;color:#fff;flex-shrink:0;}
+
+.notif-item{display:flex;gap:.75rem;padding:.75rem 0;border-bottom:1px solid var(--border);}
+.notif-item:last-child{border-bottom:none;}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--purple);flex-shrink:0;margin-top:5px;}
+.notif-dot.read{background:var(--dim);}
+
+.alert-bar{padding:.75rem 1rem;border-radius:9px;font-size:.875rem;margin-bottom:1rem;display:none;}
+.alert-success{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);color:var(--green);}
+.alert-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);color:var(--red);}
+
+@media(max-width:900px){
+  .page{grid-template-columns:1fr;}
+  .sidebar{position:static;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .bookmarks-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="ul-blob ul-blob-1" style="opacity:.5"></div>
+<div class="ul-blob ul-blob-2" style="opacity:.4"></div>
+
+<nav class="nav scrolled">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <div class="nav-actions">
+      <a href="/search.html" class="btn btn-ghost"><i data-lucide="search" style="width:14px;height:14px"></i> Find Tutors</a>
+      <a href="/messages.html" class="btn btn-ghost"><i data-lucide="message-circle" style="width:14px;height:14px"></i> Messages</a>
+      <button class="btn btn-ghost" id="logout-btn"><i data-lucide="log-out" style="width:14px;height:14px"></i></button>
+    </div>
+  </div>
+</nav>
+
+<div class="page">
+  <aside class="sidebar">
+    <div class="user-card">
+      <div class="user-avatar" id="side-avatar"></div>
+      <div class="user-name" id="side-name">Loading...</div>
+      <div class="user-role">Student</div>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" data-tab="overview"><i data-lucide="layout-dashboard"></i> Overview</div>
+      <div class="nav-item" data-tab="bookings"><i data-lucide="calendar"></i> My Sessions</div>
+      <div class="nav-item" data-tab="tutors"><i data-lucide="users"></i> Saved Tutors</div>
+      <div class="nav-item" data-tab="messages"><i data-lucide="message-circle"></i> Messages</div>
+      <div class="nav-item" data-tab="notifications"><i data-lucide="bell"></i> Notifications</div>
+      <div class="nav-item" data-tab="profile"><i data-lucide="user"></i> Edit Profile</div>
+    </nav>
+  </aside>
+
+  <main>
+    <div id="alert-success" class="alert-bar alert-success"></div>
+    <div id="alert-error" class="alert-bar alert-error"></div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-content active" id="tab-overview">
+      <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Welcome back, <span id="welcome-name">...</span> 👋</h2>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="label"><i data-lucide="calendar" style="width:14px;height:14px;color:var(--purple)"></i> Upcoming</div>
+          <div class="value" id="upcoming-count">0</div>
+          <div class="sub">sessions booked</div>
+        </div>
+        <div class="stat-card">
+          <div class="label"><i data-lucide="check-circle" style="width:14px;height:14px;color:var(--green)"></i> Completed</div>
+          <div class="value" id="completed-count">0</div>
+          <div class="sub">sessions done</div>
+        </div>
+        <div class="stat-card">
+          <div class="label"><i data-lucide="bookmark" style="width:14px;height:14px;color:var(--pink)"></i> Saved</div>
+          <div class="value" id="bookmarks-count">0</div>
+          <div class="sub">tutors saved</div>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Upcoming Sessions <a href="#" onclick="switchTab('bookings')">View All</a></div>
+        <div id="upcoming-list"><p style="color:var(--muted);font-size:.875rem">No upcoming sessions. <a href="/search.html" style="color:var(--purple)">Find a tutor!</a></p></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Quick Search</div>
+        <div class="subjects-quick" id="quick-subjects"></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div class="tab-content" id="tab-bookings">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">My Sessions</h2>
+      <div class="section-card">
+        <div id="all-bookings-list"></div>
+      </div>
+    </div>
+
+    <!-- SAVED TUTORS -->
+    <div class="tab-content" id="tab-tutors">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Saved Tutors</h2>
+      <div class="bookmarks-grid" id="bookmarks-grid"></div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="tab-content" id="tab-messages">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Recent Messages</h2>
+      <div class="section-card">
+        <div id="messages-preview-list"></div>
+        <a href="/messages.html" class="btn btn-ghost" style="margin-top:1rem;width:100%;justify-content:center">
+          Open Messages <i data-lucide="arrow-right" style="width:14px;height:14px"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- NOTIFICATIONS -->
+    <div class="tab-content" id="tab-notifications">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+        <h2 style="font-size:1.3rem;font-weight:800;font-family:var(--font-display)">Notifications</h2>
+        <button class="btn btn-ghost" id="mark-all-read">Mark all read</button>
+      </div>
+      <div class="section-card"><div id="notif-list"></div></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="tab-content" id="tab-profile">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Edit Profile</h2>
+      <div class="section-card">
+        <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.5rem">
+          <div class="user-avatar" id="profile-avatar" style="width:80px;height:80px;font-size:1.4rem"></div>
+          <div>
+            <div style="font-weight:700;margin-bottom:.25rem" id="profile-name-display"></div>
+            <input type="file" id="avatar-upload" accept="image/*" style="display:none">
+            <button class="btn btn-ghost" onclick="document.getElementById('avatar-upload').click()">
+              <i data-lucide="camera" style="width:14px;height:14px"></i> Change Photo
+            </button>
+          </div>
+        </div>
+        <form id="profile-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" class="form-control" id="pf-name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input type="tel" class="form-control" id="pf-phone">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" class="form-control" id="pf-location" placeholder="City, Country">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bio</label>
+            <textarea class="form-control" id="pf-bio" rows="3" placeholder="Tell tutors about yourself..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Timezone</label>
+            <select class="form-control" id="pf-timezone">
+              <option value="UTC">UTC</option>
+              <option value="America/New_York">America/New_York (EST)</option>
+              <option value="America/Chicago">America/Chicago (CST)</option>
+              <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+              <option value="Europe/London">Europe/London (GMT)</option>
+              <option value="Europe/Paris">Europe/Paris (CET)</option>
+              <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+              <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="save" style="width:14px;height:14px"></i> Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+lucide.createIcons();
+let currentUser = null;
+
+async function init() {
+  const r = await fetch('/auth/me');
+  const { user } = await r.json();
+  if (!user) { window.location = '/login.html'; return; }
+  currentUser = user;
+  renderUser(user);
+  showVerificationBanner(user);
+  loadData();
+  setupTabs();
+}
+
+function showVerificationBanner(u) {
+  if (u.is_verified) return;
+  const banner = document.createElement('div');
+  banner.id = 'verify-banner';
+  banner.style.cssText = `position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.875rem;font-weight:500;box-shadow:0 2px 16px rgba(0,0,0,.4)`;
+  banner.innerHTML = `<span>⚠️ <strong>Email not verified.</strong> Your profile shows as "Verification Pending" to others. Check your inbox or <button id="resend-btn" style="background:rgba(255,255,255,.25);border:none;color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:.8rem;margin-left:6px">Resend verification email</button></span><button onclick="document.getElementById('verify-banner').remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:1.1rem;padding:0 4px">✕</button>`;
+  document.body.prepend(banner);
+  document.body.style.paddingTop = '46px';
+  document.getElementById('resend-btn')?.addEventListener('click', async () => {
+    document.getElementById('resend-btn').textContent = 'Sending...';
+    const r = await fetch('/auth/resend-verification', { method:'POST' });
+    const d = await r.json();
+    document.getElementById('resend-btn').textContent = d.ok ? '✅ Sent!' : '❌ Failed';
+  });
+}
+
+function renderUser(u) {
+  document.getElementById('side-name').textContent = u.name;
+  document.getElementById('welcome-name').textContent = u.name.split(' ')[0];
+  document.getElementById('profile-name-display').textContent = u.name;
+  ['side-avatar', 'profile-avatar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (u.avatar) el.innerHTML = `<img src="${u.avatar}" alt="${u.name}">`;
+    else el.textContent = u.name.charAt(0).toUpperCase();
+  });
+  document.getElementById('pf-name').value = u.name || '';
+  document.getElementById('pf-phone').value = u.phone || '';
+  document.getElementById('pf-location').value = u.location || '';
+  document.getElementById('pf-bio').value = u.bio || '';
+  const tzSel = document.getElementById('pf-timezone');
+  if (u.timezone) { for (let o of tzSel.options) if (o.value === u.timezone) o.selected = true; }
+}
+
+async function loadData() { loadBookings(); loadBookmarks(); loadMessages(); loadNotifications(); loadQuickSubjects(); }
+
+async function loadBookings() {
+  try {
+    const r = await fetch('/api/bookings');
+    const { bookings } = await r.json();
+    const upcoming = bookings.filter(b => b.scheduled_at > Date.now()/1000 && ['pending','confirmed'].includes(b.status));
+    const completed = bookings.filter(b => b.status === 'completed');
+    document.getElementById('upcoming-count').textContent = upcoming.length;
+    document.getElementById('completed-count').textContent = completed.length;
+
+    const renderBookings = (list) => list.length === 0
+      ? '<p style="color:var(--muted);font-size:.875rem;text-align:center;padding:1rem">No sessions found</p>'
+      : list.map(b => {
+        const d = new Date(b.scheduled_at * 1000);
+        const init = b.tutor_name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+        return `<div class="booking-item">
+          <div class="booking-avatar">${b.tutor_avatar ? `<img src="${b.tutor_avatar}">` : init}</div>
+          <div class="booking-info">
+            <div class="tutor-name"><a href="/tutor-profile.html?id=${b.tutor_profile_id}" style="color:var(--text)">${b.tutor_name}</a></div>
+            <div class="session-info">${b.subject} · ${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · ${b.duration_minutes}min</div>
+          </div>
+          <div class="booking-meta">
+            <span class="status-badge status-${b.status}">${b.status}</span>
+            ${b.status === 'pending' ? `<div style="margin-top:.3rem"><button onclick="cancelBooking(${b.id})" class="btn" style="padding:.2rem .5rem;font-size:.7rem;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)">Cancel</button></div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+    document.getElementById('upcoming-list').innerHTML = renderBookings(upcoming.slice(0,3));
+    document.getElementById('all-bookings-list').innerHTML = renderBookings(bookings);
+  } catch(e) {}
+}
+
+async function cancelBooking(id) {
+  if (!confirm('Cancel this session?')) return;
+  const r = await fetch(`/api/bookings/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: 'cancelled' }) });
+  if (r.ok) { showAlert('success', 'Session cancelled'); loadBookings(); }
+}
+
+async function loadBookmarks() {
+  try {
+    const r = await fetch('/api/students/bookmarks');
+    const { bookmarks } = await r.json();
+    document.getElementById('bookmarks-count').textContent = bookmarks.length;
+    const grid = document.getElementById('bookmarks-grid');
+    if (!bookmarks.length) { grid.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No saved tutors yet. <a href="/search.html" style="color:var(--purple)">Browse tutors</a></p>'; return; }
+    grid.innerHTML = bookmarks.map(t => {
+      const subjects = JSON.parse(t.subjects || '[]');
+      const init = t.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      return `<a href="/tutor-profile.html?id=${t.id}" class="bookmark-card">
+        <div class="bm-avatar">${t.avatar ? `<img src="${t.avatar}">` : init}</div>
+        <div>
+          <div style="font-weight:600;font-size:.875rem">${t.name}</div>
+          <div style="color:var(--muted);font-size:.75rem">${subjects.slice(0,2).join(', ')}</div>
+          <div style="color:var(--amber);font-size:.78rem;margin-top:.2rem">${'★'.repeat(Math.round(t.avg_rating || 0))}</div>
+        </div>
+        <div style="margin-left:auto;font-weight:700;font-size:.9rem;color:var(--purple)">$${t.hourly_rate}/hr</div>
+      </a>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function loadMessages() {
+  try {
+    const r = await fetch('/api/conversations');
+    const { conversations } = await r.json();
+    const list = document.getElementById('messages-preview-list');
+    if (!conversations?.length) { list.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No messages yet</p>'; return; }
+    list.innerHTML = conversations.slice(0,5).map(c => {
+      const init = c.other_name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      return `<div class="msg-preview" onclick="window.location='/messages.html?conv=${c.id}'">
+        <div class="msg-avatar">${c.other_avatar ? `<img src="${c.other_avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : init}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:.875rem">${c.other_name}</div>
+          <div style="color:var(--muted);font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.last_message || 'No messages yet'}</div>
+        </div>
+        ${c.unread_count > 0 ? `<span style="background:var(--purple);color:#fff;border-radius:100px;font-size:.7rem;padding:.1rem .4rem;font-weight:700">${c.unread_count}</span>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function loadNotifications() {
+  try {
+    const r = await fetch('/api/notifications');
+    const { notifications } = await r.json();
+    const list = document.getElementById('notif-list');
+    if (!notifications?.length) { list.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No notifications</p>'; return; }
+    list.innerHTML = notifications.map(n => `<div class="notif-item">
+      <div class="notif-dot${n.is_read ? ' read' : ''}"></div>
+      <div>
+        <div style="font-weight:600;font-size:.875rem">${n.title}</div>
+        <div style="color:var(--muted);font-size:.78rem">${n.body || ''}</div>
+        <div style="color:var(--dim);font-size:.72rem;margin-top:.2rem">${new Date(n.created_at*1000).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadQuickSubjects() {
+  try {
+    const r = await fetch('/api/subjects');
+    const { subjects } = await r.json();
+    const popular = subjects.slice(0, 12);
+    document.getElementById('quick-subjects').innerHTML = popular.map(s =>
+      `<div class="quick-subject" onclick="window.location='/search.html?subject=${encodeURIComponent(s.name)}'">${s.icon || ''} ${s.name}</div>`
+    ).join('');
+  } catch(e) {}
+}
+
+function setupTabs() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => switchTab(item.dataset.tab));
+  });
+}
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('active', tc.id === `tab-${tab}`));
+}
+
+document.getElementById('profile-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    const r = await fetch('/api/students/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: document.getElementById('pf-name').value,
+        phone: document.getElementById('pf-phone').value,
+        location: document.getElementById('pf-location').value,
+        bio: document.getElementById('pf-bio').value,
+        timezone: document.getElementById('pf-timezone').value
+      })
+    });
+    if (r.ok) { showAlert('success', 'Profile updated!'); const { profile } = await r.json(); renderUser(profile); }
+    else showAlert('error', 'Failed to update profile');
+  } catch(e) { showAlert('error', 'Server error'); }
+});
+
+document.getElementById('avatar-upload').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData(); fd.append('avatar', file);
+  const r = await fetch('/api/upload/avatar', { method:'POST', body: fd });
+  const data = await r.json();
+  if (r.ok) { currentUser.avatar = data.avatar; renderUser(currentUser); showAlert('success', 'Photo updated!'); }
+  else showAlert('error', data.error || 'Upload failed');
+});
+
+document.getElementById('mark-all-read').addEventListener('click', async () => {
+  await fetch('/api/notifications/read', { method: 'PATCH' });
+  loadNotifications();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST' });
+  window.location = '/';
+});
+
+function showAlert(type, msg) {
+  const el = document.getElementById(`alert-${type}`);
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+init();
+</script>
+</body>
+</html>

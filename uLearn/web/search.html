@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Tutors — uLearn</title>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* Map old accent to purple gradient */
+:root{--accent:var(--purple);--accent-glow:rgba(139,92,246,.25);--teal:#14b8a6;}
+
+.search-bar{
+  flex:1;max-width:420px;
+  background:rgba(255,255,255,.04);border:1px solid var(--border2);
+  border-radius:11px;display:flex;align-items:center;gap:.5rem;padding:.45rem .85rem;
+  transition:border-color .2s;
+}
+.search-bar:focus-within{border-color:rgba(139,92,246,.5);}
+.search-bar input{background:none;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:.875rem;width:100%;}
+.search-bar input::placeholder{color:var(--dim);}
+
+/* LAYOUT */
+.page{max-width:1380px;margin:0 auto;padding:2rem 5%;display:grid;grid-template-columns:268px 1fr;gap:2rem;min-height:calc(100vh - 66px);}
+
+/* SIDEBAR */
+.sidebar{position:sticky;top:80px;height:fit-content;}
+.sidebar-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1rem;}
+.sidebar-title{font-weight:700;font-size:.9rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;color:var(--text);}
+.filter-section{margin-bottom:1.25rem;}
+.filter-label{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;}
+.filter-options{display:flex;flex-direction:column;gap:.4rem;}
+.filter-option{display:flex;align-items:center;gap:.6rem;cursor:pointer;padding:.35rem .5rem;border-radius:8px;transition:background .2s;}
+.filter-option:hover{background:rgba(139,92,246,.07);}
+.filter-option input[type=checkbox]{accent-color:var(--purple);width:14px;height:14px;}
+.filter-option input[type=radio]{accent-color:var(--purple);width:14px;height:14px;}
+.filter-option label{font-size:.875rem;cursor:pointer;color:var(--muted);}
+
+.price-inputs{display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem;}
+.price-input{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:.4rem .6rem;color:var(--text);font-family:var(--font);font-size:.85rem;width:80px;outline:none;
+}
+.price-input:focus{border-color:var(--purple);}
+
+.rating-btns{display:flex;gap:.4rem;flex-wrap:wrap;}
+.rating-btn{
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:.28rem .7rem;font-size:.8rem;color:var(--muted);transition:all .2s;
+}
+.rating-btn.active,.rating-btn:hover{border-color:var(--purple);color:var(--purple);background:rgba(139,92,246,.08);}
+
+.subject-select{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:.5rem .75rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;appearance:none;cursor:pointer;
+}
+.subject-select:focus{border-color:var(--purple);}
+
+/* MAIN */
+.sort-bar{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.results-count{color:var(--muted);font-size:.875rem;}
+.results-count strong{color:var(--text);}
+.sort-select{
+  background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:.4rem .75rem;color:var(--text);font-family:var(--font);font-size:.85rem;margin-left:auto;outline:none;cursor:pointer;
+}
+.sort-select:focus{border-color:var(--purple);}
+
+/* TUTOR CARDS */
+.tutors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.1rem;}
+.tutor-card{
+  position:relative;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:1.35rem;
+  transition:all .3s;overflow:hidden;display:block;
+}
+.tutor-card::before{
+  content:'';position:absolute;inset:0;border-radius:var(--radius-lg);
+  padding:1px;background:var(--grad);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity .3s;
+}
+.tutor-card:hover::before{opacity:1;}
+.tutor-card:hover{transform:translateY(-3px);box-shadow:0 16px 48px rgba(0,0,0,.5);}
+.tc-inner{position:relative;z-index:1;}
+.tc-header{display:flex;align-items:flex-start;gap:.9rem;margin-bottom:.9rem;}
+.tc-avatar{
+  width:52px;height:52px;border-radius:50%;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:1.1rem;color:#fff;flex-shrink:0;overflow:hidden;position:relative;
+}
+.tc-avatar img{width:100%;height:100%;object-fit:cover;}
+.tc-badge{
+  position:absolute;bottom:-2px;right:-2px;background:var(--green);
+  border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;border:2px solid var(--card);
+}
+.tc-name{font-weight:700;font-size:.95rem;}
+.tc-headline{color:var(--muted);font-size:.78rem;line-height:1.4;margin-top:.1rem;}
+.badge{
+  background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--purple);
+  font-size:.7rem;font-weight:600;padding:.18rem .5rem;border-radius:100px;
+}
+.tc-subjects{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem;}
+.tc-stats{display:flex;align-items:center;gap:.6rem;font-size:.78rem;color:var(--muted);margin-bottom:.9rem;}
+.tc-rating{color:var(--amber);}
+.tc-footer{display:flex;align-items:center;justify-content:space-between;}
+.tc-price{font-weight:700;font-size:1rem;}
+.tc-price span{color:var(--muted);font-weight:400;font-size:.8rem;}
+.tc-featured-badge{
+  position:absolute;top:.75rem;right:.75rem;
+  background:rgba(245,158,11,.12);color:var(--amber);
+  font-size:.68rem;font-weight:600;padding:.12rem .4rem;border-radius:100px;border:1px solid rgba(245,158,11,.28);
+}
+.view-btn{
+  background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--purple);
+  padding:.35rem .75rem;border-radius:8px;font-size:.78rem;font-weight:600;transition:all .2s;
+}
+.view-btn:hover{background:var(--purple);color:#fff;}
+
+/* PAGINATION */
+.pagination{display:flex;gap:.5rem;justify-content:center;margin-top:2rem;}
+.page-btn{
+  background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:.5rem .85rem;font-size:.875rem;color:var(--muted);transition:all .2s;
+}
+.page-btn:hover,.page-btn.active{border-color:var(--purple);color:var(--purple);background:rgba(139,92,246,.08);}
+
+.empty-state{text-align:center;padding:4rem 2rem;grid-column:1/-1;}
+.empty-state h3{font-size:1.2rem;margin-bottom:.5rem;}
+.empty-state p{color:var(--muted);font-size:.9rem;}
+
+@media(max-width:900px){
+  .page{grid-template-columns:1fr;}
+  .sidebar{position:static;}
+  .sidebar-card{display:none;}
+  .sidebar-card.always-show{display:block;}
+}
+</style>
+</head>
+<body>
+<div class="ul-blob ul-blob-1"></div>
+<div class="ul-blob ul-blob-2"></div>
+<div class="ul-blob ul-blob-3"></div>
+
+<nav class="nav scrolled">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <div class="search-bar">
+      <i data-lucide="search" style="width:16px;height:16px;color:var(--dim);flex-shrink:0"></i>
+      <input type="text" id="search-input" placeholder="Search subjects, tutors...">
+    </div>
+    <div class="nav-actions">
+      <a href="/login.html" class="btn btn-ghost" id="nav-login">Log In</a>
+      <a href="/login.html?tab=signup" class="btn btn-primary" id="nav-signup">Sign Up</a>
+      <div id="nav-user" style="display:none">
+        <a href="#" id="nav-dash" class="btn btn-ghost">Dashboard</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="page">
+  <aside class="sidebar">
+    <div class="sidebar-card always-show">
+      <div class="sidebar-title"><i data-lucide="filter" style="width:15px;height:15px;color:var(--purple)"></i> Filters</div>
+
+      <div class="filter-section">
+        <div class="filter-label">Subject</div>
+        <select class="subject-select" id="subject-filter">
+          <option value="">All Subjects</option>
+        </select>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Price Range ($/hr)</div>
+        <div class="price-inputs">
+          <input type="number" class="price-input" id="min-rate" placeholder="Min" min="0">
+          <span style="color:var(--dim)">—</span>
+          <input type="number" class="price-input" id="max-rate" placeholder="Max" max="500">
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Min Rating</div>
+        <div class="rating-btns">
+          <button class="rating-btn" data-rating="0">Any</button>
+          <button class="rating-btn" data-rating="3">3★+</button>
+          <button class="rating-btn" data-rating="4">4★+</button>
+          <button class="rating-btn active" data-rating="4.5">4.5★+</button>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Teaching Mode</div>
+        <div class="filter-options">
+          <div class="filter-option"><input type="radio" name="mode" id="mode-all" value="" checked><label for="mode-all">All</label></div>
+          <div class="filter-option"><input type="radio" name="mode" id="mode-online" value="online"><label for="mode-online">💻 Online</label></div>
+          <div class="filter-option"><input type="radio" name="mode" id="mode-inperson" value="in-person"><label for="mode-inperson">📍 In-Person</label></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="apply-filters" style="width:100%;justify-content:center;margin-top:.5rem">Apply Filters</button>
+      <button class="btn btn-ghost" id="clear-filters" style="width:100%;justify-content:center;margin-top:.5rem">Clear All</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="sort-bar">
+      <div class="results-count" id="results-count">Loading...</div>
+      <select class="sort-select" id="sort-select">
+        <option value="rating">Sort: Top Rated</option>
+        <option value="price_asc">Price: Low to High</option>
+        <option value="price_desc">Price: High to Low</option>
+        <option value="sessions">Most Sessions</option>
+        <option value="newest">Newest</option>
+      </select>
+    </div>
+    <div class="tutors-grid" id="tutors-grid">
+      <div class="tutor-card skeleton" style="height:250px"></div>
+      <div class="tutor-card skeleton" style="height:250px"></div>
+      <div class="tutor-card skeleton" style="height:250px"></div>
+      <div class="tutor-card skeleton" style="height:250px"></div>
+      <div class="tutor-card skeleton" style="height:250px"></div>
+      <div class="tutor-card skeleton" style="height:250px"></div>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </main>
+</div>
+
+<script>
+lucide.createIcons();
+
+let state = { q:'', subject:'', min_rate:'', max_rate:'', rating:4.5, mode:'', page:1, sort:'rating' };
+
+const params = new URLSearchParams(location.search);
+if (params.get('q')) state.q = params.get('q');
+if (params.get('subject')) state.subject = params.get('subject');
+if (params.get('category')) state.category = params.get('category');
+if (params.get('q')) document.getElementById('search-input').value = state.q;
+
+async function loadSubjects() {
+  const r = await fetch('/api/subjects');
+  const { subjects } = await r.json();
+  const sel = document.getElementById('subject-filter');
+  const cats = {};
+  subjects.forEach(s => { if(!cats[s.category]) cats[s.category]=[]; cats[s.category].push(s); });
+  for (const [cat, subs] of Object.entries(cats)) {
+    const grp = document.createElement('optgroup');
+    grp.label = cat;
+    subs.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.name;
+      opt.textContent = s.name;
+      if (s.name === state.subject || s.category === state.category) opt.selected = true;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  }
+  if (state.category) {
+    const first = subjects.find(s => s.category === state.category);
+    if (first) state.subject = first.category;
+  }
+}
+
+async function loadTutors() {
+  const grid = document.getElementById('tutors-grid');
+  grid.innerHTML = Array(6).fill('<div class="tutor-card skeleton" style="height:250px"></div>').join('');
+
+  const p = new URLSearchParams();
+  if (state.q) p.set('q', state.q);
+  if (state.subject) p.set('subject', state.subject);
+  if (state.min_rate) p.set('min_rate', state.min_rate);
+  if (state.max_rate) p.set('max_rate', state.max_rate);
+  if (state.rating > 0) p.set('rating', state.rating);
+  if (state.mode) p.set('mode', state.mode);
+  p.set('page', state.page);
+  p.set('sort', state.sort);
+
+  try {
+    const r = await fetch('/api/tutors?' + p.toString());
+    const data = await r.json();
+    const { tutors = [], total = 0, pages = 0 } = data;
+
+    document.getElementById('results-count').innerHTML = `<strong>${total}</strong> tutor${total !== 1 ? 's' : ''} found`;
+
+    if (tutors.length === 0) {
+      grid.innerHTML = `<div class="empty-state"><h3>No tutors found</h3><p>Try adjusting your filters or search terms</p></div>`;
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+
+    grid.innerHTML = tutors.map(t => {
+      const subjects = JSON.parse(t.subjects || '[]');
+      const stars = Math.round(t.avg_rating || 0);
+      const init = t.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      return `
+        <a href="/tutor-profile.html?id=${t.id}" class="tutor-card">
+          <div class="tc-inner">
+            ${t.is_featured ? '<div class="tc-featured-badge">⭐ Featured</div>' : ''}
+            <div class="tc-header">
+              <div class="tc-avatar">
+                ${t.avatar ? `<img src="${t.avatar}" alt="${t.name}">` : init}
+                ${t.is_verified ? '<div class="tc-badge"><i data-lucide="check" style="width:8px;height:8px;color:#fff"></i></div>' : ''}
+              </div>
+              <div>
+                <div class="tc-name">${t.name}</div>
+                <div class="tc-headline">${t.headline || 'Expert Tutor'}</div>
+              </div>
+            </div>
+            <div class="tc-subjects">${subjects.slice(0,4).map(s=>`<span class="badge">${s}</span>`).join('')}</div>
+            <div class="tc-stats">
+              <span class="tc-rating">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</span>
+              <span>${t.avg_rating?.toFixed(1) || '—'} (${t.review_count || 0})</span>
+              <span>·</span>
+              <span>${t.total_sessions || 0} sessions</span>
+            </div>
+            <div class="tc-footer">
+              <div class="tc-price">$${t.hourly_rate}<span>/hr</span></div>
+              <div class="view-btn">View Profile</div>
+            </div>
+          </div>
+        </a>`;
+    }).join('');
+
+    const pag = document.getElementById('pagination');
+    if (pages > 1) {
+      let html = '';
+      if (state.page > 1) html += `<button class="page-btn" data-page="${state.page-1}">← Prev</button>`;
+      for (let i = Math.max(1, state.page-2); i <= Math.min(pages, state.page+2); i++) {
+        html += `<button class="page-btn${i===state.page?' active':''}" data-page="${i}">${i}</button>`;
+      }
+      if (state.page < pages) html += `<button class="page-btn" data-page="${state.page+1}">Next →</button>`;
+      pag.innerHTML = html;
+      pag.querySelectorAll('.page-btn').forEach(btn => btn.addEventListener('click', () => {
+        state.page = parseInt(btn.dataset.page);
+        loadTutors();
+        window.scrollTo(0, 0);
+      }));
+    } else {
+      pag.innerHTML = '';
+    }
+
+    setTimeout(() => lucide.createIcons(), 100);
+  } catch(e) {
+    console.error(e);
+    grid.innerHTML = '<div class="empty-state"><h3>Error loading tutors</h3><p>Please try again</p></div>';
+  }
+}
+
+document.getElementById('search-input').addEventListener('input', e => {
+  state.q = e.target.value;
+  clearTimeout(window._searchDebounce);
+  window._searchDebounce = setTimeout(() => { state.page = 1; loadTutors(); }, 400);
+});
+document.getElementById('sort-select').addEventListener('change', e => { state.sort = e.target.value; state.page = 1; loadTutors(); });
+document.getElementById('subject-filter').addEventListener('change', e => { state.subject = e.target.value; state.page = 1; });
+document.querySelectorAll('.rating-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.rating = parseFloat(btn.dataset.rating);
+  });
+});
+document.querySelectorAll('input[name=mode]').forEach(inp => { inp.addEventListener('change', () => { state.mode = inp.value; }); });
+document.getElementById('apply-filters').addEventListener('click', () => {
+  state.min_rate = document.getElementById('min-rate').value;
+  state.max_rate = document.getElementById('max-rate').value;
+  state.subject = document.getElementById('subject-filter').value;
+  state.page = 1;
+  loadTutors();
+});
+document.getElementById('clear-filters').addEventListener('click', () => {
+  state = { q:'', subject:'', min_rate:'', max_rate:'', rating:0, mode:'', page:1, sort:'rating' };
+  document.getElementById('search-input').value = '';
+  document.getElementById('subject-filter').value = '';
+  document.getElementById('min-rate').value = '';
+  document.getElementById('max-rate').value = '';
+  document.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-rating="0"]').classList.add('active');
+  document.getElementById('mode-all').checked = true;
+  loadTutors();
+});
+
+async function initNav() {
+  try {
+    const r = await fetch('/auth/me');
+    const { user } = await r.json();
+    if (user) {
+      document.getElementById('nav-login').style.display = 'none';
+      document.getElementById('nav-signup').style.display = 'none';
+      const nd = document.getElementById('nav-user');
+      nd.style.display = 'block';
+      const link = document.getElementById('nav-dash');
+      link.href = user.role === 'tutor' ? '/dashboard-tutor.html' : user.role === 'admin' ? '/admin.html' : '/dashboard-student.html';
+    }
+  } catch(e) {}
+}
+
+initNav();
+loadSubjects().then(() => loadTutors());
+</script>
+</body>
+</html>

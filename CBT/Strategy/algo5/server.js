@@ -136,7 +136,7 @@ const stmtInsert = db.prepare(`
 const STRATEGIES = {
   'swing-v2-trailing': {
     name: 'swing-v2-trailing: EMA Ribbon Swing (Trailing SL)',
-    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + 1.5×ATR SL + trailing $50/step after $300 profit + Opposite Signal Exit + $1000 Hard Stop',
+    description: 'EMA21/55/200 + ADX(25) + DI-spread≥20 + |EMA21-slope|≥12 + macro EMA55/200 gate + RSI-short≤50 + 6/7 conditions + 1.5×ATR SL + trailing $50/step after $300 profit + Opposite Signal Exit + $1000 Hard Stop',
   },
 };
 
@@ -454,7 +454,8 @@ async function runTick(sess) {
   const ts     = new Date().toISOString();
   try {
     state.error = null;
-    const candles          = await fetchCandles(symbol, timeframe, 250);
+    const raw              = await fetchCandles(symbol, timeframe, 251);
+    const candles          = raw.slice(0, -1); // drop forming candle — always evaluate on closed bar
     const latestCandleTime = candles[candles.length - 1].time;
     const price            = candles[candles.length - 1].close;
 
@@ -563,6 +564,15 @@ async function runTick(sess) {
 
     // ── Entry logic ───────────────────────────────────────────────────
     if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
+      // Block entry if candle closed more than 2 minutes ago (mid-candle restart guard)
+      const candleIntervalMs = CANDLE_MS[timeframe] || 14400000;
+      const msSinceClose     = Date.now() - (latestCandleTime + candleIntervalMs);
+      if (msSinceClose > 120000) {
+        pushLog(sess, { ts, type: 'TICK', signal: 'SKIP', price, indicators,
+          reason: [`Entry skipped — ${Math.round(msSinceClose / 1000)}s since candle close (>2 min), :01s rule`] });
+        broadcast(sess, { type: 'tick', state: publicState(state) });
+        return;
+      }
       const { atr } = indicators;
       const side     = signal === 'BUY' ? 'long' : 'short';
       const stopDist = 1.5 * atr;
@@ -615,19 +625,26 @@ async function tick(sess) {
   try { await runTick(sess); } finally { sess.tickBusy = false; }
 }
 
-function startAlignedTicks(sess, intervalMs) {
-  stopTicker(sess);
+// No-drift self-rescheduling timer: recomputes delay from Date.now() after every
+// tick so it always fires at :01s after the candle boundary — zero cumulative drift.
+function scheduleNextTick(sess, intervalMs) {
   const now   = Date.now();
-  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 2000;
-  sess.alignTimeout = setTimeout(() => {
+  const delay = intervalMs - (now % intervalMs) + 1000;
+  sess.ticker = setTimeout(() => {
+    if (!sess.state.running) return;
     tick(sess);
-    sess.ticker = setInterval(() => tick(sess), intervalMs);
+    scheduleNextTick(sess, intervalMs);
   }, delay);
 }
 
+function startAlignedTicks(sess, intervalMs) {
+  stopTicker(sess);
+  scheduleNextTick(sess, intervalMs);
+}
+
 function stopTicker(sess) {
-  if (sess.alignTimeout) { clearTimeout(sess.alignTimeout);  sess.alignTimeout = null; }
-  if (sess.ticker)       { clearInterval(sess.ticker);       sess.ticker       = null; }
+  if (sess.alignTimeout) { clearTimeout(sess.alignTimeout); sess.alignTimeout = null; }
+  if (sess.ticker)       { clearTimeout(sess.ticker);       sess.ticker       = null; }
   stopFastTicker(sess);
 }
 

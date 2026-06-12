@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CBT Algo2 — Swing Trade (Tickmill)</title>
+<title>CBT Algo2 — Fixed 1-lot · $100 SL · Decremental Trail</title>
 <style>
   :root {
     --bg: #0d1117; --card: #161b22; --border: #21262d;
-    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #f0883e;
     --green: #3fb950; --red: #f85149; --yellow: #e3b341; --purple: #bc8cff;
     --orange: #f0883e; --teal: #39d353;
     --font: 'Courier New', Courier, monospace;
@@ -22,7 +22,7 @@
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 100;
   }
-  header .title    { font-size: 1.1rem; font-weight: 700; color: var(--orange); }
+  header .title    { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
   header .subtitle { font-size: .75rem; color: var(--muted); }
   header .badge {
     padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700;
@@ -36,7 +36,6 @@
   .spacer { flex: 1; }
   #last-update { color: var(--muted); font-size: .72rem; }
 
-  /* Tickmill connection indicator */
   #tm-status {
     display: flex; align-items: center; gap: 6px;
     background: rgba(255,255,255,.04); border: 1px solid var(--border);
@@ -46,7 +45,6 @@
   .tm-dot.live    { background: var(--green); box-shadow: 0 0 4px var(--green); }
   .tm-dot.paper   { background: var(--yellow); }
 
-  /* Auth overlay */
   #auth-wall {
     display: none; position: fixed; inset: 0; z-index: 9999;
     background: var(--bg); align-items: center; justify-content: center;
@@ -86,19 +84,17 @@
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
   @media(max-width:900px){ .grid-2 { grid-template-columns: 1fr; } }
 
-  /* Mode tabs */
   .mode-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
   .mode-tab {
     padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
     background: transparent; color: var(--muted); font-family: var(--font);
     font-size: .75rem; font-weight: 700; cursor: pointer; letter-spacing: .5px; transition: all .15s;
   }
-  .mode-tab:hover { border-color: var(--orange); color: var(--orange); }
+  .mode-tab:hover { border-color: var(--accent); color: var(--accent); }
   .mode-tab.active          { background: var(--yellow); border-color: var(--yellow); color: #000; }
   .mode-tab.active-live     { background: var(--green);  border-color: var(--green);  color: #000; }
-  .mode-tab.active-backtest { background: var(--purple); border-color: var(--purple); color: #000; }
+  .mode-tab.active-backtest { background: var(--accent); border-color: var(--accent); color: #000; }
 
-  /* Controls */
   .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
   .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
   .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
@@ -107,7 +103,7 @@
     border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 13px;
     outline: none; transition: border-color .2s;
   }
-  select:focus, input:focus { border-color: var(--orange); }
+  select:focus, input:focus { border-color: var(--accent); }
   select { cursor: pointer; }
   .btn {
     padding: 7px 18px; border: none; border-radius: 6px;
@@ -119,21 +115,19 @@
   .btn:disabled { opacity: .4; cursor: default; transform: none; }
   .btn-start    { background: var(--teal);   color: #000; }
   .btn-stop     { background: var(--red);    color: #fff; }
-  .btn-backtest { background: var(--purple); color: #000; }
+  .btn-backtest { background: var(--accent); color: #000; }
 
-  /* Backtest panel */
   #backtest-panel { display: none; }
   #backtest-panel.show { display: block; }
   .bt-progress {
     margin-top: 10px; padding: 8px 12px;
-    background: rgba(188,140,255,.1); border: 1px solid rgba(188,140,255,.3);
-    border-radius: 6px; color: var(--purple); font-size: .82rem;
+    background: rgba(240,136,62,.1); border: 1px solid rgba(240,136,62,.3);
+    border-radius: 6px; color: var(--accent); font-size: .82rem;
   }
   .bt-results { margin-top: 12px; }
   .bt-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
   @media(max-width:700px){ .bt-stat-grid { grid-template-columns: repeat(2,1fr); } }
 
-  /* PnL */
   .pnl-big { font-size: 2rem; font-weight: 700; transition: color .3s; }
   .pnl-pct { font-size: .95rem; color: var(--muted); margin-left: 6px; }
   .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 10px; }
@@ -145,14 +139,19 @@
   .stat-box .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
   .stat-box .val { font-size: .95rem; font-weight: 700; }
 
-  /* Position */
   .pos-row  { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; }
   .pos-item { display: flex; flex-direction: column; gap: 2px; }
   .pos-item .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
   .pos-item .val { font-size: .88rem; font-weight: 700; }
   .pos-none { color: var(--muted); font-style: italic; margin-top: 4px; }
 
-  /* Algo Logic */
+  .trail-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: .68rem;
+    font-weight: 700; letter-spacing: .5px; border: 1px solid;
+  }
+  .trail-badge.active   { color: var(--teal);  border-color: var(--teal);  background: rgba(57,211,83,.1); animation: pulse 1.5s infinite; }
+  .trail-badge.inactive { color: var(--muted); border-color: var(--muted); background: transparent; }
+
   .logic-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
   @media(max-width:900px){ .logic-grid { grid-template-columns: 1fr; } }
   .logic-box {
@@ -161,14 +160,26 @@
   }
   .logic-box .lh { font-size: .7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
   .logic-rule { font-size: .78rem; color: var(--muted); margin-bottom: 3px; }
-  .logic-rule span { color: var(--orange); font-weight: 700; }
+  .logic-rule span { color: var(--accent); font-weight: 700; }
+  .logic-rule span.new { color: var(--teal); font-weight: 700; }
   .logic-gate {
     font-size: .78rem; color: var(--yellow); font-weight: 700;
-    margin-bottom: 6px; padding: 4px 8px;
+    margin-bottom: 4px; padding: 4px 8px;
     background: rgba(227,179,65,.08); border-radius: 4px;
   }
+  .logic-gate.new-gate {
+    color: var(--teal); background: rgba(57,211,83,.08);
+    border: 1px solid rgba(57,211,83,.2);
+  }
+  .logic-gate.trail-gate {
+    color: var(--accent); background: rgba(240,136,62,.08);
+    border: 1px solid rgba(240,136,62,.25);
+  }
+  .logic-gate.closed-gate {
+    color: #c9d1d9; background: rgba(240,136,62,.12);
+    border: 1px solid rgba(240,136,62,.35);
+  }
 
-  /* Indicators */
   .ind-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
   .ind-chip {
     display: flex; flex-direction: column; gap: 2px;
@@ -187,7 +198,6 @@
   .dot-pip.active      { background: var(--green); }
   .dot-pip.active.sell { background: var(--red); }
 
-  /* Tables */
   .tbl-wrap { overflow-x: auto; margin-top: 8px; max-height: 340px; overflow-y: auto; }
   .tbl-wrap.log-wrap    { max-height: 420px; }
   .tbl-wrap.bt-tbl-wrap { max-height: 400px; }
@@ -211,8 +221,9 @@
   .type-entry { color: var(--teal);  font-weight: 700; }
   .type-exit  { color: var(--yellow); font-weight: 700; }
   .type-error { color: var(--red);    font-weight: 700; }
+  .type-trail { color: var(--accent); font-weight: 700; }
   .empty-msg   { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
-  .reason-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reason-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #err-banner {
     display: none; margin-top: 10px; padding: 9px 14px;
     background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3);
@@ -223,20 +234,19 @@
 </head>
 <body>
 
-<!-- Auth wall -->
 <div id="auth-wall">
   <div class="auth-card">
-    <div class="logo">🔄</div>
-    <h2>CBT Swing Trader</h2>
-    <p>Sign in to run your own isolated swing trading session on Tickmill</p>
+    <div class="logo">🎯</div>
+    <h2>CBT Algo2 — Fixed 1-lot · $100 SL · Decremental Trail</h2>
+    <p>Sign in to run your own isolated closed-candle swing trading session</p>
     <div id="google-signin-btn"></div>
   </div>
 </div>
 
 <header>
   <div>
-    <div class="title">CBT Algo2 — Swing Trade</div>
-    <div class="subtitle">EMA Ribbon · ADX(25) Gate · 5/6 Conditions · 3:1 R:R · Tickmill</div>
+    <div class="title">CBT Algo2 — Fixed 1-lot · $100 SL · Decremental Trail</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1 lot fixed · $100 SL · BE@$100 · $125 locked@$200 · $200 locked@$250 then $25 trail · 10s fast poll · Opposite-Signal Exit</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -256,7 +266,6 @@
 <div class="wrap">
 
   <div class="grid-2">
-    <!-- Controls Card -->
     <div class="card">
       <div class="card-title">Controls</div>
 
@@ -280,12 +289,12 @@
         <div class="ctrl-group">
           <label>Timeframe</label>
           <select id="ctrl-tf" onchange="syncCheckInterval()">
-            <option value="1m">1m</option>
+            <option value="1m" selected>1m ★ (Closed Candle)</option>
             <option value="5m">5m</option>
             <option value="15m">15m</option>
             <option value="30m">30m</option>
             <option value="1h">1h</option>
-            <option value="4h" selected>4h ★ (Swing)</option>
+            <option value="4h">4h</option>
             <option value="1d">1d</option>
           </select>
         </div>
@@ -299,7 +308,7 @@
         </div>
         <div class="ctrl-group">
           <label>Check (sec)</label>
-          <input id="ctrl-interval" type="number" value="3600" min="60" step="60" style="width:80px"/>
+          <input id="ctrl-interval" type="number" value="60" min="60" step="60" style="width:80px"/>
         </div>
         <div class="ctrl-group">
           <label>&nbsp;</label>
@@ -310,7 +319,6 @@
         </div>
       </div>
 
-      <!-- Backtest Panel -->
       <div id="backtest-panel">
         <div style="height:10px"></div>
         <div class="ctrl-row">
@@ -325,12 +333,12 @@
           <div class="ctrl-group">
             <label>Timeframe</label>
             <select id="bt-tf">
-              <option value="1m">1m</option>
+              <option value="1m" selected>1m ★</option>
               <option value="5m">5m</option>
               <option value="15m">15m</option>
               <option value="30m">30m</option>
               <option value="1h">1h</option>
-              <option value="4h" selected>4h ★</option>
+              <option value="4h">4h</option>
               <option value="1d">1d</option>
             </select>
           </div>
@@ -354,7 +362,6 @@
       <div id="err-banner"></div>
     </div>
 
-    <!-- PnL + Stats -->
     <div class="card">
       <div class="card-title">PnL Dashboard</div>
       <div style="display:flex;align-items:baseline;gap:4px">
@@ -376,52 +383,62 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — Swing v1 · EMA Ribbon + ADX</div>
-    <div class="logic-gate">⚡ Hard Gate: ADX(14) ≥ 25 required — only trade in strong trending markets</div>
-    <div class="logic-grid">
+    <div class="card-title">Algo Logic — Swing v3 · Fixed 1-lot · $100 SL · Decremental Trail · Closed Candle Eval · No-Drift :01s Timer</div>
+    <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">🕯 Closed Candle: fetches 251 candles, drops forming candle, evaluates signal on fully-closed candle[250] — eliminates noisy early-candle signals</div>
+    <div class="logic-gate closed-gate" style="margin-top:4px">⏱ No-Drift Timer: self-rescheduling setTimeout recomputes delay from Date.now() every tick → always fires at :01s after candle boundary, zero cumulative drift over days</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Decremental Trail: profit≥$100→SL=entry(BE) · profit≥$200→SL locks $125 · profit≥$250→SL locks $200 then trails $25 from peak · 10s fast poll starts at $100 profit</div>
+    <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
-        <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 5/6</div>
-        <div class="logic-rule">1. <span>DI+ &gt; DI−</span> — directional bias bullish</div>
-        <div class="logic-rule">2. <span>EMA21 &gt; EMA55</span> — fast trend bullish</div>
-        <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span> — macro trend bullish</div>
-        <div class="logic-rule">4. <span>RSI ∈ [38–65]</span> — pulled back to neutral zone</div>
-        <div class="logic-rule">5. <span>MACD Hist &gt; 0</span> — positive momentum</div>
-        <div class="logic-rule">6. <span>Volume ≥ VolMA</span> — average participation</div>
-        <div class="logic-rule" style="margin-top:6px;color:var(--orange)">
-          Risk 1.5% · SL max(3×ATR, 0.25%) · TP 3×SL (3:1 R:R)
+        <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
+        <div class="logic-rule">1. <span>DI+ &gt; DI−</span></div>
+        <div class="logic-rule">2. <span>EMA21 &gt; EMA55</span></div>
+        <div class="logic-rule">3. <span>EMA55 &gt; EMA200</span> (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope rising</span></div>
+        <div class="logic-rule">5. <span>RSI ∈ [42–72]</span></div>
+        <div class="logic-rule">6. <span>MACD Hist &gt; 0</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≥ 45% of range</span></div>
+        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+          SL = entry − $100 (fixed) · Size = 1 lot · Reference TP = entry + $250
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 5/6</div>
-        <div class="logic-rule">1. <span>DI− &gt; DI+</span> — directional bias bearish</div>
-        <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span> — fast trend bearish</div>
-        <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> — macro trend bearish</div>
-        <div class="logic-rule">4. <span>RSI ∈ [38–65]</span> — retraced to neutral zone</div>
-        <div class="logic-rule">5. <span>MACD Hist &lt; 0</span> — negative momentum</div>
-        <div class="logic-rule">6. <span>Volume ≥ VolMA</span></div>
-        <div class="logic-rule" style="margin-top:6px;color:var(--orange)">
-          Risk 1.5% · SL max(3×ATR, 0.25%) · TP 3×SL (3:1 R:R)
+        <div class="lh" style="color:var(--red)">▼ SELL (SHORT) — need 6/7</div>
+        <div class="logic-rule">1. <span>DI− &gt; DI+</span></div>
+        <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span></div>
+        <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> (may miss 1)</div>
+        <div class="logic-rule">4. <span class="new">EMA21 slope falling</span></div>
+        <div class="logic-rule">5. <span>RSI ∈ [28–58]</span></div>
+        <div class="logic-rule">6. <span>MACD Hist &lt; 0</span></div>
+        <div class="logic-rule">7. <span class="new">Candle close ≤ 55% of range</span></div>
+        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+          SL = entry + $100 (fixed) · Size = 1 lot · Reference TP = entry − $250
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">↑ LONG EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Phase 1</span> SL at entry − 3×ATR</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
-        <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked +1.5×ATR</div>
-        <div class="logic-rule">• <span>Phase 4</span> profit ≥ 4×ATR → trailing SL price−2×ATR</div>
-        <div class="logic-rule">• RSI &gt; 78 (extreme overbought)</div>
-        <div class="logic-rule">• EMA21 crosses below EMA55 (trend reversed)</div>
-        <div class="logic-rule">• Time stop: max 60 candles held</div>
+        <div class="lh" style="color:var(--yellow)">📈 DECREMENTAL TRAIL PHASE</div>
+        <div class="logic-rule">• <span>$100 profit</span> → SL = entry (breakeven) · 10s fast poll starts</div>
+        <div class="logic-rule">• <span>$200 profit</span> → SL locks $125</div>
+        <div class="logic-rule">• <span>$250 profit</span> → SL locks $200 · then trails $25 below peak every $25 gained</div>
+        <div class="logic-rule">• <span>Every +$50</span> → SL locks in $50 more profit</div>
+        <div class="logic-rule">• SL never retreats — only moves in trade direction</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
+          Each SL update logged in Tick Log with old → new value
+        </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">↓ SHORT EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Phase 1</span> SL at entry + 3×ATR</div>
-        <div class="logic-rule">• <span>Phase 2</span> profit ≥ 1×ATR → SL to breakeven</div>
-        <div class="logic-rule">• <span>Phase 3</span> profit ≥ 2×ATR → SL locked −1.5×ATR</div>
-        <div class="logic-rule">• <span>Phase 4</span> profit ≥ 4×ATR → trailing SL price+2×ATR</div>
-        <div class="logic-rule">• RSI &lt; 22 (extreme oversold)</div>
-        <div class="logic-rule">• EMA21 crosses above EMA55 (trend reversed)</div>
-        <div class="logic-rule">• Time stop: max 60 candles held</div>
+        <div class="lh" style="color:var(--yellow)">🚪 EXIT — any trigger</div>
+        <div class="logic-rule">• <span>Static SL</span> at entry ± $100 (pre-$100 profit)</div>
+        <div class="logic-rule">• <span>Decremental SL</span> — BE→$125 locked→$200 locked→$25 trail</div>
+        <div class="logic-rule">• <span class="new">Opposite signal</span> — fires while in position → exit &amp; reverse</div>
+        <div class="logic-rule">• <span class="new">$1000 hard stop</span> — price moves $1000 against entry</div>
+        <div class="logic-rule" style="margin-top:4px;color:var(--muted)">
+          No fixed TP — trailing SL is the only profit exit
+        </div>
       </div>
     </div>
   </div>
@@ -440,6 +457,8 @@
       <div class="ind-chip"><div class="ic-lbl">Vol / VolMA</div><div class="ic-val" id="ic-vol">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">ADX 14</div><div class="ic-val" id="ic-adx">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">DI+ / DI−</div><div class="ic-val" id="ic-di">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">DI Spread</div><div class="ic-val" id="ic-dispread">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">MACD Prev</div><div class="ic-val" id="ic-macdprev">—</div></div>
     </div>
     <div class="scores-row">
       <div class="score-bar">
@@ -459,7 +478,7 @@
         <span id="sell-score-txt" style="font-size:.75rem;color:var(--muted)">0/6</span>
       </div>
       <div style="margin-left:auto;font-size:.8rem">
-        Last signal: <span id="last-signal-txt" style="font-weight:700;color:var(--orange)">—</span>
+        Last signal: <span id="last-signal-txt" style="font-weight:700;color:var(--accent)">—</span>
       </div>
     </div>
   </div>
@@ -485,7 +504,9 @@
 
   <!-- Tick Log -->
   <div class="card">
-    <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span></div>
+    <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span>
+      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRAIL-UPDATE entries show SL moves · TRAIL-WATCH fires every 10s while trailing · ticks always on closed candles at :01s</span>
+    </div>
     <div class="tbl-wrap log-wrap">
       <table id="log-tbl">
         <thead>
@@ -493,11 +514,11 @@
             <th>Time</th><th>Type</th><th>Signal</th>
             <th>Price</th><th>EMA21</th><th>EMA55</th><th>EMA200</th>
             <th>RSI</th><th>MACD Hist</th><th>ATR</th>
-            <th>ADX</th><th>DI+/−</th><th>Vol/VolMA</th><th>Notes</th>
+            <th>ADX</th><th>DI+/−</th><th>DI Spread</th><th>Vol/VolMA</th><th>Notes</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="14" class="empty-msg">Waiting for first tick…</td></tr>
+          <tr><td colspan="15" class="empty-msg">Waiting for first tick…</td></tr>
         </tbody>
       </table>
     </div>
@@ -534,7 +555,7 @@ function setMode(m) {
   else { tradingCtrl.style.display = ''; btPanel.classList.remove('show'); }
   const mb = $('mode-badge');
   if (m === 'live') { mb.textContent = 'LIVE'; mb.className = 'badge badge-live'; }
-  else if (m === 'backtest') { mb.textContent = 'BACKTEST'; mb.className = 'badge'; mb.style.cssText = 'color:var(--purple);border-color:var(--purple)'; }
+  else if (m === 'backtest') { mb.textContent = 'BACKTEST'; mb.className = 'badge'; mb.style.cssText = 'color:var(--accent);border-color:var(--accent)'; }
   else { mb.textContent = 'PAPER'; mb.className = 'badge badge-paper'; }
 }
 
@@ -559,16 +580,16 @@ async function loadTickmillStatus() {
     const dot   = $('tm-dot');
     const label = $('tm-label');
     if (d.connected) {
-      dot.className   = 'tm-dot live';
+      dot.className = 'tm-dot live';
       label.textContent = `Tickmill: LIVE demo #${d.accountNumber}`;
       label.style.color = 'var(--green)';
     } else if (d.metaapiConfigured) {
-      dot.className   = 'tm-dot paper';
+      dot.className = 'tm-dot paper';
       dot.style.background = 'var(--red)';
       label.textContent = 'Tickmill: MetaApi configured, not connected';
       label.style.color = 'var(--red)';
     } else {
-      dot.className   = 'tm-dot paper';
+      dot.className = 'tm-dot paper';
       label.textContent = 'Tickmill: paper-Kraken (MetaApi not set)';
       label.style.color = 'var(--muted)';
     }
@@ -638,6 +659,10 @@ function applyState(s) {
     const mh = ind.macdHist;
     $('ic-macd').textContent = mh != null ? (mh >= 0 ? '+' : '') + parseFloat(mh).toFixed(5) : '—';
     $('ic-macd').style.color = mh > 0 ? 'var(--green)' : mh < 0 ? 'var(--red)' : 'var(--text)';
+    const mph = ind.macdPrevHist;
+    $('ic-macdprev').textContent = mph != null ? (mph >= 0 ? '+' : '') + parseFloat(mph).toFixed(5) : '—';
+    $('ic-macdprev').style.color = mh != null && mph != null
+      ? (mh > mph ? 'var(--green)' : mh < mph ? 'var(--red)' : 'var(--text)') : 'var(--text)';
     $('ic-atr').textContent  = fmt(ind.atr);
     const vr = ind.volumeMA > 0 ? ind.volume / ind.volumeMA : null;
     $('ic-vol').textContent  = vr != null ? fmt(vr, 2) + 'x' : '—';
@@ -648,6 +673,9 @@ function applyState(s) {
     const dip = ind.diPlus, dim = ind.diMinus;
     $('ic-di').textContent   = (dip != null && dim != null) ? fmt(dip,1) + '/' + fmt(dim,1) : '—';
     $('ic-di').style.color   = (dip != null && dim != null) ? (dip > dim ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    const spread = (dip != null && dim != null) ? Math.abs(dip - dim) : null;
+    $('ic-dispread').textContent = spread != null ? fmt(spread, 1) : '—';
+    $('ic-dispread').style.color = spread != null ? (spread >= 15 ? 'var(--green)' : 'var(--red)') : 'var(--text)';
   }
   const ls = s.lastSignal;
   if (ls) {
@@ -657,12 +685,11 @@ function applyState(s) {
     $('sell-score-txt').textContent = ls.sellScore + '/6';
     const sigEl = $('last-signal-txt');
     sigEl.textContent = ls.signal;
-    sigEl.style.color = ls.signal === 'BUY' ? 'var(--teal)' : ls.signal === 'SELL' ? 'var(--red)' : 'var(--muted)';
+    sigEl.style.color = ls.signal === 'BUY' ? 'var(--teal)' : ls.signal === 'SELL' ? 'var(--red)' : 'var(--accent)';
   }
   renderPosition(s.position, s.lastIndicators);
   if (s.error) showErr(s.error);
 
-  // Update Tickmill status in header
   if (s.tickmillMode) {
     const dot = $('tm-dot'), lbl = $('tm-label');
     if (s.tickmillConnected) {
@@ -681,15 +708,14 @@ function updateDots(id, score, isSell) {
   }
 }
 
-const PHASE_LABELS = { 1: 'Init', 2: 'Breakeven', 3: 'Locked', 4: 'Trail' };
-
 function renderPosition(pos, ind) {
   const el = $('pos-display');
   if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
-  const unreal   = pos.unrealizedPnl || 0;
-  const urColor  = unreal >= 0 ? 'var(--green)' : 'var(--red)';
-  const phase    = pos.phase || 1;
-  const phaseClr = phase >= 4 ? 'var(--green)' : phase >= 2 ? 'var(--yellow)' : 'var(--muted)';
+  const unreal  = pos.unrealizedPnl || 0;
+  const urColor = unreal >= 0 ? 'var(--green)' : 'var(--red)';
+  const trailBadge = pos.trailing
+    ? `<span class="trail-badge active">▲ TRAILING</span>`
+    : `<span class="trail-badge inactive">STATIC</span>`;
   el.innerHTML = `
     <div class="pos-row">
       <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--teal)':'var(--red)'}">${pos.side.toUpperCase()}</div></div>
@@ -697,11 +723,10 @@ function renderPosition(pos, ind) {
       <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : '—'}</div></div>
       <div class="pos-item"><div class="lbl">Size</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
       <div class="pos-item"><div class="lbl">Stop Loss</div><div class="val clr-r">${fmt(pos.stopLoss)}</div></div>
-      <div class="pos-item"><div class="lbl">Take Profit</div><div class="val clr-g">${fmt(pos.takeProfit)}</div></div>
       <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
-      <div class="pos-item"><div class="lbl">SL Phase</div><div class="val" style="color:${phaseClr}">${PHASE_LABELS[phase]||phase}</div></div>
+      <div class="pos-item"><div class="lbl">SL Mode</div><div class="val">${trailBadge}</div></div>
+      ${pos.trailing ? `<div class="pos-item"><div class="lbl">Locked $</div><div class="val clr-g">+$${(pos.trailLockProfit||0)}</div></div>` : ''}
       <div class="pos-item"><div class="lbl">MAE $</div><div class="val clr-r">${(pos.mae||0) < 0 ? fmtMoney(pos.mae) : '$0.00'}</div></div>
-      <div class="pos-item"><div class="lbl">Candles</div><div class="val">${pos.candlesHeld||0}/60</div></div>
       ${pos.tickmillOrderId ? `<div class="pos-item"><div class="lbl">Order ID</div><div class="val clr-o" style="font-size:.75rem">${esc(pos.tickmillOrderId)}</div></div>` : ''}
     </div>`;
 }
@@ -715,11 +740,16 @@ function prependLog(entry) {
   const vr  = ind.volumeMA > 0 ? (ind.volume / ind.volumeMA).toFixed(2) + 'x' : '—';
   const adxV = ind.adx;
   const dip  = ind.diPlus, dim = ind.diMinus;
+  const spread = (dip != null && dim != null) ? Math.abs(dip - dim).toFixed(1) : '—';
+
+  const sig = entry.signal || entry.type || '—';
+  const isTrail = sig === 'TRAIL-UPDATE' || sig === 'TRAIL-WATCH';
   let typeCls = 'type-tick';
-  if (entry.type === 'ENTRY')      typeCls = 'type-entry';
-  else if (entry.type === 'EXIT')  typeCls = 'type-exit';
-  else if (entry.type === 'ERROR') typeCls = 'type-error';
-  const sig   = entry.signal || entry.type || '—';
+  if (entry.type === 'ENTRY')       typeCls = 'type-entry';
+  else if (entry.type === 'EXIT')   typeCls = 'type-exit';
+  else if (entry.type === 'ERROR')  typeCls = 'type-error';
+  else if (isTrail)                 typeCls = 'type-trail';
+
   const notes = Array.isArray(entry.reason) ? entry.reason[0] : (entry.message || '');
   tr.innerHTML = `
     <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
@@ -734,8 +764,9 @@ function prependLog(entry) {
     <td>${fmt(ind.atr)}</td>
     <td style="color:${adxV>=25?'var(--green)':adxV!=null?'var(--red)':'var(--text)'}">${adxV!=null?fmt(adxV,1):'—'}</td>
     <td style="color:${dip!=null&&dim!=null?(dip>dim?'var(--green)':'var(--red)'):'var(--text)'}">${dip!=null&&dim!=null?fmt(dip,1)+'/'+fmt(dim,1):'—'}</td>
+    <td style="color:${spread!=='—'&&parseFloat(spread)>=15?'var(--green)':'var(--red)'}">${spread}</td>
     <td style="color:${vr!=='—'&&parseFloat(vr)>=1.0?'var(--green)':'var(--text)'}">${vr}</td>
-    <td class="reason-cell" title="${esc(notes)}">${esc(notes.substring(0,50))}${notes.length>50?'…':''}</td>`;
+    <td class="reason-cell" title="${esc(notes)}">${isTrail?`<strong style="color:var(--accent)">${esc(notes.substring(0,60))}</strong>`:esc(notes.substring(0,60))}${notes.length>60?'…':''}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);
   logCount++;
   if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
@@ -794,7 +825,7 @@ function loadTrades() {
 async function runBacktest() {
   const btn = $('btn-run-bt');
   btn.disabled = true;
-  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching historical data… (Swing needs 200+ candles, may take 10–60s)</div>';
+  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching historical data… (Closed Candle — 200+ candles needed, may take 10–60s)</div>';
   $('bt-results').style.display = 'none';
   const body = { symbol: $('bt-symbol').value, timeframe: $('bt-tf').value, months: parseInt($('bt-months').value, 10) };
   try {
@@ -828,13 +859,13 @@ function renderBacktestResults(d) {
     <div class="tbl-wrap bt-tbl-wrap" style="margin-top:8px">
       <table><thead><tr>
         <th>Entry Time</th><th>Exit Time</th><th>Side</th>
-        <th>Entry $</th><th>Exit $</th><th>PnL</th><th>MAE $</th><th>Phase</th><th>Reason</th>
+        <th>Entry $</th><th>Exit $</th><th>PnL</th><th>MAE $</th><th>Trailed</th><th>Reason</th>
       </tr></thead><tbody id="bt-trades-body"></tbody></table>
     </div>`;
   const tbody = document.getElementById('bt-trades-body');
   if (!d.trades.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No trades triggered — try longer duration or different timeframe</td></tr>'; return; }
   [...d.trades].reverse().forEach(t => {
-    const pnlCls = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
+    const pnlCls  = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
     const sideCls = t.side === 'long' ? 'clr-g' : 'clr-r';
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -844,8 +875,8 @@ function renderBacktestResults(d) {
       <td>${fmt(t.entryPrice)}</td><td>${fmt(t.exitPrice)}</td>
       <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
       <td class="clr-r">${t.mae < 0 ? fmtMoney(t.mae) : '$0.00'}</td>
-      <td>${PHASE_LABELS[t.phase]||t.phase}</td>
-      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'…':''}</td>`;
+      <td style="color:${t.trailed?'var(--teal)':'var(--muted)'}">${t.trailed ? '▲ YES' : 'no'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,45))}${(t.reason||'').length>45?'…':''}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -857,7 +888,7 @@ async function startAlgo() {
     symbol: $('ctrl-symbol').value, timeframe: $('ctrl-tf').value,
     strategyId: $('ctrl-strategy').value,
     balance: parseFloat($('ctrl-balance').value) || 10000,
-    interval: parseInt($('ctrl-interval').value, 10) || 3600,
+    interval: parseInt($('ctrl-interval').value, 10) || 60,
     mode: currentMode,
   };
   try {
@@ -873,7 +904,6 @@ async function stopAlgo() {
 function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
 function hideErr() { $('err-banner').classList.remove('show'); }
 
-// ── Auth ─────────────────────────────────────────────────────────
 let googleInitialized = false;
 async function bootAuth() {
   try {

@@ -1,0 +1,19 @@
+{
+  "name": "robinhood-algo-trading",
+  "version": "1.0.0",
+  "description": "Robinhood Crypto — 6-algo swing trading hub powered by CBT Algo3 strategy",
+  "scripts": {
+    "start": "node start-all.js",
+    "dashboard": "node dashboard/server.js",
+    "btc":  "node algo/server.js",
+    "eth":  "node algo/server.js",
+    "sol":  "node algo/server.js",
+    "doge": "node algo/server.js",
+    "xrp":  "node algo/server.js",
+    "ada":  "node algo/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^12.10.0"
+  }
+}

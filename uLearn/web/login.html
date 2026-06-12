@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — uLearn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --bg:#f8f8ff; --bg2:#eeeeff; --surface:#fff;
+  --navy:#1a1f5e; --navy-2:#252c7a;
+  --pink:#e91e8c; --pink-2:#c4177a;
+  --purple:#6c63ff;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --text:#1a1f5e; --muted:#5a5f8a; --dim:#9898c0;
+  --border:rgba(26,31,94,0.09); --border2:rgba(26,31,94,0.14);
+  --grad:linear-gradient(135deg,#6c63ff,#e91e8c);
+  --shadow:0 4px 24px rgba(26,31,94,0.10);
+  --shadow-lg:0 16px 56px rgba(26,31,94,0.16);
+  --radius:12px; --radius-lg:18px; --radius-pill:50px;
+  --font-display:'Plus Jakarta Sans',system-ui,sans-serif;
+  --font:'Inter',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;display:flex;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+
+/* ── LEFT BRAND PANEL ── */
+.brand-panel{
+  width:42%; min-height:100vh;
+  background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 60%,#2a2080 100%);
+  display:flex; flex-direction:column; justify-content:center;
+  padding:3rem 3.5rem;
+  position:relative; overflow:hidden; flex-shrink:0;
+}
+.bp-circle1,.bp-circle2,.bp-circle3{position:absolute;border-radius:50%;pointer-events:none;}
+.bp-circle1{width:500px;height:500px;background:rgba(108,99,255,.18);top:-150px;left:-80px;filter:blur(60px);}
+.bp-circle2{width:400px;height:400px;background:rgba(233,30,140,.14);bottom:-100px;right:-80px;filter:blur(60px);}
+.bp-circle3{width:200px;height:200px;background:rgba(255,255,255,.04);top:40%;left:30%;}
+.bp-inner{position:relative;z-index:1;}
+.bp-logo{
+  font-family:var(--font-display);font-weight:900;font-size:2rem;
+  background:linear-gradient(135deg,#fff,rgba(255,255,255,.8));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:3rem;display:inline-block;
+}
+.bp-tagline{
+  font-family:var(--font-display);font-size:clamp(1.8rem,2.5vw,2.5rem);
+  font-weight:900;line-height:1.12;letter-spacing:-0.03em;
+  color:#fff;margin-bottom:1rem;
+}
+.bp-tagline .hi{background:linear-gradient(135deg,#f97316,#e91e8c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.bp-sub{color:rgba(255,255,255,.62);font-size:.9rem;line-height:1.7;margin-bottom:2.5rem;max-width:340px;}
+.bp-features{display:flex;flex-direction:column;gap:.85rem;margin-bottom:2.5rem;}
+.bp-feat{display:flex;align-items:center;gap:.85rem;font-size:.875rem;color:rgba(255,255,255,.7);}
+.bp-feat-icon{
+  width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);
+}
+.bp-feat strong{color:#fff;}
+.bp-stats{display:flex;gap:2rem;}
+.bp-stat-val{font-family:var(--font-display);font-size:1.5rem;font-weight:900;color:#fff;line-height:1;}
+.bp-stat-lbl{font-size:.7rem;color:rgba(255,255,255,.5);margin-top:.2rem;}
+
+/* ── RIGHT AUTH PANEL ── */
+.auth-panel{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:2rem;background:var(--bg);min-height:100vh;overflow-y:auto;
+}
+.auth-box{
+  width:100%;max-width:440px;
+  background:#fff;border-radius:24px;
+  padding:2.5rem;box-shadow:var(--shadow-lg);
+  border:1px solid var(--border);
+}
+.auth-logo-mobile{
+  display:none;font-family:var(--font-display);font-weight:900;font-size:1.6rem;
+  background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  text-align:center;margin-bottom:1.5rem;
+}
+.auth-title{font-family:var(--font-display);font-weight:900;font-size:1.6rem;color:var(--navy);margin-bottom:.25rem;}
+.auth-sub{color:var(--muted);font-size:.875rem;margin-bottom:1.75rem;}
+.alert{padding:.75rem 1rem;border-radius:var(--radius);font-size:.85rem;margin-bottom:1rem;display:none;}
+.alert-error  {background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);color:var(--red);}
+.alert-success{background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.2);color:var(--green);}
+.google-banner{padding:.7rem 1rem;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);color:var(--amber);border-radius:var(--radius);font-size:.8rem;margin-bottom:1rem;display:none;}
+
+/* Tabs */
+.tabs{display:flex;background:var(--bg);border-radius:var(--radius-pill);padding:.3rem;margin-bottom:1.75rem;border:1px solid var(--border);}
+.tab{flex:1;padding:.55rem;border-radius:var(--radius-pill);text-align:center;font-size:.875rem;font-weight:700;cursor:pointer;transition:all .18s;color:var(--muted);background:none;border:none;}
+.tab.active{background:#fff;color:var(--navy);box-shadow:var(--shadow);}
+
+/* Google btn */
+.google-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:.65rem;
+  padding:.75rem 1rem;border-radius:var(--radius-pill);
+  border:2px solid var(--border2);background:#fff;
+  font-size:.9rem;font-weight:700;color:var(--navy);
+  transition:all .18s;margin-bottom:1.25rem;
+  box-shadow:0 2px 8px rgba(26,31,94,0.07);
+}
+.google-btn:hover{border-color:var(--navy);box-shadow:var(--shadow);}
+.google-btn:disabled{opacity:.45;cursor:not-allowed;}
+.google-icon{width:20px;height:20px;flex-shrink:0;}
+
+/* Divider */
+.divider{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.divider span{font-size:.75rem;color:var(--dim);font-weight:600;white-space:nowrap;}
+
+/* Form */
+.form-group{margin-bottom:1.1rem;}
+.form-label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em;}
+.form-input{
+  width:100%;padding:.72rem 1rem;
+  border:2px solid var(--border2);border-radius:var(--radius);
+  background:#fff;color:var(--navy);font-size:.9rem;font-family:var(--font);
+  outline:none;transition:border-color .18s,box-shadow .18s;
+}
+.form-input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,99,255,.12);}
+.form-input.error-field{border-color:var(--red);}
+.field-err{font-size:.75rem;color:var(--red);margin-top:.3rem;display:none;}
+.input-hint{font-size:.75rem;color:var(--dim);margin-top:.3rem;}
+.forgot{font-size:.78rem;color:var(--purple);font-weight:600;float:right;margin-top:.3rem;}
+.forgot:hover{text-decoration:underline;}
+
+/* Role selector */
+.role-selector{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.4rem;}
+.role-option{
+  border:2px solid var(--border2);border-radius:var(--radius-lg);
+  padding:1rem;cursor:pointer;text-align:center;transition:all .18s;
+  display:flex;flex-direction:column;align-items:center;gap:.4rem;
+  position:relative;
+}
+.role-option input{position:absolute;opacity:0;pointer-events:none;}
+.role-option:hover{border-color:var(--purple);}
+.role-option.selected{border-color:var(--purple);background:rgba(108,99,255,.06);}
+.role-icon{font-size:1.6rem;}
+.role-label{font-weight:800;font-size:.9rem;color:var(--navy);}
+.role-desc{font-size:.72rem;color:var(--muted);}
+
+/* Terms */
+.terms{display:flex;align-items:flex-start;gap:.6rem;font-size:.8rem;color:var(--muted);margin-bottom:1.25rem;}
+.terms input{margin-top:.18rem;accent-color:var(--purple);}
+.terms a{color:var(--purple);font-weight:600;}
+.terms a:hover{text-decoration:underline;}
+
+/* Submit button */
+.submit-btn{
+  width:100%;padding:.85rem;border-radius:var(--radius-pill);
+  background:var(--pink);color:#fff;border:none;
+  font-size:.95rem;font-weight:800;font-family:var(--font);
+  box-shadow:0 4px 16px rgba(233,30,140,0.30);
+  transition:all .18s;display:flex;align-items:center;justify-content:center;gap:.5rem;
+}
+.submit-btn:hover{background:var(--pink-2);transform:translateY(-1px);box-shadow:0 6px 20px rgba(233,30,140,0.38);}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+/* Bottom link */
+.bottom-link{text-align:center;font-size:.82rem;color:var(--muted);margin-top:1.25rem;}
+.bottom-link a{color:var(--purple);font-weight:700;}
+.bottom-link a:hover{text-decoration:underline;}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Mobile */
+@media(max-width:768px){
+  .brand-panel{display:none}
+  .auth-logo-mobile{display:block}
+  .auth-panel{padding:1rem}
+  .auth-box{border-radius:16px;padding:1.75rem}
+}
+</style>
+</head>
+<body>
+
+<!-- BRAND PANEL -->
+<div class="brand-panel">
+  <div class="bp-circle1"></div>
+  <div class="bp-circle2"></div>
+  <div class="bp-circle3"></div>
+  <div class="bp-inner">
+    <div class="bp-logo">uLearn</div>
+    <div class="bp-tagline">Learn smarter.<br>Achieve <span class="hi">more.</span></div>
+    <p class="bp-sub">Join thousands of students and tutors on the most trusted tutoring platform.</p>
+    <div class="bp-features">
+      <div class="bp-feat">
+        <div class="bp-feat-icon">🎯</div>
+        <div><strong>AI-matched tutors</strong> based on your goals and style</div>
+      </div>
+      <div class="bp-feat">
+        <div class="bp-feat-icon">🛡️</div>
+        <div><strong>Verified &amp; background-checked</strong> educators only</div>
+      </div>
+      <div class="bp-feat">
+        <div class="bp-feat-icon">💰</div>
+        <div><strong>Money-back guarantee</strong> on your first session</div>
+      </div>
+      <div class="bp-feat">
+        <div class="bp-feat-icon">📅</div>
+        <div><strong>Flexible scheduling</strong> — book any time, 24/7</div>
+      </div>
+    </div>
+    <div class="bp-stats">
+      <div><div class="bp-stat-val">50k+</div><div class="bp-stat-lbl">Students Learning</div></div>
+      <div><div class="bp-stat-val">10k+</div><div class="bp-stat-lbl">Expert Tutors</div></div>
+      <div><div class="bp-stat-val">4.9★</div><div class="bp-stat-lbl">Avg Rating</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH PANEL -->
+<div class="auth-panel">
+  <div class="auth-box">
+    <div class="auth-logo-mobile">uLearn</div>
+
+    <h1 class="auth-title" id="auth-title">Welcome back</h1>
+    <p class="auth-sub" id="auth-sub">Sign in to continue your learning journey</p>
+
+    <div class="alert alert-error" id="error-alert"></div>
+    <div class="alert alert-success" id="success-alert"></div>
+    <div class="google-banner" id="google-banner">Google login is not configured. Please use email/password.</div>
+
+    <div class="tabs">
+      <button class="tab active" id="tab-login" onclick="switchTab('login')">Log In</button>
+      <button class="tab" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- Google -->
+    <button class="google-btn" id="google-btn" onclick="googleLogin()">
+      <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="divider"><span>or continue with email</span></div>
+
+    <!-- LOGIN FORM -->
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input type="email" id="login-email" class="form-input" placeholder="you@example.com">
+        <div class="field-err" id="login-email-err">Please enter a valid email</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="login-password" class="form-input" placeholder="Your password">
+        <div class="field-err" id="login-pass-err">Password is required</div>
+        <a href="#" class="forgot">Forgot password?</a>
+      </div>
+      <button type="submit" class="submit-btn" id="login-submit">
+        <i data-lucide="log-in" style="width:16px;height:16px"></i>
+        Log In
+      </button>
+    </form>
+
+    <!-- SIGNUP FORM -->
+    <form id="signup-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="signup-name" class="form-input" placeholder="Your full name">
+        <div class="field-err" id="signup-name-err">Name is required</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input type="email" id="signup-email" class="form-input" placeholder="you@example.com">
+        <div class="field-err" id="signup-email-err">Please enter a valid email</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="signup-password" class="form-input" placeholder="At least 6 characters">
+        <div class="field-err" id="signup-pass-err">Password must be at least 6 characters</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">I want to...</label>
+        <div class="role-selector">
+          <label class="role-option selected" id="role-student">
+            <input type="radio" name="role" value="student" checked>
+            <span class="role-icon">📚</span>
+            <div class="role-label">Learn</div>
+            <div class="role-desc">Find a tutor</div>
+          </label>
+          <label class="role-option" id="role-tutor">
+            <input type="radio" name="role" value="tutor">
+            <span class="role-icon">🎓</span>
+            <div class="role-label">Teach</div>
+            <div class="role-desc">Become a tutor</div>
+          </label>
+        </div>
+      </div>
+      <div class="terms">
+        <input type="checkbox" id="terms-check">
+        <label for="terms-check">I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></label>
+      </div>
+      <button type="submit" class="submit-btn" id="signup-submit">
+        <i data-lucide="user-plus" style="width:16px;height:16px"></i>
+        Create Account
+      </button>
+    </form>
+
+    <div class="bottom-link" id="bottom-link-login">
+      Don't have an account? <a href="#" onclick="switchTab('signup')">Sign up free</a>
+    </div>
+    <div class="bottom-link" id="bottom-link-signup" style="display:none">
+      Already have an account? <a href="#" onclick="switchTab('login')">Log in</a>
+    </div>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+const params = new URLSearchParams(location.search);
+const returnUrl = params.get('return') || null;
+
+async function checkGoogle() {
+  if (params.get('error') === 'google_not_configured') {
+    document.getElementById('google-banner').style.display = 'block';
+    document.getElementById('google-btn').disabled = true;
+  }
+  if (params.get('error') === 'google_failed') {
+    showError('Google login failed. Please try email/password.');
+  }
+  if (params.get('tab') === 'signup') switchTab('signup');
+}
+
+function switchTab(tab) {
+  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('bottom-link-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('bottom-link-signup').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('auth-title').textContent = tab === 'login' ? 'Welcome back' : 'Create account';
+  document.getElementById('auth-sub').textContent = tab === 'login' ? 'Sign in to continue your learning journey' : 'Join 50,000+ learners on uLearn';
+  clearAlerts();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-alert');
+  el.textContent = msg; el.style.display = 'block';
+}
+function showSuccess(msg) {
+  const el = document.getElementById('success-alert');
+  el.textContent = msg; el.style.display = 'block';
+}
+function clearAlerts() {
+  document.getElementById('error-alert').style.display = 'none';
+  document.getElementById('success-alert').style.display = 'none';
+}
+function googleLogin() { window.location = '/auth/google'; }
+
+document.querySelectorAll('input[name=role]').forEach(inp => {
+  inp.addEventListener('change', () => {
+    document.getElementById('role-student').classList.toggle('selected', inp.value === 'student');
+    document.getElementById('role-tutor').classList.toggle('selected', inp.value === 'tutor');
+  });
+});
+
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault(); clearAlerts();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  let valid = true;
+  if (!email || !email.includes('@')) { document.getElementById('login-email-err').style.display='block'; valid=false; }
+  else document.getElementById('login-email-err').style.display='none';
+  if (!password) { document.getElementById('login-pass-err').style.display='block'; valid=false; }
+  else document.getElementById('login-pass-err').style.display='none';
+  if (!valid) return;
+  const btn = document.getElementById('login-submit');
+  btn.disabled=true; btn.innerHTML='<i data-lucide="loader-2" style="width:15px;height:15px;animation:spin 1s linear infinite"></i> Logging in...'; lucide.createIcons();
+  try {
+    const r = await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data = await r.json();
+    if (!r.ok) { showError(data.error||'Login failed'); btn.disabled=false; btn.innerHTML='<i data-lucide="log-in" style="width:15px;height:15px"></i> Log In'; lucide.createIcons(); return; }
+    showSuccess('Login successful! Redirecting...');
+    setTimeout(()=>{
+      if(returnUrl){window.location=returnUrl;return;}
+      if(data.user.role==='tutor') window.location='/dashboard-tutor.html';
+      else if(data.user.role==='admin') window.location='/admin.html';
+      else window.location='/dashboard-student.html';
+    },700);
+  } catch(err){ showError('Server error. Please try again.'); btn.disabled=false; btn.innerHTML='<i data-lucide="log-in" style="width:15px;height:15px"></i> Log In'; lucide.createIcons(); }
+});
+
+document.getElementById('signup-form').addEventListener('submit', async e => {
+  e.preventDefault(); clearAlerts();
+  const name=document.getElementById('signup-name').value.trim();
+  const email=document.getElementById('signup-email').value.trim();
+  const password=document.getElementById('signup-password').value;
+  const role=document.querySelector('input[name=role]:checked').value;
+  const terms=document.getElementById('terms-check').checked;
+  let valid=true;
+  if(!name){document.getElementById('signup-name-err').style.display='block';valid=false;}else document.getElementById('signup-name-err').style.display='none';
+  if(!email||!email.includes('@')){document.getElementById('signup-email-err').style.display='block';valid=false;}else document.getElementById('signup-email-err').style.display='none';
+  if(!password||password.length<6){document.getElementById('signup-pass-err').style.display='block';valid=false;}else document.getElementById('signup-pass-err').style.display='none';
+  if(!terms){showError('Please agree to the Terms of Service');return;}
+  if(!valid) return;
+  const btn=document.getElementById('signup-submit');
+  btn.disabled=true; btn.textContent='Creating account...';
+  try {
+    const r=await fetch('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password,role})});
+    const data=await r.json();
+    if(!r.ok){showError(data.error||'Signup failed');btn.disabled=false;btn.innerHTML='<i data-lucide="user-plus" style="width:15px;height:15px"></i> Create Account';lucide.createIcons();return;}
+    showSuccess('Account created! Redirecting...');
+    setTimeout(()=>{ if(role==='tutor') window.location='/become-tutor.html'; else window.location='/dashboard-student.html'; },800);
+  } catch(err){ showError('Server error. Please try again.'); btn.disabled=false; btn.innerHTML='<i data-lucide="user-plus" style="width:15px;height:15px"></i> Create Account'; lucide.createIcons(); }
+});
+
+checkGoogle();
+(function handleUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('verified')==='1') showSuccess('✅ Email verified! You can now log in.');
+  else if (p.get('error')==='expired_token') showError('⏰ Verification link expired.');
+  else if (p.get('error')==='invalid_token') showError('❌ Invalid verification link.');
+  else if (p.get('error')==='google_failed') showError('Google login failed. Please try again.');
+  if (p.toString()) window.history.replaceState({},'','/login.html');
+})();
+</script>
+</body>
+</html>

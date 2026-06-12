@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>uLearn — Find the Perfect Tutor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* ─── HERO ── */
+.hero {
+  padding:100px 5% 0;
+  background:linear-gradient(180deg,#ffffff 0%,#f0f0ff 100%);
+  overflow:hidden;
+  min-height:88vh;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+}
+.hero-inner {
+  max-width:1280px; width:100%; margin:0 auto;
+  display:grid; grid-template-columns:1fr 440px;
+  gap:3rem; align-items:flex-start;
+}
+.hero-badges { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+.hero-badge-pill {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.3rem .85rem; border-radius:var(--radius-pill);
+  font-size:.75rem; font-weight:700;
+  border:1px solid rgba(108,99,255,.25); color:var(--purple);
+  background:rgba(108,99,255,.07);
+}
+.hero-badge-pill .dot { width:7px; height:7px; border-radius:50%; background:var(--green); }
+.hero h1 {
+  font-family:var(--font-display);
+  font-size:clamp(2.4rem,5vw,4rem); font-weight:900;
+  color:var(--navy); line-height:1.08; letter-spacing:-0.03em;
+  margin-bottom:1.25rem;
+}
+.hero h1 .hi {
+  background:var(--grad); -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent; background-clip:text;
+}
+.hero-sub { color:var(--muted); font-size:1.05rem; line-height:1.7; max-width:500px; margin-bottom:1.75rem; }
+.hero-stars { display:flex; align-items:center; gap:.7rem; margin-bottom:2rem; }
+.star-row { display:flex; gap:2px; }
+.star-row span { color:#f59e0b; font-size:1.1rem; }
+.hero-stars p { font-size:.875rem; color:var(--muted); }
+.hero-stars strong { color:var(--navy); }
+.hero-ctas { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:2.5rem; }
+.hero-trust { display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
+.trust-item { display:flex; align-items:center; gap:.4rem; font-size:.82rem; color:var(--muted); }
+.trust-item svg { color:var(--green); }
+.trust-item strong { color:var(--navy); }
+
+/* Hero image / visual area */
+.hero-visual { padding-bottom:0; }
+.hero-widget {
+  background:#fff; border-radius:20px;
+  box-shadow:0 8px 48px rgba(26,31,94,0.16);
+  overflow:hidden; border:1px solid var(--border);
+}
+.hw-header {
+  background:var(--pink); color:#fff;
+  padding:1rem 1.5rem; font-weight:700; font-size:1rem;
+  text-align:center; letter-spacing:.01em;
+}
+.hw-rainbow { height:5px; background:var(--grad-rainbow); }
+.hw-body { padding:1.5rem; }
+.hw-label { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:.65rem; }
+.hw-search {
+  display:flex; align-items:center; gap:.5rem;
+  background:var(--bg); border:2px solid var(--border-2);
+  border-radius:var(--radius-pill); padding:8px 10px 8px 16px;
+  margin-bottom:1.25rem; transition:border-color .2s;
+}
+.hw-search:focus-within { border-color:var(--purple); }
+.hw-search input { flex:1; background:none; border:none; outline:none; color:var(--navy); font-size:.9rem; font-family:var(--font); }
+.hw-search input::placeholder { color:var(--dim); }
+.hw-levels {
+  display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-bottom:1.25rem;
+}
+.hw-lvl {
+  padding:.6rem .75rem; border-radius:var(--radius-pill);
+  border:2px solid var(--border-2); background:var(--surface-2);
+  color:var(--navy); font-size:.8rem; font-weight:700; cursor:pointer;
+  transition:all .15s; text-align:center;
+}
+.hw-lvl:hover, .hw-lvl.sel {
+  background:var(--navy); color:#fff; border-color:var(--navy);
+}
+.hw-btn {
+  width:100%; padding:.85rem; border-radius:var(--radius-pill);
+  background:var(--pink); color:#fff; border:none; cursor:pointer;
+  font-size:.95rem; font-weight:700; font-family:var(--font);
+  box-shadow:0 4px 16px rgba(233,30,140,0.3);
+  transition:all .18s;
+}
+.hw-btn:hover { background:var(--pink-2); transform:translateY(-1px); box-shadow:0 6px 20px rgba(233,30,140,0.38); }
+.hw-note { text-align:center; font-size:.72rem; color:var(--dim); margin-top:.75rem; }
+/* floating tutor previews below widget */
+.hero-tutor-preview {
+  display:flex; gap:.75rem; margin-top:1rem; overflow:hidden;
+}
+.htp-card {
+  background:#fff; border:1px solid var(--border); border-radius:14px;
+  padding:.75rem .9rem; display:flex; align-items:center; gap:.65rem;
+  box-shadow:var(--shadow); flex:1; min-width:0;
+  transition:transform .2s; cursor:pointer;
+}
+.htp-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.htp-av {
+  width:40px; height:40px; border-radius:10px; flex-shrink:0;
+  background:var(--grad); display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:.85rem; color:#fff; overflow:hidden;
+}
+.htp-av img { width:100%; height:100%; object-fit:cover; }
+.htp-name { font-weight:700; font-size:.8rem; color:var(--navy); }
+.htp-sub  { font-size:.7rem; color:var(--muted); }
+.htp-rate { font-weight:800; font-size:.9rem; color:var(--pink); margin-left:auto; }
+
+/* ─── STATS BAR ── */
+.stats-bar {
+  background:var(--navy); padding:2rem 5%;
+}
+.stats-bar-inner {
+  max-width:1280px; margin:0 auto;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:2rem; text-align:center;
+}
+.sb-item .num {
+  font-family:var(--font-display); font-size:2.4rem; font-weight:900; color:#fff; line-height:1;
+  margin-bottom:.3rem;
+}
+.sb-item .num span { color:var(--pink); }
+.sb-item .lbl { color:rgba(255,255,255,.6); font-size:.82rem; }
+
+/* ─── SECTION ── */
+.section { padding:80px 5%; }
+.section-inner { max-width:1280px; margin:0 auto; }
+
+/* ─── HOW IT WORKS ── */
+.how-section { padding:80px 5%; background:var(--bg2); }
+.step-card {
+  background:#fff; border-radius:var(--radius-xl); padding:2rem 1.75rem;
+  text-align:center; border:1px solid var(--border); box-shadow:var(--shadow);
+  transition:all .25s; position:relative; overflow:hidden;
+}
+.step-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:4px;
+  background:var(--grad);
+}
+.step-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); }
+.step-num {
+  width:64px; height:64px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem;
+  font-family:var(--font-display); font-weight:900; font-size:1.5rem; color:#fff;
+  box-shadow:0 6px 20px rgba(108,99,255,0.3);
+}
+.step-num-1 { background:linear-gradient(135deg,#6c63ff,#a78bfa); }
+.step-num-2 { background:linear-gradient(135deg,#e91e8c,#fb7185); }
+.step-num-3 { background:linear-gradient(135deg,#f97316,#fbbf24); }
+.step-card h3 { font-family:var(--font-display); font-size:1.1rem; font-weight:800; color:var(--navy); margin-bottom:.6rem; }
+.step-card p  { color:var(--muted); font-size:.875rem; line-height:1.65; }
+
+/* ─── TUTOR CARDS ── */
+.tutors-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem;
+}
+.tutor-card {
+  background:#fff; border:1px solid var(--border); border-radius:var(--radius-xl);
+  padding:1.5rem; box-shadow:var(--shadow);
+  transition:all .25s; cursor:pointer; display:block; color:inherit; text-decoration:none;
+}
+.tutor-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); }
+.tc-head { display:flex; align-items:flex-start; gap:1rem; margin-bottom:1rem; }
+.tc-av {
+  width:56px; height:56px; border-radius:14px; flex-shrink:0;
+  background:var(--grad); display:flex; align-items:center; justify-content:center;
+  font-weight:900; font-size:1.2rem; color:#fff; overflow:hidden; position:relative;
+}
+.tc-av img { width:100%; height:100%; object-fit:cover; }
+.tc-vbadge {
+  position:absolute; bottom:-3px; right:-3px; width:18px; height:18px;
+  background:var(--green); border-radius:50%; border:2px solid #fff;
+  display:flex; align-items:center; justify-content:center; font-size:.6rem; color:#fff;
+}
+.tc-name { font-family:var(--font-display); font-weight:800; font-size:.97rem; color:var(--navy); margin-bottom:.15rem; }
+.tc-hl   { color:var(--muted); font-size:.8rem; line-height:1.4; }
+.tc-featured-badge {
+  margin-left:auto; flex-shrink:0;
+  background:rgba(233,30,140,.1); border:1px solid rgba(233,30,140,.25);
+  color:var(--pink); font-size:.65rem; font-weight:700;
+  padding:.18rem .5rem; border-radius:var(--radius-pill);
+}
+.tc-chips  { display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.9rem; }
+.tc-meta   { display:flex; align-items:center; gap:.6rem; font-size:.78rem; color:var(--muted); margin-bottom:1rem; flex-wrap:wrap; }
+.tc-rating { display:flex; align-items:center; gap:.25rem; }
+.tc-rating .st { color:#f59e0b; }
+.tc-foot   { display:flex; align-items:center; justify-content:space-between; }
+.tc-price  { font-family:var(--font-display); font-weight:900; font-size:1.15rem; color:var(--navy); }
+.tc-price .per { color:var(--muted); font-size:.78rem; font-weight:400; }
+.tc-mode-chip {
+  display:inline-flex; align-items:center; gap:.28rem;
+  padding:.25rem .65rem; border-radius:var(--radius-pill);
+  background:var(--surface-2); border:1px solid var(--border-2);
+  font-size:.7rem; color:var(--muted); font-weight:600;
+}
+
+/* ─── SUBJECTS ── */
+.subjects-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:1rem;
+}
+.subj-card {
+  background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:1.4rem 1rem; text-align:center; cursor:pointer;
+  transition:all .22s; box-shadow:var(--shadow);
+}
+.subj-card:hover {
+  border-color:var(--purple); transform:translateY(-3px);
+  box-shadow:0 8px 32px rgba(108,99,255,0.18);
+}
+.subj-card:hover .si { transform:scale(1.14); }
+.si { font-size:2.2rem; margin-bottom:.55rem; display:block; transition:transform .22s; }
+.sn { font-weight:700; font-size:.86rem; color:var(--navy); }
+.sc { font-size:.72rem; color:var(--muted); margin-top:.15rem; }
+
+/* ─── TESTIMONIALS ── */
+.test-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(305px,1fr)); gap:1.25rem;
+}
+.tcard {
+  background:#fff; border:1px solid var(--border); border-radius:var(--radius-xl);
+  padding:1.75rem; box-shadow:var(--shadow); position:relative; overflow:hidden;
+  transition:all .22s;
+}
+.tcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:var(--grad-rainbow); }
+.tcard:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.tcard-stars { display:flex; gap:2px; margin-bottom:.9rem; }
+.tcard-stars span { color:#f59e0b; font-size:.95rem; }
+.tcard-text { color:var(--muted); font-size:.9rem; line-height:1.75; margin-bottom:1.25rem; font-style:italic; }
+.tcard-auth { display:flex; align-items:center; gap:.75rem; }
+.tcard-av {
+  width:44px; height:44px; border-radius:50%; flex-shrink:0;
+  background:var(--grad); display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:.85rem; color:#fff;
+}
+.tcard-name { font-weight:700; font-size:.875rem; color:var(--navy); }
+.tcard-role { color:var(--muted); font-size:.75rem; }
+
+/* ─── CTA SECTION ── */
+.cta-section {
+  background:var(--navy); padding:90px 5%;
+  position:relative; overflow:hidden; text-align:center;
+}
+.cta-bg-circles {
+  position:absolute; inset:0; pointer-events:none; overflow:hidden;
+}
+.cta-circle {
+  position:absolute; border-radius:50%;
+  background:rgba(108,99,255,.12);
+}
+.cta-circle-1 { width:600px; height:600px; top:-200px; left:-100px; }
+.cta-circle-2 { width:500px; height:500px; bottom:-150px; right:-80px; background:rgba(233,30,140,.1); }
+.cta-circle-3 { width:300px; height:300px; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,.03); }
+.cta-inner { position:relative; z-index:1; max-width:680px; margin:0 auto; }
+.cta-inner .section-label { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2); color:#fff; }
+.cta-inner h2 {
+  font-family:var(--font-display); font-size:clamp(2rem,4vw,3.2rem);
+  font-weight:900; color:#fff; letter-spacing:-0.03em; margin-bottom:1rem; line-height:1.08;
+}
+.cta-inner h2 span { color:var(--pink); }
+.cta-inner p { color:rgba(255,255,255,.68); font-size:1rem; max-width:480px; margin:0 auto 2rem; }
+.cta-btns { display:flex; gap:.75rem; justify-content:center; flex-wrap:wrap; }
+
+/* ─── FOOTER ── */
+.footer { background:#13175a; padding:60px 5% 28px; }
+.footer-inner {
+  max-width:1280px; margin:0 auto;
+  display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:3rem; margin-bottom:2.5rem;
+}
+.footer-logo {
+  font-family:var(--font-display); font-weight:900; font-size:1.45rem;
+  background:var(--grad); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  display:inline-block; margin-bottom:.7rem;
+}
+.footer-brand p { color:rgba(255,255,255,.5); font-size:.83rem; line-height:1.7; max-width:240px; }
+.footer-col h4 { font-weight:700; font-size:.82rem; color:rgba(255,255,255,.8); margin-bottom:1.1rem; }
+.footer-col ul { list-style:none; display:flex; flex-direction:column; gap:.55rem; }
+.footer-col ul a { color:rgba(255,255,255,.45); font-size:.82rem; transition:color .15s; }
+.footer-col ul a:hover { color:rgba(255,255,255,.9); }
+.footer-btm {
+  max-width:1280px; margin:0 auto; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,.08);
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;
+}
+.footer-btm p { color:rgba(255,255,255,.3); font-size:.76rem; }
+
+/* ─── RESPONSIVE ── */
+@media(max-width:1024px) {
+  .hero-inner { grid-template-columns:1fr; }
+  .hero-visual { display:none; }
+  .stats-bar-inner { grid-template-columns:1fr 1fr; }
+  .footer-inner { grid-template-columns:1fr 1fr; }
+}
+@media(max-width:640px) {
+  .hero h1 { font-size:2.2rem; }
+  .steps-wrap { grid-template-columns:1fr; }
+  .steps-wrap::before { display:none; }
+  .footer-inner { grid-template-columns:1fr; }
+  .subjects-grid { grid-template-columns:repeat(3,1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mob-menu">
+  <button class="btn btn-ghost menu-close" onclick="document.getElementById('mob-menu').classList.remove('open')" style="color:#fff;border-color:rgba(255,255,255,.3)">✕ Close</button>
+  <a href="/search.html">Find Tutors</a>
+  <a href="/become-tutor.html">Become a Tutor</a>
+  <a href="/login.html">Log In</a>
+  <a href="/login.html?tab=signup" class="btn btn-primary" style="text-align:center;justify-content:center;margin-top:.5rem">Get Started Free</a>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <div class="nav-links">
+      <a href="/search.html">Find Tutors</a>
+      <a href="/become-tutor.html">Become a Tutor</a>
+      <a href="/search.html?category=Programming">Courses</a>
+      <a href="#">Resources</a>
+    </div>
+    <div class="nav-actions">
+      <a href="/login.html" class="btn btn-ghost" id="nav-login" style="border-radius:50px">Log In</a>
+      <a href="/login.html?tab=signup" class="btn btn-primary" id="nav-signup">Get Started Free</a>
+      <div id="nav-user" style="display:none;align-items:center;gap:.65rem">
+        <a href="#" id="nav-dash" class="btn btn-ghost" style="border-radius:50px">Dashboard</a>
+        <div id="nav-av" style="width:36px;height:36px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem;color:#fff;cursor:pointer;overflow:hidden;flex-shrink:0"></div>
+      </div>
+      <button class="hamburger" onclick="document.getElementById('mob-menu').classList.add('open')" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <!-- LEFT -->
+    <div style="padding-bottom:60px">
+      <div class="hero-badges">
+        <span class="hero-badge-pill"><span class="dot"></span>AI-Enhanced Matching</span>
+        <span class="hero-badge-pill" style="color:var(--green);border-color:rgba(22,163,74,.25);background:rgba(22,163,74,.07)">Since 2024</span>
+      </div>
+      <h1>Better grades &<br>higher scores<br>start <span class="hi">today!</span></h1>
+      <p class="hero-sub">Private 1-on-1 tutoring, live classes for academic support, test prep &amp; enrichment — with expert-matched tutors for every subject.</p>
+      <div class="hero-stars">
+        <div class="star-row">
+          <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+        </div>
+        <p><strong>4.9/5</strong> · Rated by 50,000+ students</p>
+      </div>
+      <div class="hero-ctas">
+        <a href="/login.html?tab=signup" class="btn btn-primary" style="font-size:.95rem;padding:.75rem 2rem">Find My Tutor →</a>
+        <a href="/become-tutor.html" class="btn btn-ghost" style="font-size:.95rem;padding:.75rem 1.75rem">Become a Tutor</a>
+      </div>
+      <div class="hero-trust">
+        <div class="trust-item">
+          <i data-lucide="check-circle" style="width:16px;height:16px"></i>
+          <span>No commitment required</span>
+        </div>
+        <div class="trust-item">
+          <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+          <span>Money-back guarantee</span>
+        </div>
+        <div class="trust-item">
+          <i data-lucide="clock" style="width:16px;height:16px"></i>
+          <span>Start in minutes</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Widget -->
+    <div class="hero-visual">
+      <div class="hero-widget">
+        <div class="hw-header">🎓 Find Your Tutor in 60 Seconds!</div>
+        <div class="hw-rainbow"></div>
+        <div class="hw-body">
+          <div class="hw-label">What do you need help with?</div>
+          <div class="hw-search">
+            <i data-lucide="search" style="width:16px;height:16px;color:var(--dim);flex-shrink:0"></i>
+            <input type="text" id="hero-q" placeholder="Subject, topic, or skill...">
+          </div>
+          <div class="hw-label">Select your level:</div>
+          <div class="hw-levels">
+            <button class="hw-lvl" onclick="selectLevel(this)">Elementary</button>
+            <button class="hw-lvl" onclick="selectLevel(this)">Middle School</button>
+            <button class="hw-lvl" onclick="selectLevel(this)">High School</button>
+            <button class="hw-lvl" onclick="selectLevel(this)">College</button>
+            <button class="hw-lvl" onclick="selectLevel(this)">Graduate</button>
+            <button class="hw-lvl" onclick="selectLevel(this)">Professional</button>
+          </div>
+          <button class="hw-btn" id="hero-go">Find My Tutor Now →</button>
+          <p class="hw-note">No obligation · Takes ~1 minute</p>
+        </div>
+      </div>
+      <!-- Mini tutor previews -->
+      <div class="hero-tutor-preview" id="hero-cards">
+        <div class="htp-card skeleton" style="height:62px"></div>
+        <div class="htp-card skeleton" style="height:62px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stats-bar-inner">
+    <div class="sb-item"><div class="num" data-count="10000" data-suffix="+">0+</div><div class="lbl">Expert Tutors</div></div>
+    <div class="sb-item"><div class="num" data-count="3000" data-suffix="+">0+</div><div class="lbl">Subjects Covered</div></div>
+    <div class="sb-item"><div class="num">4.9<span>★</span></div><div class="lbl">Average Rating</div></div>
+    <div class="sb-item"><div class="num" data-count="98" data-suffix="%">0%</div><div class="lbl">Satisfaction Rate</div></div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <div class="section-inner">
+    <div class="section-header reveal" style="display:flex;flex-direction:column;align-items:center">
+      <div class="section-label"><i data-lucide="zap" style="width:11px;height:11px"></i>How It Works</div>
+      <h2>Start learning in <span class="text-pink">3 simple steps</span></h2>
+      <p>From finding your tutor to your first session — it's fast, easy, and risk-free.</p>
+    </div>
+    <div class="steps-wrap">
+      <div class="step-card reveal">
+        <div class="step-num step-num-1">1</div>
+        <h3>Search &amp; Match</h3>
+        <p>Browse thousands of verified tutors by subject, price, and availability. Our smart matching finds your perfect fit instantly.</p>
+      </div>
+      <div class="step-card reveal" style="transition-delay:.1s">
+        <div class="step-num step-num-2">2</div>
+        <h3>Connect &amp; Book</h3>
+        <p>Message tutors directly, discuss your goals, and schedule a session — online or in-person — at a time that works for you.</p>
+      </div>
+      <div class="step-card reveal" style="transition-delay:.2s">
+        <div class="step-num step-num-3">3</div>
+        <h3>Learn &amp; Succeed</h3>
+        <p>Attend your session with live video, shared whiteboard, and screen sharing. Track progress and achieve your goals faster.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SUBJECTS -->
+<section class="section" style="background:#fff">
+  <div class="section-inner">
+    <div class="section-header reveal" style="display:flex;flex-direction:column;align-items:center">
+      <div class="section-label"><i data-lucide="book-open" style="width:11px;height:11px"></i>3,000+ Subjects</div>
+      <h2>Find tutors in <span class="text-grad">any subject</span></h2>
+      <p>Elementary through graduate school — academic subjects, test prep, creative arts, coding, and more.</p>
+    </div>
+    <div class="subjects-grid" id="subjects-grid">
+      <div class="subj-card skeleton" style="height:110px"></div>
+      <div class="subj-card skeleton" style="height:110px"></div>
+      <div class="subj-card skeleton" style="height:110px"></div>
+      <div class="subj-card skeleton" style="height:110px"></div>
+      <div class="subj-card skeleton" style="height:110px"></div>
+      <div class="subj-card skeleton" style="height:110px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED TUTORS -->
+<section class="section" style="background:var(--bg)">
+  <div class="section-inner">
+    <div class="section-header reveal" style="display:flex;flex-direction:column;align-items:center">
+      <div class="section-label"><i data-lucide="star" style="width:11px;height:11px"></i>Featured Tutors</div>
+      <h2>Learn from <span class="text-grad">top-rated</span> educators</h2>
+      <p>Every tutor is background-checked, credential-verified, and rated by students like you.</p>
+    </div>
+    <div class="tutors-grid" id="featured-grid">
+      <div class="tutor-card skeleton" style="height:260px"></div>
+      <div class="tutor-card skeleton" style="height:260px"></div>
+      <div class="tutor-card skeleton" style="height:260px"></div>
+      <div class="tutor-card skeleton" style="height:260px"></div>
+    </div>
+    <div style="text-align:center;margin-top:2rem" class="reveal">
+      <a href="/search.html" class="btn btn-navy" style="font-size:.9rem;padding:.65rem 2rem">
+        View All Tutors <i data-lucide="arrow-right" style="width:14px;height:14px"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- WHY ULEARN FEATURES -->
+<section class="section" style="background:var(--bg2)">
+  <div class="section-inner">
+    <div class="section-header reveal" style="display:flex;flex-direction:column;align-items:center">
+      <div class="section-label">Why uLearn</div>
+      <h2>Everything you need to <span class="text-pink">succeed</span></h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1.25rem">
+      <div class="ul-card reveal">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(108,99,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1rem">🎯</div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--navy);margin-bottom:.5rem">AI-Powered Matching</div>
+        <div style="color:var(--muted);font-size:.84rem;line-height:1.65">Our algorithm analyzes your goals, schedule, and learning style to recommend the perfect tutor — not just any tutor.</div>
+      </div>
+      <div class="ul-card reveal" style="transition-delay:.08s">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(233,30,140,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1rem">🛡️</div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--navy);margin-bottom:.5rem">Verified Tutors Only</div>
+        <div style="color:var(--muted);font-size:.84rem;line-height:1.65">Every tutor passes identity verification, credential checks, and background screening before teaching on uLearn.</div>
+      </div>
+      <div class="ul-card reveal" style="transition-delay:.16s">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(0,188,212,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1rem">📅</div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--navy);margin-bottom:.5rem">Flexible Scheduling</div>
+        <div style="color:var(--muted);font-size:.84rem;line-height:1.65">Book sessions 24/7. Free cancellation up to 24 hours before. Your schedule, your terms.</div>
+      </div>
+      <div class="ul-card reveal" style="transition-delay:.24s">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(22,163,74,.1);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:1rem">💰</div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--navy);margin-bottom:.5rem">Money-Back Guarantee</div>
+        <div style="color:var(--muted);font-size:.84rem;line-height:1.65">Not satisfied with your first session? We'll give you a full refund — no questions asked. Zero risk.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="section" style="background:#fff">
+  <div class="section-inner">
+    <div class="section-header reveal" style="display:flex;flex-direction:column;align-items:center">
+      <div class="section-label"><i data-lucide="message-square" style="width:11px;height:11px"></i>Student Stories</div>
+      <h2>Real results from <span class="text-grad">real students</span></h2>
+      <p>Thousands of students improved their grades, aced their tests, and unlocked new skills with uLearn.</p>
+    </div>
+    <div class="test-grid">
+      <div class="tcard reveal">
+        <div class="tcard-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <p class="tcard-text">"Dr. Chen helped me go from a C to an A in AP Calculus in just 6 weeks. Her explanations are crystal clear and she's incredibly patient. Couldn't have done it without uLearn!"</p>
+        <div class="tcard-auth">
+          <div class="tcard-av">AJ</div>
+          <div><div class="tcard-name">Alex Johnson</div><div class="tcard-role">High School Student, Boston</div></div>
+        </div>
+      </div>
+      <div class="tcard reveal" style="transition-delay:.1s">
+        <div class="tcard-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <p class="tcard-text">"James's practical approach to coding is unmatched. I landed my first dev job 3 months after our sessions. The matching algorithm found me exactly the tutor I needed!"</p>
+        <div class="tcard-auth">
+          <div class="tcard-av">MS</div>
+          <div><div class="tcard-name">Maria Santos</div><div class="tcard-role">Software Developer, Austin</div></div>
+        </div>
+      </div>
+      <div class="tcard reveal" style="transition-delay:.2s">
+        <div class="tcard-stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        <p class="tcard-text">"Emma helped me pass my IELTS with band 8.5! Her structured approach and constant feedback made all the difference. I recommend uLearn to all international students."</p>
+        <div class="tcard-auth">
+          <div class="tcard-av">KW</div>
+          <div><div class="tcard-name">Kevin Wu</div><div class="tcard-role">Graduate Student, Toronto</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-bg-circles">
+    <div class="cta-circle cta-circle-1"></div>
+    <div class="cta-circle cta-circle-2"></div>
+    <div class="cta-circle cta-circle-3"></div>
+  </div>
+  <div class="cta-inner reveal">
+    <div class="section-label">Join 10,000+ Tutors</div>
+    <h2>Are you an expert?<br><span>Start teaching today.</span></h2>
+    <p>Earn up to $150/hour teaching what you love. Set your own schedule, reach students worldwide.</p>
+    <div class="cta-btns">
+      <a href="/become-tutor.html" class="btn btn-primary" style="padding:.75rem 2rem;font-size:.95rem">
+        <i data-lucide="graduation-cap" style="width:16px;height:16px"></i>Become a Tutor
+      </a>
+      <a href="/search.html" class="btn btn-white" style="padding:.75rem 2rem;font-size:.95rem">Find a Tutor Instead</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo">uLearn</div>
+      <p>The world's most trusted tutoring marketplace. Connecting curious minds with expert educators worldwide.</p>
+    </div>
+    <div class="footer-col"><h4>For Students</h4><ul>
+      <li><a href="/search.html">Find Tutors</a></li>
+      <li><a href="/search.html?category=Test+Prep">Test Prep</a></li>
+      <li><a href="/search.html?category=Languages">Languages</a></li>
+      <li><a href="/search.html?category=Programming">Coding</a></li>
+    </ul></div>
+    <div class="footer-col"><h4>For Tutors</h4><ul>
+      <li><a href="/become-tutor.html">Start Teaching</a></li>
+      <li><a href="/dashboard-tutor.html">Dashboard</a></li>
+      <li><a href="#">Pricing Guide</a></li>
+      <li><a href="#">Resources</a></li>
+    </ul></div>
+    <div class="footer-col"><h4>Company</h4><ul>
+      <li><a href="#">About Us</a></li>
+      <li><a href="#">Blog</a></li>
+      <li><a href="#">Privacy Policy</a></li>
+      <li><a href="#">Terms of Service</a></li>
+    </ul></div>
+  </div>
+  <div class="footer-btm">
+    <p>© 2024 uLearn. All rights reserved.</p>
+    <div style="display:flex;gap:1.25rem">
+      <a href="#" style="color:rgba(255,255,255,.35);font-size:.76rem">Privacy</a>
+      <a href="#" style="color:rgba(255,255,255,.35);font-size:.76rem">Terms</a>
+      <a href="#" style="color:rgba(255,255,255,.35);font-size:.76rem">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+lucide.createIcons();
+
+// Level selector
+function selectLevel(btn) {
+  document.querySelectorAll('.hw-lvl').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+// Nav scroll
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 20), { passive:true });
+
+// Counter animation
+function counter(el) {
+  const target = parseInt(el.dataset.count);
+  const suffix = el.dataset.suffix || '';
+  const dur = 1800, start = Date.now();
+  const tick = () => {
+    const p = Math.min((Date.now()-start)/dur, 1);
+    const ease = 1 - Math.pow(1-p, 3);
+    el.textContent = Math.round(ease*target).toLocaleString() + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+// Scroll reveal
+const revObs = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('visible'); revObs.unobserve(e.target); }
+}), { threshold:.1 });
+document.querySelectorAll('.reveal').forEach(el => revObs.observe(el));
+
+// Counter trigger
+const ctObs = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) {
+    e.target.querySelectorAll('[data-count]').forEach(counter);
+    ctObs.unobserve(e.target);
+  }
+}), { threshold:.4 });
+const sb = document.querySelector('.stats-bar');
+if (sb) ctObs.observe(sb);
+
+// Nav auth
+async function initNav() {
+  try {
+    const { user } = await (await fetch('/auth/me')).json();
+    if (user) {
+      document.getElementById('nav-login').style.display = 'none';
+      document.getElementById('nav-signup').style.display = 'none';
+      const nu = document.getElementById('nav-user');
+      nu.style.display = 'flex';
+      const dl = document.getElementById('nav-dash');
+      dl.href = user.role==='tutor' ? '/dashboard-tutor.html' : user.role==='admin' ? '/admin.html' : '/dashboard-student.html';
+      const av = document.getElementById('nav-av');
+      av.innerHTML = user.avatar ? `<img src="${user.avatar}" style="width:100%;height:100%;object-fit:cover">` : user.name.charAt(0).toUpperCase();
+    }
+  } catch(e) {}
+}
+
+// Load featured tutors
+async function loadFeatured() {
+  try {
+    const { tutors } = await (await fetch('/api/tutors/featured')).json();
+    const grid = document.getElementById('featured-grid');
+    if (!tutors?.length) {
+      grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem">No featured tutors yet.</p>';
+      return;
+    }
+    const chipCls = ['chip chip-purple','chip chip-pink','chip chip-cyan','chip chip-amber'];
+    grid.innerHTML = tutors.map((t,i) => {
+      const subs = JSON.parse(t.subjects||'[]');
+      const stars = Math.round(t.avg_rating||0);
+      const ini = t.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      return `<a href="/tutor-profile.html?id=${t.id}" class="tutor-card reveal" style="transition-delay:${i*.07}s">
+        <div class="tc-head">
+          <div class="tc-av">${t.avatar?`<img src="${t.avatar}" alt="">`:ini}${t.is_verified?'<div class="tc-vbadge">✓</div>':''}</div>
+          <div><div class="tc-name">${t.name}</div><div class="tc-hl">${t.headline||'Expert Tutor'}</div></div>
+          ${t.is_featured?'<div class="tc-featured-badge">⭐ Featured</div>':''}
+        </div>
+        <div class="tc-chips">${subs.slice(0,4).map((s,j)=>`<span class="${chipCls[j%4]}">${s}</span>`).join('')}</div>
+        <div class="tc-meta">
+          <div class="tc-rating"><span class="st">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</span><span style="margin-left:3px">(${t.review_count||0})</span></div>
+          <span>·</span><span>${t.total_sessions||0} sessions</span>
+          ${t.location?`<span>·</span><span>${t.location.split(',')[0]}</span>`:''}
+        </div>
+        <div class="tc-foot">
+          <div class="tc-price">$${t.hourly_rate}<span class="per">/hr</span></div>
+          <div class="tc-mode-chip">${t.teaching_mode==='online'?'💻 Online':t.teaching_mode==='in-person'?'📍 In-Person':'🌐 Both'}</div>
+        </div>
+      </a>`;
+    }).join('');
+    // Mini hero cards
+    const heroCards = document.getElementById('hero-cards');
+    heroCards.innerHTML = tutors.slice(0,2).map(t => {
+      const subs = JSON.parse(t.subjects||'[]');
+      return `<a href="/tutor-profile.html?id=${t.id}" class="htp-card">
+        <div class="htp-av">${t.avatar?`<img src="${t.avatar}" alt="">`:t.name.charAt(0)}</div>
+        <div style="min-width:0">
+          <div class="htp-name">${t.name}</div>
+          <div class="htp-sub">${subs[0]||'Expert Tutor'}</div>
+        </div>
+        <div class="htp-rate">$${t.hourly_rate}/hr</div>
+      </a>`;
+    }).join('');
+    document.querySelectorAll('.reveal:not(.visible)').forEach(el => revObs.observe(el));
+    setTimeout(() => lucide.createIcons(), 80);
+  } catch(e) {
+    document.getElementById('featured-grid').innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem">Failed to load tutors</p>';
+  }
+}
+
+// Load subjects
+async function loadSubjects() {
+  try {
+    const { subjects } = await (await fetch('/api/subjects')).json();
+    const cats = {};
+    subjects.forEach(s => { if(!cats[s.category]) cats[s.category]=s; });
+    document.getElementById('subjects-grid').innerHTML = Object.entries(cats).slice(0,12).map(([cat,s],i) => `
+      <div class="subj-card reveal" style="transition-delay:${i*.04}s" onclick="window.location='/search.html?subject=${encodeURIComponent(s.name)}'">
+        <span class="si">${s.icon||'📚'}</span>
+        <div class="sn">${cat}</div>
+        <div class="sc">${Math.floor(Math.random()*20+5)} tutors</div>
+      </div>`).join('');
+    document.querySelectorAll('.reveal:not(.visible)').forEach(el => revObs.observe(el));
+  } catch(e) {}
+}
+
+// Hero search
+document.getElementById('hero-go').addEventListener('click', () => {
+  const q = document.getElementById('hero-q').value.trim();
+  const sel = document.querySelector('.hw-lvl.sel');
+  const level = sel ? '&level='+encodeURIComponent(sel.textContent) : '';
+  window.location = '/search.html' + (q ? '?q='+encodeURIComponent(q)+level : '');
+});
+document.getElementById('hero-q').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('hero-go').click();
+});
+
+initNav();
+loadFeatured();
+loadSubjects();
+setTimeout(() => lucide.createIcons(), 500);
+</script>
+</body>
+</html>

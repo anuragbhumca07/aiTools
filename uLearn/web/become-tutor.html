@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a Tutor — uLearn</title>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--accent:var(--purple);--accent-glow:rgba(139,92,246,.25);}
+
+.page{max-width:680px;margin:0 auto;padding:3rem 1.5rem;}
+
+/* PROGRESS STEPS */
+.progress-header{text-align:center;margin-bottom:3rem;}
+.progress-header h1{font-family:var(--font-display);font-size:1.8rem;font-weight:800;margin-bottom:.5rem;letter-spacing:-.3px;}
+.progress-header p{color:var(--muted);font-size:.9rem;}
+
+.steps-indicator{display:flex;align-items:center;justify-content:center;gap:0;margin:2rem 0;}
+.step-indicator{display:flex;align-items:center;}
+.step-dot{
+  width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:var(--card);
+  display:flex;align-items:center;justify-content:center;font-size:.82rem;font-weight:700;color:var(--dim);
+  transition:all .3s;position:relative;z-index:1;
+}
+.step-dot.active{border-color:var(--purple);background:rgba(139,92,246,.1);color:var(--purple);}
+.step-dot.done{border-color:var(--green);background:var(--green);color:#fff;}
+.step-line{width:60px;height:2px;background:var(--border);transition:background .3s;}
+.step-line.done{background:var(--green);}
+.step-label{font-size:.7rem;color:var(--muted);position:absolute;top:calc(100% + 6px);white-space:nowrap;left:50%;transform:translateX(-50%);}
+.step-dot.active .step-label{color:var(--purple);}
+
+/* STEP FORM */
+.step-form{display:none;}
+.step-form.active{display:block;}
+
+.form-group{margin-bottom:1.1rem;}
+.form-label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;}
+.form-control{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:.65rem .9rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;transition:border-color .2s;
+}
+.form-control:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1);}
+.form-control.error{border-color:var(--red);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+.form-error{color:var(--red);font-size:.75rem;margin-top:.25rem;display:none;}
+
+/* TAG SYSTEM */
+.tag-area{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:.4rem .75rem;display:flex;flex-wrap:wrap;gap:.4rem;min-height:46px;cursor:text;transition:border-color .2s;
+}
+.tag-area:focus-within{border-color:var(--purple);}
+.tag{
+  background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.22);color:var(--purple);
+  border-radius:100px;padding:.2rem .65rem;font-size:.78rem;display:flex;align-items:center;gap:.35rem;
+}
+.tag button{background:none;border:none;color:var(--purple);cursor:pointer;font-size:1rem;line-height:1;padding:0;}
+.tag-input{background:none;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:.825rem;min-width:80px;flex:1;}
+
+/* PREVIEW CARD */
+.preview-card{
+  background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.5rem;
+}
+.preview-header{display:flex;gap:1rem;margin-bottom:1rem;}
+.preview-avatar{width:60px;height:60px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.2rem;color:#fff;overflow:hidden;}
+.preview-avatar img{width:100%;height:100%;object-fit:cover;}
+
+/* PHOTO UPLOAD */
+.photo-upload-area{
+  border:2px dashed rgba(139,92,246,.3);border-radius:var(--radius-lg);padding:2rem;text-align:center;cursor:pointer;
+  transition:all .2s;position:relative;background:rgba(139,92,246,.03);
+}
+.photo-upload-area:hover{border-color:var(--purple);background:rgba(139,92,246,.06);}
+.photo-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+
+/* NAV BUTTONS */
+.form-nav{display:flex;gap:.75rem;justify-content:space-between;margin-top:2rem;}
+
+/* ALERTS */
+.alert{padding:.75rem 1rem;border-radius:9px;font-size:.875rem;margin-bottom:1rem;}
+.alert-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);color:var(--red);}
+.alert-success{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);color:var(--green);}
+
+/* AVAIL BTNS */
+.avail-day-btn{
+  background:var(--card2);border:1px solid var(--border);color:var(--muted);
+  border-radius:8px;padding:.3rem .7rem;font-size:.82rem;cursor:pointer;transition:all .2s;
+}
+.avail-day-btn.active{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.28);color:var(--green);}
+
+/* NEXT STEPS INFO BOX */
+.info-box{
+  background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.15);
+  border-radius:var(--radius);padding:1rem;margin-bottom:1.5rem;font-size:.875rem;color:var(--muted);
+}
+.info-box strong{color:var(--text);}
+
+@media(max-width:600px){.form-row{grid-template-columns:1fr}.step-line{width:30px}}
+</style>
+</head>
+<body>
+<div class="ul-blob ul-blob-1" style="opacity:.4"></div>
+<div class="ul-blob ul-blob-3" style="opacity:.3"></div>
+
+<nav class="nav scrolled">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <div class="nav-actions">
+      <a href="/login.html" class="btn btn-ghost">Log In</a>
+      <a href="/search.html" class="btn btn-ghost">Browse Tutors</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="progress-header">
+    <h1>Become a Tutor on uLearn</h1>
+    <p>Join thousands of expert tutors earning up to $150/hr. Complete your profile in 4 easy steps.</p>
+    <div class="steps-indicator">
+      <div class="step-indicator">
+        <div class="step-dot active" id="dot-1">1<span class="step-label">Personal</span></div>
+      </div>
+      <div class="step-line" id="line-1-2"></div>
+      <div class="step-indicator">
+        <div class="step-dot" id="dot-2">2<span class="step-label">Teaching</span></div>
+      </div>
+      <div class="step-line" id="line-2-3"></div>
+      <div class="step-indicator">
+        <div class="step-dot" id="dot-3">3<span class="step-label">Pricing</span></div>
+      </div>
+      <div class="step-line" id="line-3-4"></div>
+      <div class="step-indicator">
+        <div class="step-dot" id="dot-4">4<span class="step-label">Review</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="alert-error" class="alert alert-error" style="display:none"></div>
+  <div id="alert-success" class="alert alert-success" style="display:none"></div>
+
+  <!-- STEP 1: PERSONAL INFO -->
+  <form class="step-form active" id="step-1">
+    <h2 style="font-family:var(--font-display);font-weight:800;margin-bottom:1.5rem">Tell us about yourself</h2>
+
+    <div class="form-group">
+      <label class="form-label">Profile Photo</label>
+      <div class="photo-upload-area" id="photo-area">
+        <input type="file" id="photo-file" accept="image/*">
+        <div id="photo-preview-inner">
+          <i data-lucide="camera" style="width:32px;height:32px;color:var(--purple);margin:0 auto .75rem"></i>
+          <div style="font-weight:600">Upload a photo</div>
+          <div style="color:var(--muted);font-size:.82rem;margin-top:.25rem">JPG or PNG, max 5MB</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">First Name *</label>
+        <input type="text" class="form-control" id="s1-first" placeholder="John">
+        <div class="form-error" id="s1-first-err">Required</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Last Name *</label>
+        <input type="text" class="form-control" id="s1-last" placeholder="Doe">
+        <div class="form-error" id="s1-last-err">Required</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Email *</label>
+      <input type="email" class="form-control" id="s1-email" placeholder="john@example.com">
+      <div class="form-error" id="s1-email-err">Valid email required</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password *</label>
+      <input type="password" class="form-control" id="s1-password" placeholder="Min 6 characters">
+      <div class="form-error" id="s1-pass-err">Min 6 characters</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Location (City, Country) *</label>
+      <input type="text" class="form-control" id="s1-location" placeholder="e.g. New York, USA">
+      <div class="form-error" id="s1-loc-err">Required</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Bio — Tell students about yourself *</label>
+      <textarea class="form-control" id="s1-bio" rows="4" placeholder="Describe your background, experience, and teaching style..."></textarea>
+      <div class="form-error" id="s1-bio-err">Please write a bio (min 50 characters)</div>
+    </div>
+
+    <div class="form-nav">
+      <div></div>
+      <button type="submit" class="btn btn-primary">
+        Next: Teaching Details <i data-lucide="arrow-right" style="width:15px;height:15px"></i>
+      </button>
+    </div>
+  </form>
+
+  <!-- STEP 2: TEACHING DETAILS -->
+  <form class="step-form" id="step-2">
+    <h2 style="font-family:var(--font-display);font-weight:800;margin-bottom:1.5rem">What do you teach?</h2>
+
+    <div class="form-group">
+      <label class="form-label">Subjects * (press Enter to add)</label>
+      <div class="tag-area" id="subjects-area">
+        <input type="text" class="tag-input" id="subjects-in" placeholder="e.g. Mathematics, Python...">
+      </div>
+      <div class="form-error" id="subjects-err">Add at least one subject</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Levels Taught (press Enter to add)</label>
+      <div class="tag-area" id="levels-area">
+        <input type="text" class="tag-input" id="levels-in" placeholder="e.g. High School, College...">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Languages Spoken (press Enter to add)</label>
+      <div class="tag-area" id="langs-area">
+        <input type="text" class="tag-input" id="langs-in" placeholder="e.g. English...">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Years of Experience *</label>
+        <input type="number" class="form-control" id="s2-exp" min="0" max="50" placeholder="0">
+        <div class="form-error" id="s2-exp-err">Required</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teaching Mode</label>
+        <select class="form-control" id="s2-mode">
+          <option value="online">Online Only</option>
+          <option value="in-person">In-Person Only</option>
+          <option value="both" selected>Both</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Highest Degree / Qualification</label>
+      <input type="text" class="form-control" id="s2-degree" placeholder="e.g. PhD Mathematics, MIT 2010">
+    </div>
+
+    <div class="form-nav">
+      <button type="button" class="btn btn-ghost" onclick="goToStep(1)">
+        <i data-lucide="arrow-left" style="width:15px;height:15px"></i> Back
+      </button>
+      <button type="submit" class="btn btn-primary">
+        Next: Pricing <i data-lucide="arrow-right" style="width:15px;height:15px"></i>
+      </button>
+    </div>
+  </form>
+
+  <!-- STEP 3: PRICING & AVAILABILITY -->
+  <form class="step-form" id="step-3">
+    <h2 style="font-family:var(--font-display);font-weight:800;margin-bottom:1.5rem">Set your price & availability</h2>
+
+    <div class="form-group">
+      <label class="form-label">Hourly Rate (USD) *</label>
+      <input type="number" class="form-control" id="s3-rate" min="5" max="500" step="5" placeholder="e.g. 50">
+      <div style="color:var(--muted);font-size:.78rem;margin-top:.35rem">💡 Average rate on uLearn is $65/hr. Experienced tutors charge $80-150.</div>
+      <div class="form-error" id="s3-rate-err">Rate must be at least $5</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Response Time</label>
+      <select class="form-control" id="s3-response">
+        <option value="< 30 min">Within 30 minutes</option>
+        <option value="< 1 hour" selected>Within 1 hour</option>
+        <option value="< 2 hours">Within 2 hours</option>
+        <option value="< 24 hours">Within 24 hours</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Weekly Availability</label>
+      <div id="avail-btns" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
+        <button type="button" class="avail-day-btn" data-day="mon">Mon</button>
+        <button type="button" class="avail-day-btn" data-day="tue">Tue</button>
+        <button type="button" class="avail-day-btn" data-day="wed">Wed</button>
+        <button type="button" class="avail-day-btn" data-day="thu">Thu</button>
+        <button type="button" class="avail-day-btn" data-day="fri">Fri</button>
+        <button type="button" class="avail-day-btn" data-day="sat">Sat</button>
+        <button type="button" class="avail-day-btn" data-day="sun">Sun</button>
+      </div>
+    </div>
+
+    <div class="form-nav">
+      <button type="button" class="btn btn-ghost" onclick="goToStep(2)">
+        <i data-lucide="arrow-left" style="width:15px;height:15px"></i> Back
+      </button>
+      <button type="submit" class="btn btn-primary">
+        Preview Profile <i data-lucide="arrow-right" style="width:15px;height:15px"></i>
+      </button>
+    </div>
+  </form>
+
+  <!-- STEP 4: PREVIEW & SUBMIT -->
+  <div class="step-form" id="step-4">
+    <h2 style="font-family:var(--font-display);font-weight:800;margin-bottom:1.5rem">Review Your Profile</h2>
+    <div class="preview-card" id="preview-content"></div>
+    <div class="info-box">
+      <strong>What happens next?</strong><br>
+      Your profile will be reviewed and approved within 24 hours. You'll receive an email when you're live!
+    </div>
+    <div class="form-nav">
+      <button type="button" class="btn btn-ghost" onclick="goToStep(3)">
+        <i data-lucide="arrow-left" style="width:15px;height:15px"></i> Back
+      </button>
+      <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitAll()">
+        <i data-lucide="check-circle" style="width:15px;height:15px"></i> Submit Profile
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+let step = 1;
+let formData = { subjects: [], levels: [], langs: [], avail: {} };
+let photoFile = null;
+let existingUser = null;
+
+async function checkAuth() {
+  const r = await fetch('/auth/me');
+  const { user } = await r.json();
+  if (user) {
+    existingUser = user;
+    document.getElementById('s1-first').value = user.name.split(' ')[0] || '';
+    document.getElementById('s1-last').value = user.name.split(' ').slice(1).join(' ') || '';
+    document.getElementById('s1-email').value = user.email || '';
+    document.getElementById('s1-password').placeholder = 'Leave blank to keep current password';
+    document.getElementById('s1-password').required = false;
+  }
+}
+
+function makeTagSystem(areaId, inputId, arr) {
+  const area = document.getElementById(areaId);
+  const input = document.getElementById(inputId);
+  function render() {
+    area.querySelectorAll('.tag').forEach(el => el.remove());
+    arr.forEach((tag, i) => {
+      const el = document.createElement('span');
+      el.className = 'tag';
+      el.innerHTML = `${tag} <button type="button" onclick="removeT('${areaId}','${inputId}',${i})">×</button>`;
+      area.insertBefore(el, input);
+    });
+  }
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim(); if (v && !arr.includes(v)) { arr.push(v); render(); e.target.value = ''; } }
+  });
+  return render;
+}
+const renderSubjects = makeTagSystem('subjects-area', 'subjects-in', formData.subjects);
+const renderLevels = makeTagSystem('levels-area', 'levels-in', formData.levels);
+const renderLangs = makeTagSystem('langs-area', 'langs-in', formData.langs);
+function removeT(areaId, inputId, idx) {
+  const arr = areaId === 'subjects-area' ? formData.subjects : areaId === 'levels-area' ? formData.levels : formData.langs;
+  arr.splice(idx, 1);
+  if (areaId === 'subjects-area') renderSubjects();
+  else if (areaId === 'levels-area') renderLevels();
+  else renderLangs();
+}
+
+document.querySelectorAll('.avail-day-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const d = btn.dataset.day;
+    if (formData.avail[d]) {
+      delete formData.avail[d];
+      btn.classList.remove('active');
+    } else {
+      formData.avail[d] = [9, 20];
+      btn.classList.add('active');
+    }
+  });
+});
+
+document.getElementById('photo-file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  photoFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('photo-preview-inner').innerHTML = `<img src="${ev.target.result}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto">
+      <div style="font-size:.78rem;color:var(--green);margin-top:.5rem">✓ Photo selected</div>`;
+  };
+  reader.readAsDataURL(file);
+});
+
+function goToStep(n) {
+  document.getElementById(`step-${step}`)?.classList.remove('active');
+  document.getElementById(`step-${n}`)?.classList.add('active');
+  for (let i = 1; i <= 4; i++) {
+    const dot = document.getElementById(`dot-${i}`);
+    if (i < n) dot.className = 'step-dot done';
+    else if (i === n) dot.className = 'step-dot active';
+    else dot.className = 'step-dot';
+  }
+  for (let i = 1; i <= 3; i++) {
+    const line = document.getElementById(`line-${i}-${i+1}`);
+    if (line) line.className = 'step-line' + (i < n ? ' done' : '');
+  }
+  step = n;
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('step-1').addEventListener('submit', e => {
+  e.preventDefault();
+  let valid = true;
+  const first = document.getElementById('s1-first').value.trim();
+  const last = document.getElementById('s1-last').value.trim();
+  const email = document.getElementById('s1-email').value.trim();
+  const pass = document.getElementById('s1-password').value;
+  const loc = document.getElementById('s1-location').value.trim();
+  const bio = document.getElementById('s1-bio').value.trim();
+  if (!first) { document.getElementById('s1-first-err').style.display = 'block'; valid = false; } else document.getElementById('s1-first-err').style.display = 'none';
+  if (!last) { document.getElementById('s1-last-err').style.display = 'block'; valid = false; } else document.getElementById('s1-last-err').style.display = 'none';
+  if (!email || !email.includes('@')) { document.getElementById('s1-email-err').style.display = 'block'; valid = false; } else document.getElementById('s1-email-err').style.display = 'none';
+  if (!existingUser && pass.length < 6) { document.getElementById('s1-pass-err').style.display = 'block'; valid = false; } else document.getElementById('s1-pass-err').style.display = 'none';
+  if (!loc) { document.getElementById('s1-loc-err').style.display = 'block'; valid = false; } else document.getElementById('s1-loc-err').style.display = 'none';
+  if (!bio || bio.length < 50) { document.getElementById('s1-bio-err').style.display = 'block'; valid = false; } else document.getElementById('s1-bio-err').style.display = 'none';
+  if (!valid) return;
+  formData.name = `${first} ${last}`.trim();
+  formData.email = email;
+  formData.password = pass;
+  formData.location = loc;
+  formData.bio = bio;
+  goToStep(2);
+});
+
+document.getElementById('step-2').addEventListener('submit', e => {
+  e.preventDefault();
+  let valid = true;
+  if (formData.subjects.length === 0) { document.getElementById('subjects-err').style.display = 'block'; valid = false; } else document.getElementById('subjects-err').style.display = 'none';
+  const exp = document.getElementById('s2-exp').value;
+  if (!exp && exp !== '0') { document.getElementById('s2-exp-err').style.display = 'block'; valid = false; } else document.getElementById('s2-exp-err').style.display = 'none';
+  if (!valid) return;
+  formData.experience_years = parseInt(exp) || 0;
+  formData.teaching_mode = document.getElementById('s2-mode').value;
+  formData.degree = document.getElementById('s2-degree').value;
+  if (formData.langs.length === 0) formData.langs.push('English');
+  goToStep(3);
+});
+
+document.getElementById('step-3').addEventListener('submit', e => {
+  e.preventDefault();
+  const rate = parseFloat(document.getElementById('s3-rate').value);
+  if (!rate || rate < 5) { document.getElementById('s3-rate-err').style.display = 'block'; return; }
+  document.getElementById('s3-rate-err').style.display = 'none';
+  formData.hourly_rate = rate;
+  formData.response_time = document.getElementById('s3-response').value;
+  renderPreview();
+  goToStep(4);
+});
+
+function renderPreview() {
+  const pc = document.getElementById('preview-content');
+  pc.innerHTML = `
+    <div class="preview-header">
+      <div class="preview-avatar">${photoFile ? `<img id="prev-photo">` : formData.name?.charAt(0) || '?'}</div>
+      <div>
+        <div style="font-weight:700;font-size:1.1rem;font-family:var(--font-display)">${formData.name}</div>
+        <div style="color:var(--muted);font-size:.85rem">${formData.location}</div>
+        <div style="color:var(--purple);font-weight:700;margin-top:.3rem">$${formData.hourly_rate}/hr</div>
+      </div>
+    </div>
+    <div style="margin-bottom:.75rem"><strong style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">BIO</strong><p style="font-size:.875rem;color:var(--muted);margin-top:.3rem">${formData.bio}</p></div>
+    <div style="margin-bottom:.75rem"><strong style="font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">SUBJECTS</strong>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem">${formData.subjects.map(s=>`<span style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.22);color:var(--purple);border-radius:100px;padding:.2rem .55rem;font-size:.75rem">${s}</span>`).join('')}</div></div>
+    <div style="display:flex;gap:2rem;font-size:.82rem;color:var(--muted)">
+      <div>📚 ${formData.experience_years} yrs exp</div>
+      <div>💻 ${formData.teaching_mode}</div>
+      <div>⚡ ${formData.response_time}</div>
+    </div>`;
+  if (photoFile) {
+    const reader = new FileReader();
+    reader.onload = ev => { const img = document.getElementById('prev-photo'); if (img) img.src = ev.target.result; };
+    reader.readAsDataURL(photoFile);
+  }
+}
+
+async function submitAll() {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Creating account...';
+  document.getElementById('alert-error').style.display = 'none';
+  try {
+    let user = existingUser;
+    if (!user) {
+      const r = await fetch('/auth/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: formData.name, email: formData.email, password: formData.password, role: 'tutor' }) });
+      const data = await r.json();
+      if (!r.ok) { document.getElementById('alert-error').textContent = data.error || 'Signup failed'; document.getElementById('alert-error').style.display = 'block'; btn.disabled = false; btn.textContent = 'Submit Profile'; return; }
+      user = data.user;
+    }
+    await fetch('/api/students/profile', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: formData.name, bio: formData.bio, location: formData.location }) });
+    if (photoFile) {
+      const fd = new FormData(); fd.append('avatar', photoFile);
+      await fetch('/api/upload/avatar', { method:'POST', body: fd });
+    }
+    const edu = formData.degree ? [{ degree: formData.degree, institution: '', year: '' }] : [];
+    const r2 = await fetch('/api/tutors/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      headline: `${formData.subjects.slice(0,2).join(' & ')} Tutor · ${formData.experience_years} Years Experience`,
+      subjects: formData.subjects, levels: formData.levels, teaching_mode: formData.teaching_mode,
+      hourly_rate: formData.hourly_rate, experience_years: formData.experience_years,
+      education: edu, certifications: [], languages: formData.langs,
+      availability: formData.avail, response_time: formData.response_time
+    })});
+    if (!r2.ok) { const d = await r2.json(); document.getElementById('alert-error').textContent = d.error || 'Profile creation failed'; document.getElementById('alert-error').style.display = 'block'; btn.disabled = false; btn.textContent = 'Submit Profile'; return; }
+    document.getElementById('alert-success').innerHTML = `
+      <strong>🎉 Profile created successfully!</strong><br><br>
+      ⚠️ <em>Please verify your email — a verification link has been sent to your inbox.</em><br><br>
+      📋 <strong>Policy Notice:</strong> Your profile is live. Any content violating uLearn's community standards may result in suspension.
+    `;
+    document.getElementById('alert-success').style.display = 'block';
+    setTimeout(() => window.location = '/dashboard-tutor.html', 4000);
+  } catch(err) {
+    document.getElementById('alert-error').textContent = 'Server error. Please try again.';
+    document.getElementById('alert-error').style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Submit Profile';
+  }
+}
+
+checkAuth();
+lucide.createIcons();
+</script>
+</body>
+</html>

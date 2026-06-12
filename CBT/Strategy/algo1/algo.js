@@ -296,12 +296,25 @@ function checkExit(position, candles) {
 }
 
 // ── Trailing SL computation ───────────────────────────────────────
+// Milestones:
+//   profit ≥ $200 → SL to break-even (lock $0)
+//   profit ≥ $250 → lock $100
+//   profit ≥ $300 → lock $200
+//   profit ≥ $400 → lock $300  (every +$100 above $300: lock = profit − $100)
 function computeTrailUpdate(position, unrealPnl) {
   const { side, entryPrice, size, stopLoss } = position;
-  const band = Math.floor(unrealPnl / 50);
-  if (band < 6) return null;
 
-  const lockProfit = (band - 1) * 50;
+  let lockProfit;
+  if (unrealPnl >= 300) {
+    lockProfit = Math.floor((unrealPnl - 100) / 100) * 100; // 300→200, 400→300, 500→400 …
+  } else if (unrealPnl >= 250) {
+    lockProfit = 100;
+  } else if (unrealPnl >= 200) {
+    lockProfit = 0; // break-even
+  } else {
+    return null;
+  }
+
   const newSl = side === 'long'
     ? entryPrice + lockProfit / size
     : entryPrice - lockProfit / size;

@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RobAlgo6 — NY Session 4H+5M · Robinhood Live</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #e3b341; --purple: #bc8cff;
+    --orange: #f0883e; --teal: #39d353; --pink: #ff7b72;
+    --rh-green: #00c805;
+    --font: 'Courier New', Courier, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 12px 16px; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header .title    { font-size: 1.1rem; font-weight: 700; color: var(--rh-green); }
+  header .subtitle { font-size: .75rem; color: var(--muted); }
+  header .badge {
+    padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700;
+    border: 1px solid; letter-spacing: .5px;
+  }
+  .badge-paper   { color: var(--yellow); border-color: var(--yellow); }
+  .badge-live    { color: var(--rh-green); border-color: var(--rh-green); }
+  .badge-running { color: var(--teal);   border-color: var(--teal); animation: pulse 1.5s infinite; }
+  .badge-stopped { color: var(--muted);  border-color: var(--muted); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .spacer { flex: 1; }
+  #last-update { color: var(--muted); font-size: .72rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+  }
+  .card-title {
+    font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media(max-width:900px){ .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Robinhood panel */
+  .rh-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+    transition: border-color .3s;
+  }
+  .rh-panel.connected    { border-color: rgba(0,200,5,.4); }
+  .rh-panel.disconnected { border-color: rgba(248,81,73,.2); }
+  .rh-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .rh-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .rh-dot.on  { background: var(--rh-green); box-shadow: 0 0 6px var(--rh-green); animation: pulse 1.5s infinite; }
+  .rh-dot.off { background: var(--red); }
+  .rh-status-text { font-weight: 700; }
+  .rh-account { color: var(--muted); font-size: .8rem; }
+  .auth-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+  .auth-form .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .auth-form .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .auth-note { font-size: .72rem; color: var(--muted); margin-top: 8px; }
+  .auth-note span { color: var(--rh-green); }
+  #rh-auth-msg { font-size: .78rem; margin-top: 6px; }
+
+  /* Phase banner */
+  .phase-banner {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; margin-top: 12px;
+    transition: border-color .3s;
+  }
+  .phase-banner.phase-wait    { border-color: rgba(139,148,158,.4); }
+  .phase-banner.phase-forming { border-color: var(--yellow); }
+  .phase-banner.phase-flag    { border-color: var(--orange); }
+  .phase-banner.phase-buy     { border-color: var(--teal); }
+  .phase-banner.phase-trade   { border-color: var(--rh-green); }
+  .phase-banner.phase-done    { border-color: var(--purple); }
+  .phase-icon { font-size: 2rem; }
+  .phase-title { font-size: 1rem; font-weight: 700; margin-bottom: 3px; }
+  .phase-sub   { font-size: .78rem; color: var(--muted); }
+
+  /* Level display */
+  .level-row { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .level-box {
+    flex: 1; min-width: 140px;
+    background: rgba(0,0,0,.25); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; text-align: center;
+  }
+  .level-box.high  { border-color: rgba(63,185,80,.4); }
+  .level-box.price { border-color: rgba(88,166,255,.4); }
+  .level-box.low   { border-color: rgba(248,81,73,.4); }
+  .level-box.flag  { border-color: rgba(240,136,62,.5); }
+  .level-label { font-size: .65rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 6px; }
+  .level-val   { font-size: 1.4rem; font-weight: 700; }
+  .level-sub   { font-size: .7rem; color: var(--muted); margin-top: 3px; }
+
+  /* Mode tabs */
+  .mode-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .mode-tab {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--font);
+    font-size: .75rem; font-weight: 700; cursor: pointer; letter-spacing: .5px; transition: all .15s;
+  }
+  .mode-tab:hover { border-color: var(--rh-green); color: var(--rh-green); }
+  .mode-tab.active          { background: var(--yellow);   border-color: var(--yellow);   color: #000; }
+  .mode-tab.active-live     { background: var(--rh-green); border-color: var(--rh-green); color: #000; }
+  .mode-tab.active-backtest { background: var(--purple);   border-color: var(--purple);   color: #000; }
+
+  /* Controls */
+  .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  select, input[type=number], input[type=text], input[type=password] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 13px;
+    outline: none; transition: border-color .2s;
+  }
+  select:focus, input:focus { border-color: var(--rh-green); }
+  .btn {
+    padding: 7px 18px; border: none; border-radius: 6px;
+    font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: opacity .15s, transform .1s; letter-spacing: .4px;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: default; transform: none; }
+  .btn-start    { background: var(--teal);     color: #000; }
+  .btn-stop     { background: var(--red);      color: #fff; }
+  .btn-backtest { background: var(--purple);   color: #000; }
+  .btn-rh       { background: var(--rh-green); color: #000; }
+  .btn-logout   { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: .75rem; padding: 5px 12px; }
+
+  /* Backtest panel */
+  #backtest-panel { display: none; }
+  #backtest-panel.show { display: block; }
+  .bt-progress {
+    margin-top: 10px; padding: 8px 12px;
+    background: rgba(188,140,255,.1); border: 1px solid rgba(188,140,255,.3);
+    border-radius: 6px; color: var(--purple); font-size: .82rem;
+  }
+  .bt-results { margin-top: 12px; }
+  .bt-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 10px; }
+  @media(max-width:700px){ .bt-stat-grid { grid-template-columns: repeat(2,1fr); } }
+
+  /* PnL */
+  .pnl-big { font-size: 2rem; font-weight: 700; transition: color .3s; }
+  .pnl-pct { font-size: .95rem; color: var(--muted); margin-left: 6px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 10px; }
+  @media(max-width:700px){ .stat-grid { grid-template-columns: repeat(2,1fr); } }
+  .stat-box {
+    background: rgba(255,255,255,.03); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .stat-box .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+  .stat-box .val { font-size: .95rem; font-weight: 700; }
+
+  /* Position */
+  .pos-row  { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 6px; }
+  .pos-item { display: flex; flex-direction: column; gap: 2px; }
+  .pos-item .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .pos-item .val { font-size: .88rem; font-weight: 700; }
+  .pos-none { color: var(--muted); font-style: italic; margin-top: 4px; }
+
+  /* Algo logic */
+  .logic-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 4px; }
+  @media(max-width:900px){ .logic-grid { grid-template-columns: 1fr; } }
+  .logic-box {
+    background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px;
+  }
+  .logic-box .lh { font-size: .7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
+  .logic-rule { font-size: .78rem; color: var(--muted); margin-bottom: 4px; line-height: 1.4; }
+  .logic-rule span { color: var(--rh-green); font-weight: 700; }
+
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; margin-top: 8px; max-height: 340px; overflow-y: auto; }
+  .tbl-wrap.log-wrap    { max-height: 420px; }
+  .tbl-wrap.bt-tbl-wrap { max-height: 400px; }
+  table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  thead th {
+    background: var(--bg); color: var(--muted); text-transform: uppercase;
+    letter-spacing: .8px; font-size: .68rem; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  tbody td { padding: 5px 8px; white-space: nowrap; color: var(--muted); }
+  tbody td.main { color: var(--text); }
+  .clr-g { color: var(--green)  !important; }
+  .clr-r { color: var(--red)    !important; }
+  .clr-y { color: var(--yellow) !important; }
+  .clr-a { color: var(--accent) !important; }
+  .clr-p { color: var(--purple) !important; }
+  .clr-o { color: var(--orange) !important; }
+  .clr-rh { color: var(--rh-green) !important; }
+  .type-wait   { color: var(--muted); }
+  .type-info   { color: var(--accent); }
+  .type-4h     { color: var(--yellow); }
+  .type-level  { color: var(--yellow); font-weight: 700; }
+  .type-flag   { color: var(--orange); font-weight: 700; }
+  .type-signal { color: var(--teal); font-weight: 700; }
+  .type-entry  { color: var(--rh-green); font-weight: 700; }
+  .type-exit   { color: var(--yellow); font-weight: 700; }
+  .type-trail  { color: var(--green); font-weight: 700; }
+  .type-rh     { color: var(--rh-green); }
+  .type-error  { color: var(--red); font-weight: 700; }
+  .empty-msg   { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+  .reason-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #err-banner {
+    display: none; margin-top: 10px; padding: 9px 14px;
+    background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3);
+    border-radius: 6px; color: var(--red); font-size: .82rem;
+  }
+  #err-banner.show { display: block; }
+  .trail-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .68rem;
+    background: rgba(0,200,5,.15); border: 1px solid var(--rh-green); color: var(--rh-green);
+    font-weight: 700; letter-spacing: .5px; animation: pulse 1.5s infinite;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title">RobAlgo6 — Robinhood Live</div>
+    <div class="subtitle">NY Session 4H Level (12:00 UTC) · 5M FLAG/Reclaim BUY · Decremental SL · 2% Risk · Real Robinhood Orders</div>
+  </div>
+  <span class="badge badge-paper" id="mode-badge">PAPER</span>
+  <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
+  <span id="rh-badge" class="badge" style="color:var(--muted);border-color:var(--muted)">RH: —</span>
+  <div class="spacer"></div>
+  <span id="last-update">—</span>
+</header>
+
+<div class="wrap">
+
+  <!-- Robinhood Connection Panel -->
+  <div class="rh-panel disconnected" id="rh-panel">
+    <div class="card-title">Robinhood Connection</div>
+    <div class="rh-row">
+      <div class="rh-dot off" id="rh-dot"></div>
+      <span class="rh-status-text" id="rh-status-text">Not Connected</span>
+      <span class="rh-account" id="rh-account-id"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-logout" id="btn-rh-logout" onclick="rhLogout()" style="display:none">Disconnect</button>
+    </div>
+    <div id="rh-auth-section">
+      <div class="auth-form" id="rh-auth-form">
+        <div class="ctrl-group">
+          <label>Email</label>
+          <input type="text" id="rh-username" placeholder="your@email.com" style="width:180px"/>
+        </div>
+        <div class="ctrl-group">
+          <label>Password</label>
+          <input type="password" id="rh-password" placeholder="••••••••" style="width:140px"/>
+        </div>
+        <div class="ctrl-group">
+          <label>MFA Code <span style="color:var(--muted)">(if enabled)</span></label>
+          <input type="text" id="rh-mfa" placeholder="123456 or TOTP secret" style="width:180px"/>
+        </div>
+        <div class="ctrl-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-rh" onclick="rhAuth()">Connect Robinhood</button>
+        </div>
+      </div>
+      <div id="rh-auth-msg"></div>
+      <div class="auth-note">
+        <span>Official API:</span> Set <code>RH_API_KEY_ID</code> + <code>RH_API_PRIVATE_KEY</code> env vars to skip this form (auto-connects at startup).<br>
+        <span>OAuth2:</span> Enter email + password above. If MFA is enabled, enter your 6-digit code <em>or</em> the base32 TOTP secret (auto-generates code).<br>
+        Robinhood Crypto only supports <span>LONG (buy)</span> trades — short signals are skipped in live mode.
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Controls</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-paper"    onclick="setMode('paper')">PAPER TRADE</button>
+        <button class="mode-tab"        id="tab-live"     onclick="setMode('live')">LIVE (ROBINHOOD)</button>
+        <button class="mode-tab"        id="tab-backtest" onclick="setMode('backtest')">BACKTEST</button>
+      </div>
+      <div class="ctrl-row" id="trading-controls">
+        <div class="ctrl-group">
+          <label>Symbol</label>
+          <select id="ctrl-symbol">
+            <option value="BTCUSDT">BTC/USD</option>
+            <option value="ETHUSDT">ETH/USD</option>
+            <option value="SOLUSDT">SOL/USD</option>
+            <option value="XRPUSDT">XRP/USD</option>
+            <option value="LTCUSDT">LTC/USD</option>
+            <option value="ADAUSDT">ADA/USD</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Capital ($) <span id="live-bal-note" style="color:var(--muted);font-size:.65rem"></span></label>
+          <input id="ctrl-balance" type="number" value="10000" min="100" step="100" style="width:100px"/>
+        </div>
+        <div class="ctrl-group">
+          <label>&nbsp;</label>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-start" id="btn-start" onclick="startAlgo()">▶ START</button>
+            <button class="btn btn-stop"  id="btn-stop"  onclick="stopAlgo()" disabled>■ STOP</button>
+          </div>
+        </div>
+      </div>
+      <!-- Backtest Panel -->
+      <div id="backtest-panel">
+        <div style="height:10px"></div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label>Symbol</label>
+            <select id="bt-symbol">
+              <option value="BTCUSDT">BTC/USD</option>
+              <option value="ETHUSDT">ETH/USD</option>
+              <option value="SOLUSDT">SOL/USD</option>
+              <option value="XRPUSDT">XRP/USD</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>Duration</label>
+            <select id="bt-months">
+              <option value="1">1 month</option>
+              <option value="3" selected>3 months</option>
+              <option value="6">6 months</option>
+              <option value="12">12 months</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-backtest" id="btn-run-bt" onclick="runBacktest()">▶ RUN BACKTEST</button>
+          </div>
+        </div>
+        <div id="bt-status"></div>
+        <div id="bt-results" class="bt-results" style="display:none"></div>
+      </div>
+      <div id="err-banner"></div>
+    </div>
+
+    <!-- PnL Dashboard -->
+    <div class="card">
+      <div class="card-title">PnL Dashboard</div>
+      <div style="display:flex;align-items:baseline;gap:4px">
+        <div class="pnl-big" id="pnl-val">$0.00</div>
+        <div class="pnl-pct" id="pnl-pct">(0.00%)</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="lbl">Balance</div><div class="val" id="stat-balance">$10,000.00</div></div>
+        <div class="stat-box"><div class="lbl">Trades</div><div class="val" id="stat-trades">0</div></div>
+        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="stat-wr">0%</div></div>
+        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r" id="stat-maxdd">$0</div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="card-title" style="margin-bottom:6px">Open Position</div>
+        <div id="pos-display"><div class="pos-none">No open position — FLAT</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase + Level Status -->
+  <div class="phase-banner phase-wait" id="phase-banner">
+    <div class="phase-icon" id="phase-icon">⏳</div>
+    <div style="flex:1">
+      <div class="phase-title" id="phase-title">Waiting for NY Session 4h Candle</div>
+      <div class="phase-sub" id="phase-sub">Start the algo to begin monitoring. NY session 4h candle opens at 12:00 UTC daily.</div>
+    </div>
+  </div>
+
+  <div class="level-row" id="level-row">
+    <div class="level-box high">
+      <div class="level-label">4H Level High</div>
+      <div class="level-val clr-g" id="lvl-high">—</div>
+      <div class="level-sub" id="lvl-high-sub">NY session 4h candle high</div>
+    </div>
+    <div class="level-box price">
+      <div class="level-label">Current Price</div>
+      <div class="level-val" id="lvl-price">—</div>
+      <div class="level-sub" id="lvl-price-sub">—</div>
+    </div>
+    <div class="level-box low">
+      <div class="level-label">4H Level Low</div>
+      <div class="level-val clr-r" id="lvl-low">—</div>
+      <div class="level-sub" id="lvl-low-sub">NY session 4h candle low</div>
+    </div>
+    <div class="level-box flag" id="flag-box" style="display:none">
+      <div class="level-label">Lowest Low (SL)</div>
+      <div class="level-val clr-o" id="lvl-flag">—</div>
+      <div class="level-sub" id="lvl-flag-sub">Lowest low: FLAG → entry candle</div>
+    </div>
+  </div>
+
+  <!-- Strategy Logic -->
+  <div class="card">
+    <div class="card-title">Strategy Logic — NY Session 4H Level + 5M Flag/Reclaim (Robinhood Live Execution)</div>
+    <div class="logic-grid">
+      <div class="logic-box">
+        <div class="lh" style="color:var(--yellow)">Step 1 · Find NY Session 4h Level</div>
+        <div class="logic-rule">• Find the <span>first 4h candle</span> of the New York session each day</div>
+        <div class="logic-rule">• NY session 4h candle = opens at <span>12:00 UTC</span>, closes at <span>16:00 UTC</span></div>
+        <div class="logic-rule">• <span>LevelHigh</span> = High of that candle | <span>LevelLow</span> = Low of that candle</div>
+        <div class="logic-rule" style="margin-top:6px;color:var(--muted)">Price data sourced from Kraken (public API). Orders execute on Robinhood.</div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--orange)">Step 2 · Find FLAG Candle (after 16:00 UTC)</div>
+        <div class="logic-rule">• After the 4h candle closes, switch to the <span>5-minute chart</span></div>
+        <div class="logic-rule">• Watch for a 5m candle whose <span>close &lt; LevelLow</span></div>
+        <div class="logic-rule">• That candle becomes the <span>FLAG candle</span></div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--rh-green)">Step 3 · BUY Entry (LevelLow Reclaim)</div>
+        <div class="logic-rule">• Watch for a 5m candle that <span>closes &gt; LevelLow</span></div>
+        <div class="logic-rule">• In live mode: <span>Robinhood market buy order</span> placed immediately</div>
+        <div class="logic-rule">• <span>SL</span> = Lowest low from FLAG candle → entry candle</div>
+        <div class="logic-rule">• Risk per trade: <span>2% of balance</span></div>
+      </div>
+      <div class="logic-box">
+        <div class="lh" style="color:var(--green)">Step 4 · Decremental SL Trail (5s checks)</div>
+        <div class="logic-rule">• <span>1R profit</span> → SL = entry (breakeven)</div>
+        <div class="logic-rule">• <span>1.5R profit</span> → SL = entry + 1×dist (1R locked)</div>
+        <div class="logic-rule">• <span>2R profit</span> → Phase 4 trail: SL trails max−min($25, 0.25×dist)</div>
+        <div class="logic-rule">• When SL hit: <span>Robinhood market sell order</span> placed automatically</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade Records -->
+  <div class="card">
+    <div class="card-title">Entry / Exit Records <span id="trades-count" style="color:var(--muted);font-weight:400">(0)</span></div>
+    <div class="tbl-wrap">
+      <table id="trades-tbl">
+        <thead>
+          <tr>
+            <th>Time</th><th>Type</th><th>Side</th>
+            <th>Price</th><th>LvlHigh</th><th>LvlLow</th><th>FlagLow</th>
+            <th>Stop Loss</th><th>TP Ref</th><th>PnL</th><th>Balance</th>
+            <th>RH Order</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="13" class="empty-msg">No trades yet — start the algo to begin</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tick Log -->
+  <div class="card">
+    <div class="card-title">Activity Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span></div>
+    <div class="tbl-wrap log-wrap">
+      <table id="log-tbl">
+        <thead>
+          <tr><th>Time</th><th>Type</th><th>Message</th></tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="3" class="empty-msg">Waiting for first tick…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt      = (v, d=4) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
+const fmt2     = v => fmt(v, 2);
+const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
+const fmtTime  = iso => { const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let appState    = {};
+let logCount    = 0;
+let tradeCount  = 0;
+let currentMode = 'paper';
+let rhConnected = false;
+let es;
+const shownTradeKeys = new Set();
+
+// ── Robinhood auth ─────────────────────────────────────────────────
+async function refreshRhStatus() {
+  try {
+    const r = await fetch('/api/rh-status');
+    const d = await r.json();
+    rhConnected = d.connected;
+    updateRhPanel(d);
+  } catch {}
+}
+
+function updateRhPanel(d) {
+  const panel   = $('rh-panel');
+  const dot     = $('rh-dot');
+  const text    = $('rh-status-text');
+  const acctEl  = $('rh-account-id');
+  const authSec = $('rh-auth-section');
+  const logoutBtn = $('btn-rh-logout');
+  const badge   = $('rh-badge');
+
+  if (d.connected) {
+    panel.className = 'rh-panel connected';
+    dot.className   = 'rh-dot on';
+    text.textContent = 'Connected' + (d.mode === 'official' ? ' (Official API)' : ' (OAuth2)');
+    text.style.color = 'var(--rh-green)';
+    acctEl.textContent = d.accountId ? `Account: ${d.accountId}` : '';
+    authSec.style.display = 'none';
+    logoutBtn.style.display = '';
+    badge.textContent = '🟢 RH: LIVE';
+    badge.style.color = 'var(--rh-green)';
+    badge.style.borderColor = 'var(--rh-green)';
+    if (currentMode === 'live') {
+      $('live-bal-note').textContent = '(syncs from Robinhood at start)';
+    }
+  } else {
+    panel.className = 'rh-panel disconnected';
+    dot.className   = 'rh-dot off';
+    text.textContent = d.mode === 'official' ? 'Official API (key loaded)' : 'Not Connected';
+    text.style.color = d.mode === 'official' ? 'var(--yellow)' : 'var(--red)';
+    acctEl.textContent = '';
+    authSec.style.display = '';
+    logoutBtn.style.display = 'none';
+    badge.textContent = 'RH: —';
+    badge.style.color = 'var(--muted)';
+    badge.style.borderColor = 'var(--muted)';
+    $('live-bal-note').textContent = '';
+  }
+}
+
+async function rhAuth() {
+  const username  = $('rh-username').value.trim();
+  const password  = $('rh-password').value;
+  const mfaRaw    = $('rh-mfa').value.trim();
+  const msgEl     = $('rh-auth-msg');
+  if (!username || !password) { msgEl.textContent = '⚠ Email and password are required'; msgEl.style.color = 'var(--red)'; return; }
+  msgEl.textContent = 'Connecting to Robinhood…'; msgEl.style.color = 'var(--muted)';
+
+  const body = { username, password };
+  // If mfa is 6 digits treat as code, otherwise treat as TOTP secret
+  if (mfaRaw) {
+    if (/^\d{6}$/.test(mfaRaw)) body.mfaCode   = mfaRaw;
+    else                         body.mfaSecret = mfaRaw;
+  }
+
+  try {
+    const r = await fetch('/api/rh-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) {
+      msgEl.textContent = '✓ Connected! Account: ' + (d.accountId || 'loaded'); msgEl.style.color = 'var(--rh-green)';
+      await refreshRhStatus();
+    } else if (d.mfaRequired) {
+      msgEl.textContent = '⚠ MFA required — enter your 6-digit code or TOTP secret in the MFA field'; msgEl.style.color = 'var(--yellow)';
+    } else {
+      msgEl.textContent = '✗ ' + (d.error || 'Login failed'); msgEl.style.color = 'var(--red)';
+    }
+  } catch (e) { msgEl.textContent = '✗ ' + e.message; msgEl.style.color = 'var(--red)'; }
+}
+
+async function rhLogout() {
+  await fetch('/api/rh-logout', { method: 'POST' });
+  await refreshRhStatus();
+}
+
+// ── Mode ───────────────────────────────────────────────────────────
+function setMode(m) {
+  currentMode = m;
+  ['paper','live','backtest'].forEach(id => {
+    const tab = $('tab-' + id);
+    tab.className = 'mode-tab' + (m === id ? (id === 'live' ? ' active-live' : id === 'backtest' ? ' active-backtest' : ' active') : '');
+  });
+  const tradingCtrl = $('trading-controls');
+  const btPanel     = $('backtest-panel');
+  if (m === 'backtest') { tradingCtrl.style.display = 'none'; btPanel.classList.add('show'); }
+  else { tradingCtrl.style.display = ''; btPanel.classList.remove('show'); }
+  const mb = $('mode-badge');
+  if (m === 'live') {
+    mb.textContent = 'LIVE'; mb.className = 'badge badge-live';
+    $('live-bal-note').textContent = rhConnected ? '(syncs from Robinhood at start)' : '';
+  } else if (m === 'backtest') {
+    mb.textContent = 'BACKTEST'; mb.className = 'badge';
+    mb.style.cssText = 'color:var(--purple);border-color:var(--purple)';
+    $('live-bal-note').textContent = '';
+  } else {
+    mb.textContent = 'PAPER'; mb.className = 'badge badge-paper'; mb.style.cssText = '';
+    $('live-bal-note').textContent = '';
+  }
+}
+
+// ── SSE ────────────────────────────────────────────────────────────
+function connectSSE() {
+  if (es) { es.close(); es = null; }
+  es = new EventSource('/events', { withCredentials: true });
+  es.onmessage = e => handle(JSON.parse(e.data));
+  es.onerror   = () => { if (es) { es.close(); es = null; } setTimeout(connectSSE, 3000); };
+}
+
+function handle(d) {
+  switch (d.type) {
+    case 'connected':
+      applyState(d.state);
+      if (d.logs && d.logs.length) {
+        $('log-body').innerHTML = ''; logCount = 0;
+        [...d.logs].reverse().forEach(e => prependLog(e));
+        updateLogCount();
+      }
+      loadTrades();
+      break;
+    case 'started': case 'stopped': case 'tick': applyState(d.state); break;
+    case 'flag':  applyState(d.state); break;
+    case 'log':   prependLog(d.entry); updateLogCount(); break;
+    case 'trade': applyState(d.state); loadTrades(); break;
+    case 'error': applyState(d.state); showErr(d.message); break;
+  }
+  $('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+const PHASE_CONFIG = {
+  'WAIT_4H':    { icon: '⏳', cls: 'phase-wait',    color: 'var(--muted)' },
+  '4H_FORMING': { icon: '📊', cls: 'phase-forming',  color: 'var(--yellow)' },
+  'WAIT_FLAG':  { icon: '🔍', cls: 'phase-flag',     color: 'var(--orange)' },
+  'WAIT_BUY':   { icon: '⚡', cls: 'phase-buy',      color: 'var(--teal)' },
+  'IN_TRADE':   { icon: '🟢', cls: 'phase-trade',    color: 'var(--rh-green)' },
+  'DONE':       { icon: '✅', cls: 'phase-done',     color: 'var(--purple)' },
+};
+const PHASE_LABELS = {
+  'WAIT_4H':    'Waiting for NY Session 4h Candle (12:00 UTC)',
+  '4H_FORMING': 'NY Session 4h Candle Forming…',
+  'WAIT_FLAG':  'Watching 5m Chart for FLAG Candle (close < LevelLow)',
+  'WAIT_BUY':   'FLAG Set — Waiting for LevelLow Reclaim (close > LevelLow)',
+  'IN_TRADE':   'Trade Active',
+  'DONE':       'Day Complete',
+};
+
+function applyState(s) {
+  if (!s) return;
+  appState = s;
+
+  const badge = $('status-badge');
+  if (s.running) {
+    badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
+    $('btn-start').disabled = true; $('btn-stop').disabled = false;
+    ['ctrl-symbol','ctrl-balance'].forEach(id => $(id).disabled = true);
+  } else {
+    badge.textContent = '● STOPPED'; badge.className = 'badge badge-stopped';
+    $('btn-start').disabled = false; $('btn-stop').disabled = true;
+    ['ctrl-symbol','ctrl-balance'].forEach(id => $(id).disabled = false);
+  }
+
+  if (s.mode) {
+    const mb = $('mode-badge');
+    if (s.mode === 'live')     { mb.textContent = 'LIVE';     mb.className = 'badge badge-live'; mb.style.cssText = ''; }
+    else if (s.mode === 'paper') { mb.textContent = 'PAPER';   mb.className = 'badge badge-paper'; mb.style.cssText = ''; }
+  }
+
+  // PnL
+  const pnl = parseFloat(s.pnl || 0);
+  const pnlEl = $('pnl-val');
+  pnlEl.textContent = fmtMoney(pnl);
+  pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text)';
+  $('pnl-pct').textContent = '(' + (s.pnlPct || '0.00') + '%)';
+  $('stat-balance').textContent = '$' + parseFloat(s.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+  $('stat-trades').textContent  = s.totalTrades || 0;
+  $('stat-wr').textContent      = (s.winRate || '0.0') + '%';
+  const dd = s.maxDrawdownDollar || 0;
+  $('stat-maxdd').textContent = '$' + parseFloat(dd).toFixed(2) + (s.maxDrawdownPct ? ` (${parseFloat(s.maxDrawdownPct).toFixed(1)}%)` : '');
+  $('stat-maxdd').style.color = dd > 0 ? 'var(--red)' : 'var(--muted)';
+
+  // Phase banner
+  const phase  = s.phase || 'WAIT_4H';
+  const pcfg   = PHASE_CONFIG[phase] || PHASE_CONFIG['WAIT_4H'];
+  const banner = $('phase-banner');
+  banner.className = 'phase-banner ' + pcfg.cls;
+  $('phase-icon').textContent = pcfg.icon;
+  $('phase-title').textContent = PHASE_LABELS[phase] || phase;
+  $('phase-title').style.color = pcfg.color;
+
+  let sub = '';
+  const now = Date.now();
+  if (phase === 'WAIT_4H' && s.nyOpen) {
+    const mins = Math.max(0, Math.round((s.nyOpen - now) / 60000));
+    sub = mins > 0 ? `NY 4h candle opens in ${mins}m (${new Date(s.nyOpen).toISOString().substring(11,16)} UTC)` : 'NY 4h candle opening now…';
+  } else if (phase === '4H_FORMING') {
+    const mins = s.nyClose ? Math.max(0, Math.round((s.nyClose - now) / 60000)) : 0;
+    const h = s.interim4hHigh, l = s.interim4hLow;
+    sub = `Closes in ${mins}m` + (h ? ` | Current HIGH=${fmt2(h)} LOW=${fmt2(l)}` : '');
+  } else if (phase === 'WAIT_FLAG') {
+    sub = s.levelHigh ? `LevelHigh=${fmt2(s.levelHigh)} LevelLow=${fmt2(s.levelLow)} | Watching for 5m close < LevelLow` : '';
+  } else if (phase === 'WAIT_BUY') {
+    const llSF = s.lowestLowSinceFlag != null ? ` | Lowest low (SL)=${fmt2(s.lowestLowSinceFlag)}` : '';
+    sub = s.flagCandle ? `FLAG low=${fmt2(s.flagCandle.low)}${llSF} | Watching for 5m close > LevelLow=${fmt2(s.levelLow)}` : '';
+  } else if (phase === 'IN_TRADE' && s.position) {
+    const pos = s.position;
+    const rVal = pos.slDist > 0 ? ((pos.trailHigh - pos.entryPrice) / pos.slDist).toFixed(2) : '0.00';
+    const trailTxt = pos.trailActive ? ' | 🔴 PHASE 4 TRAIL (5s)' : ` | ${rVal}R high`;
+    sub = `Entry=${fmt2(pos.entryPrice)} SL=${fmt2(pos.sl)} 2R-ref=${fmt2(pos.tp)}${trailTxt}`;
+    if (s.mode === 'live') sub += ' | Orders on Robinhood';
+  }
+  $('phase-sub').textContent = sub;
+
+  // Level display
+  const hlv = s.levelHigh || s.interim4hHigh;
+  const llv = s.levelLow  || s.interim4hLow;
+  $('lvl-high').textContent = hlv ? fmt2(hlv) : '—';
+  $('lvl-low').textContent  = llv ? fmt2(llv) : '—';
+  $('lvl-high-sub').textContent = phase === '4H_FORMING' ? 'Forming (provisional)' : 'NY session 4h candle high';
+  $('lvl-low-sub').textContent  = phase === '4H_FORMING' ? 'Forming (provisional)' : 'NY session 4h candle low';
+
+  const price = s.currentPrice || (s.position && s.position.entryPrice);
+  if (price) {
+    $('lvl-price').textContent = '$' + parseFloat(price).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    $('lvl-price').style.color = llv ? (price > llv ? 'var(--rh-green)' : 'var(--red)') : 'var(--text)';
+    $('lvl-price-sub').textContent = llv ? (price > llv ? '▲ Above LevelLow' : '▼ Below LevelLow') : '';
+  }
+
+  // FLAG box
+  if (s.flagCandle) {
+    $('flag-box').style.display = '';
+    const slVal = s.lowestLowSinceFlag != null ? s.lowestLowSinceFlag : s.flagCandle.low;
+    $('lvl-flag').textContent = fmt2(slVal);
+    const flagTime = new Date(s.flagCandle.time).toISOString().substring(11, 16);
+    $('lvl-flag-sub').textContent = `Flag @ ${flagTime} UTC | FLAG low=${fmt2(s.flagCandle.low)}`;
+  } else if (s.position && s.position.originalSL != null) {
+    $('flag-box').style.display = '';
+    $('lvl-flag').textContent = fmt2(s.position.originalSL);
+    $('lvl-flag-sub').textContent = 'SL in trade (lowest low flag→entry)';
+  } else {
+    $('flag-box').style.display = 'none';
+  }
+
+  renderPosition(s.position, s.currentPrice, s.mode);
+  if (s.error) showErr(s.error);
+}
+
+function renderPosition(pos, currentPrice, mode) {
+  const el = $('pos-display');
+  if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
+  const price  = currentPrice || pos.entryPrice;
+  const unreal = pos.unrealizedPnl || 0;
+  const urColor = unreal >= 0 ? 'var(--rh-green)' : 'var(--red)';
+  const profitR2 = pos.slDist > 0 ? (pos.trailHigh - pos.entryPrice) / pos.slDist : 0;
+  let trailBadge;
+  if (profitR2 >= 2.0)      trailBadge = '<span class="trail-badge">PHASE 4 TRAIL 5s</span>';
+  else if (profitR2 >= 1.5) trailBadge = '<span style="color:var(--rh-green);font-weight:700">✓ 1R LOCKED</span>';
+  else if (profitR2 >= 1.0) trailBadge = '<span style="color:var(--teal);font-weight:700">✓ BREAKEVEN</span>';
+  else                       trailBadge = '<span style="color:var(--muted)">Original SL</span>';
+  const profitPct = pos.slDist > 0 ? ((price - pos.entryPrice) / pos.slDist).toFixed(2) : '?';
+  const rhOrdHtml = pos.rhOrderId ? `<div class="pos-item"><div class="lbl">RH Order</div><div class="val clr-rh" style="font-size:.75rem">${esc(pos.rhOrderId.substring(0,16))}…</div></div>` : '';
+  const liveNote  = mode === 'live' ? '<div class="pos-item"><div class="lbl">Mode</div><div class="val clr-rh">LIVE — Robinhood</div></div>' : '';
+  el.innerHTML = `
+    <div class="pos-row">
+      <div class="pos-item"><div class="lbl">Side</div><div class="val clr-rh">LONG</div></div>
+      <div class="pos-item"><div class="lbl">Entry</div><div class="val">$${parseFloat(pos.entryPrice).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">Current</div><div class="val">$${price ? parseFloat(price).toFixed(2) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Size</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
+      <div class="pos-item"><div class="lbl">Stop Loss</div><div class="val clr-r">$${parseFloat(pos.sl).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">2R Ref</div><div class="val clr-g">$${parseFloat(pos.tp).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">SL Distance</div><div class="val">$${parseFloat(pos.slDist||0).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
+      <div class="pos-item"><div class="lbl">Profit in R</div><div class="val" style="color:${parseFloat(profitPct)>=0?'var(--rh-green)':'var(--red)'}">${profitPct}R</div></div>
+      <div class="pos-item"><div class="lbl">Trail High</div><div class="val clr-g">$${parseFloat(pos.trailHigh||pos.entryPrice).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">SL Tier</div><div class="val">${trailBadge}</div></div>
+      ${rhOrdHtml}${liveNote}
+    </div>`;
+}
+
+const TYPE_CLS = {
+  'WAIT': 'type-wait', 'INFO': 'type-info', '4H': 'type-4h',
+  'LEVEL': 'type-level', 'FLAG': 'type-flag', 'BUY_SIGNAL': 'type-signal',
+  'ENTRY': 'type-entry', 'EXIT': 'type-exit', 'TRAIL': 'type-trail',
+  'RH_ORDER': 'type-rh', 'ERROR': 'type-error', 'DONE': 'type-done',
+  'SCAN': 'type-wait', 'WARN': 'type-error',
+};
+
+function prependLog(entry) {
+  const tbody = $('log-body');
+  const emp = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr  = document.createElement('tr');
+  const cls = TYPE_CLS[entry.type] || 'type-info';
+  const msg = entry.message || entry.reason || '';
+  tr.innerHTML = `
+    <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
+    <td class="${cls}">${esc(entry.type)}</td>
+    <td class="reason-cell ${cls}" title="${esc(msg)}">${esc(msg.substring(0,120))}${msg.length>120?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  logCount++;
+  if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
+}
+function updateLogCount() { $('log-count').textContent = `(${logCount} / 500)`; }
+
+function loadTrades() {
+  if (!appState.sessionId) return;
+  fetch('/api/trades?session=' + appState.sessionId, { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(rows => {
+      const tbody = $('trades-body');
+      tbody.innerHTML = '';
+      tradeCount = 0;
+      shownTradeKeys.clear();
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="13" class="empty-msg">No trades yet</td></tr>'; return; }
+      [...rows].reverse().forEach(t => prependTrade(t));
+    }).catch(() => {});
+}
+
+function prependTrade(t) {
+  const key = `${t.timestamp||''}_${t.type||''}`;
+  if (shownTradeKeys.has(key)) return;
+  shownTradeKeys.add(key);
+  const tbody   = $('trades-body');
+  const emp     = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const tr      = document.createElement('tr');
+  const isEntry = t.type === 'entry';
+  const pnl     = t.pnl || 0;
+  const pnlClr  = pnl > 0 ? 'clr-g' : pnl < 0 ? 'clr-r' : '';
+  const typeClr = isEntry ? 'type-entry' : 'type-exit';
+  const rhOrd   = t.rh_order_id ? `<span style="color:var(--rh-green);font-size:.7rem">${esc(t.rh_order_id.substring(0,12))}…</span>` : '<span style="color:var(--muted)">—</span>';
+  tr.innerHTML = `
+    <td class="main">${fmtTime(t.timestamp)}</td>
+    <td class="${typeClr}">${(t.type||'').toUpperCase()}</td>
+    <td class="clr-rh">${(t.side||'').toUpperCase()}</td>
+    <td class="main">$${parseFloat(t.price||0).toFixed(2)}</td>
+    <td class="clr-g">${t.level_high ? '$'+parseFloat(t.level_high).toFixed(2) : '—'}</td>
+    <td class="clr-r">${t.level_low  ? '$'+parseFloat(t.level_low).toFixed(2)  : '—'}</td>
+    <td class="clr-o">${t.flag_low   ? '$'+parseFloat(t.flag_low).toFixed(2)   : '—'}</td>
+    <td class="clr-r">$${parseFloat(t.stop_loss||0).toFixed(2)}</td>
+    <td class="clr-g">$${parseFloat(t.take_profit||0).toFixed(2)}</td>
+    <td class="${pnlClr}">${isEntry ? '—' : fmtMoney(pnl)}</td>
+    <td>$${parseFloat(t.balance_after||0).toFixed(2)}</td>
+    <td>${rhOrd}</td>
+    <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,50))}${(t.reason||'').length>50?'…':''}</td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+  tradeCount++;
+  $('trades-count').textContent = `(${tradeCount})`;
+}
+
+async function runBacktest() {
+  const btn = $('btn-run-bt');
+  btn.disabled = true;
+  const body = { symbol: $('bt-symbol').value, months: parseInt($('bt-months').value, 10) };
+  $('bt-status').innerHTML = `<div class="bt-progress">⏳ Fetching data… This may take 15–90s for ${body.months} month(s).</div>`;
+  $('bt-results').style.display = 'none';
+  try {
+    const r = await fetch('/api/backtest', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    btn.disabled = false;
+    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`; return; }
+    $('bt-status').innerHTML = '';
+    renderBacktestResults(d);
+  } catch (e) {
+    btn.disabled = false;
+    $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderBacktestResults(d) {
+  const s = d.summary;
+  const pnlColor = s.totalPnl >= 0 ? 'var(--rh-green)' : 'var(--red)';
+  const res = $('bt-results');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="card-title" style="margin-bottom:8px">
+      Backtest: ${esc(s.symbol)} · ${esc(s.period)} · ${s.daysScanned} NY days scanned · ${s.daysWithSetup} setups fired
+    </div>
+    <div class="bt-stat-grid">
+      <div class="stat-box"><div class="lbl">Trades</div><div class="val">${s.totalTrades} (W:${s.wins} L:${s.losses})</div></div>
+      <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" style="color:${parseFloat(s.winRate)>=50?'var(--rh-green)':'var(--red)'}">${s.winRate}%</div></div>
+      <div class="stat-box"><div class="lbl">Net PnL</div><div class="val" style="color:${pnlColor}">${fmtMoney(s.totalPnl)} (${s.pnlPct}%)</div></div>
+      <div class="stat-box"><div class="lbl">Max Drawdown</div><div class="val clr-r">$${parseFloat(s.maxDrawdown).toFixed(2)}</div></div>
+      <div class="stat-box"><div class="lbl">Final Balance</div><div class="val" style="color:${pnlColor}">$${parseFloat(s.finalBalance).toFixed(2)}</div></div>
+      <div class="stat-box"><div class="lbl">Setup Rate</div><div class="val">${s.daysScanned > 0 ? ((s.daysWithSetup/s.daysScanned)*100).toFixed(0) : 0}% of days</div></div>
+      <div class="stat-box"><div class="lbl">4h Candles</div><div class="val">${s.fourHCandles}</div></div>
+      <div class="stat-box"><div class="lbl">1h Candles</div><div class="val">${s.oneHCandles}</div></div>
+    </div>
+    <div class="tbl-wrap bt-tbl-wrap" style="margin-top:8px">
+      <table><thead><tr>
+        <th>Date</th><th>Entry</th><th>Exit</th>
+        <th>LvlHigh</th><th>LvlLow</th><th>FLAG Low</th><th>SL</th>
+        <th>PnL</th><th>Balance</th><th>Trail?</th><th>Reason</th>
+      </tr></thead><tbody id="bt-trades-body"></tbody></table>
+    </div>`;
+  const tbody = document.getElementById('bt-trades-body');
+  if (!d.trades.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-msg">No setups triggered — try a longer period or different symbol</td></tr>';
+    return;
+  }
+  d.trades.forEach(t => {
+    const pnlCls = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="main">${esc(t.date)}</td>
+      <td>$${parseFloat(t.entryPrice).toFixed(2)}</td>
+      <td>$${parseFloat(t.exitPrice).toFixed(2)}</td>
+      <td class="clr-g">$${parseFloat(t.levelHigh).toFixed(2)}</td>
+      <td class="clr-r">$${parseFloat(t.levelLow).toFixed(2)}</td>
+      <td class="clr-o">$${parseFloat(t.flagLow).toFixed(2)}</td>
+      <td class="clr-r">$${parseFloat(t.lowestLow != null ? t.lowestLow : t.flagLow).toFixed(2)}</td>
+      <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
+      <td>$${parseFloat(t.balance).toFixed(2)}</td>
+      <td>${t.trailActive ? '<span style="color:var(--rh-green)">✓ Trail</span>' : '<span style="color:var(--muted)">SL</span>'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'…':''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function startAlgo() {
+  $('btn-start').disabled = true;
+  hideErr();
+  const body = {
+    symbol: $('ctrl-symbol').value,
+    balance: parseFloat($('ctrl-balance').value) || 10000,
+    mode: currentMode,
+  };
+  try {
+    const r = await fetch('/api/start', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!d.ok) { showErr(d.msg || 'Could not start'); $('btn-start').disabled = false; }
+  } catch(e) { showErr(e.message); $('btn-start').disabled = false; }
+}
+async function stopAlgo() {
+  $('btn-stop').disabled = true;
+  try { await fetch('/api/stop', { method: 'POST', credentials: 'same-origin' }); } catch(e) { showErr(e.message); }
+}
+function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
+function hideErr()    { $('err-banner').classList.remove('show'); }
+
+// ── Init ───────────────────────────────────────────────────────────
+refreshRhStatus();
+setInterval(refreshRhStatus, 15000);
+connectSSE();
+</script>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — uLearn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--bg:#080b14;--bg2:#0d1117;--card:#111827;--card2:#1a2234;--border:#1e2d45;--border2:#2d4a6e;--text:#e8edf5;--muted:#7890a8;--dim:#445566;--accent:#3b82f6;--purple:#8b5cf6;--teal:#14b8a6;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--grad:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);--radius:12px;--radius-lg:18px;--font:'Inter',system-ui,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+.nav{background:rgba(8,11,20,.95);border-bottom:1px solid var(--border);height:60px;display:flex;align-items:center;padding:0 5%;position:sticky;top:0;z-index:100}
+.nav-inner{width:100%;max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:1.5rem}
+.nav-logo{font-weight:800;font-size:1.35rem;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.admin-badge{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--red);font-size:.72rem;font-weight:700;padding:.2rem .55rem;border-radius:100px}
+.nav-actions{margin-left:auto;display:flex;gap:.75rem}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1rem;border-radius:var(--radius);font-size:.82rem;font-weight:600;transition:all .2s;border:none}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+.btn-primary{background:var(--grad);color:#fff}
+.btn-sm{padding:.28rem .65rem;font-size:.75rem}
+.btn-green{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.btn-red{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.btn-yellow{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:var(--yellow)}
+/* LAYOUT */
+.page{max-width:1280px;margin:0 auto;padding:2rem 5%;display:grid;grid-template-columns:220px 1fr;gap:2rem;min-height:calc(100vh - 60px)}
+.sidebar{position:sticky;top:76px;height:fit-content}
+.nav-menu{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.8rem 1.1rem;cursor:pointer;transition:background .2s;border-left:3px solid transparent;font-size:.875rem;font-weight:500;color:var(--muted)}
+.nav-item:hover{background:rgba(59,130,246,.05);color:var(--text)}
+.nav-item.active{background:rgba(59,130,246,.08);border-left-color:var(--accent);color:var(--accent)}
+.nav-item i{width:16px;height:16px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem}
+.stat-card .label{font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:.35rem}
+.stat-card .value{font-size:1.8rem;font-weight:800}
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem}
+.section-title{font-weight:700;font-size:.95rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between}
+/* TABLE */
+.table-container{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;padding:.6rem .9rem;font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:.7rem .9rem;border-bottom:1px solid var(--border);color:var(--text)}
+tr:hover td{background:rgba(59,130,246,.03)}
+.user-cell{display:flex;align-items:center;gap:.6rem}
+.user-mini-avatar{width:28px;height:28px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.7rem;color:#fff;flex-shrink:0;overflow:hidden}
+.user-mini-avatar img{width:100%;height:100%;object-fit:cover}
+.role-badge{padding:.18rem .5rem;border-radius:100px;font-size:.7rem;font-weight:600}
+.role-student{background:rgba(59,130,246,.12);color:var(--accent)}
+.role-tutor{background:rgba(139,92,246,.12);color:var(--purple)}
+.role-admin{background:rgba(239,68,68,.12);color:var(--red)}
+.active-badge{padding:.18rem .5rem;border-radius:100px;font-size:.7rem;font-weight:600}
+.active-yes{background:rgba(34,197,94,.12);color:var(--green)}
+.active-no{background:rgba(239,68,68,.12);color:var(--red)}
+/* SEARCH/FILTER BAR */
+.filter-bar{display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center}
+.search-input{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.45rem .85rem;color:var(--text);font-family:var(--font);font-size:.85rem;outline:none;flex:1;min-width:200px}
+.search-input:focus{border-color:var(--accent)}
+.filter-select{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text);font-family:var(--font);font-size:.85rem;outline:none;cursor:pointer}
+/* ALERT */
+.alert{padding:.65rem 1rem;border-radius:8px;font-size:.82rem;margin-bottom:1rem;display:none}
+.alert-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green)}
+.alert-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+@media(max-width:900px){
+  .page{grid-template-columns:1fr}
+  .sidebar{position:static}
+  .stats-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <span class="admin-badge">Admin Panel</span>
+    <div class="nav-actions">
+      <a href="/" class="btn btn-ghost">View Site</a>
+      <button class="btn btn-ghost" id="logout-btn"><i data-lucide="log-out" style="width:14px;height:14px"></i></button>
+    </div>
+  </div>
+</nav>
+
+<div class="page">
+  <aside class="sidebar">
+    <nav class="nav-menu">
+      <div class="nav-item active" data-tab="overview"><i data-lucide="layout-dashboard"></i> Overview</div>
+      <div class="nav-item" data-tab="users"><i data-lucide="users"></i> Users</div>
+      <div class="nav-item" data-tab="approvals"><i data-lucide="user-check"></i> Approvals</div>
+      <div class="nav-item" data-tab="bookings"><i data-lucide="calendar"></i> Bookings</div>
+    </nav>
+  </aside>
+
+  <main>
+    <div id="alert-success" class="alert alert-success"></div>
+    <div id="alert-error" class="alert alert-error"></div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-content active" id="tab-overview">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem">Platform Overview</h2>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="label">Total Users</div><div class="value" id="stat-users">—</div></div>
+        <div class="stat-card"><div class="label">Active Tutors</div><div class="value" id="stat-tutors">—</div></div>
+        <div class="stat-card"><div class="label">Students</div><div class="value" id="stat-students">—</div></div>
+        <div class="stat-card"><div class="label">Sessions Today</div><div class="value" id="stat-today">—</div></div>
+        <div class="stat-card"><div class="label">Total Bookings</div><div class="value" id="stat-bookings">—</div></div>
+        <div class="stat-card"><div class="label">Total Messages</div><div class="value" id="stat-messages">—</div></div>
+        <div class="stat-card"><div class="label">Reviews</div><div class="value" id="stat-reviews">—</div></div>
+        <div class="stat-card"><div class="label">Est. Revenue</div><div class="value" id="stat-revenue">—</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Pending Approvals <span id="pending-count" style="background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3);border-radius:100px;padding:.1rem .45rem;font-size:.75rem"></span></div>
+        <div id="approvals-preview"></div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="tab-content" id="tab-users">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem">User Management</h2>
+      <div class="filter-bar">
+        <input type="text" class="search-input" id="user-search" placeholder="Search by name or email...">
+        <select class="filter-select" id="role-filter">
+          <option value="">All Roles</option>
+          <option value="student">Students</option>
+          <option value="tutor">Tutors</option>
+          <option value="admin">Admins</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="users-search-btn">Search</button>
+      </div>
+      <div class="section-card">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody id="users-table"></tbody>
+          </table>
+        </div>
+        <div id="users-pagination" style="display:flex;gap:.5rem;justify-content:center;margin-top:1.25rem"></div>
+      </div>
+    </div>
+
+    <!-- APPROVALS -->
+    <div class="tab-content" id="tab-approvals">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem">Tutor Approvals</h2>
+      <div class="section-card">
+        <div id="approvals-list"></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div class="tab-content" id="tab-bookings">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem">Recent Bookings</h2>
+      <div class="section-card">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Tutor</th><th>Student</th><th>Subject</th><th>Date</th><th>Duration</th><th>Status</th><th>Price</th></tr></thead>
+            <tbody id="bookings-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+lucide.createIcons();
+let usersPage = 1;
+
+async function init() {
+  const r = await fetch('/auth/me');
+  const { user } = await r.json();
+  if (!user || user.role !== 'admin') { window.location = '/login.html'; return; }
+  setupTabs();
+  loadStats();
+  loadUsers();
+  loadApprovals();
+  loadBookings();
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/admin/stats');
+    const d = await r.json();
+    document.getElementById('stat-users').textContent = d.totalUsers || 0;
+    document.getElementById('stat-tutors').textContent = d.totalTutors || 0;
+    document.getElementById('stat-students').textContent = d.totalStudents || 0;
+    document.getElementById('stat-today').textContent = d.sessionsToday || 0;
+    document.getElementById('stat-bookings').textContent = d.totalBookings || 0;
+    document.getElementById('stat-messages').textContent = d.totalMessages || 0;
+    document.getElementById('stat-reviews').textContent = d.totalReviews || 0;
+    document.getElementById('stat-revenue').textContent = '$' + Math.round(d.revenue || 0);
+    document.getElementById('pending-count').textContent = d.pendingApprovals || 0;
+  } catch(e) {}
+}
+
+async function loadUsers(page=1) {
+  usersPage = page;
+  const search = document.getElementById('user-search').value;
+  const role = document.getElementById('role-filter').value;
+  try {
+    const r = await fetch(`/api/admin/users?search=${encodeURIComponent(search)}&role=${role}&page=${page}`);
+    const { users, total, pages } = await r.json();
+    const tbody = document.getElementById('users-table');
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td><div class="user-cell">
+          <div class="user-mini-avatar">${u.avatar ? `<img src="${u.avatar}">` : u.name?.charAt(0) || '?'}</div>
+          ${u.name}
+        </div></td>
+        <td style="color:var(--muted)">${u.email}</td>
+        <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+        <td><span class="active-badge ${u.is_active ? 'active-yes' : 'active-no'}">${u.is_active ? 'Active' : 'Banned'}</span></td>
+        <td style="color:var(--muted)">${new Date(u.created_at*1000).toLocaleDateString()}</td>
+        <td>
+          <div style="display:flex;gap:.35rem">
+            ${u.is_active ? `<button class="btn btn-sm btn-red" onclick="toggleBan(${u.id},false)">Ban</button>` : `<button class="btn btn-sm btn-green" onclick="toggleBan(${u.id},true)">Unban</button>`}
+            ${u.role !== 'admin' ? `<button class="btn btn-sm btn-yellow" onclick="makeAdmin(${u.id})">Admin</button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('');
+
+    // Pagination
+    const pag = document.getElementById('users-pagination');
+    let html = '';
+    for (let i = 1; i <= pages; i++) {
+      html += `<button class="btn btn-sm${i===page?' btn-primary':' btn-ghost'}" onclick="loadUsers(${i})">${i}</button>`;
+    }
+    pag.innerHTML = html;
+  } catch(e) {}
+}
+
+async function toggleBan(id, active) {
+  const r = await fetch(`/api/admin/users/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ is_active: active }) });
+  if (r.ok) { showAlert('success', active ? 'User unbanned' : 'User banned'); loadUsers(usersPage); }
+}
+async function makeAdmin(id) {
+  if (!confirm('Make this user an admin?')) return;
+  const r = await fetch(`/api/admin/users/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: 'admin' }) });
+  if (r.ok) { showAlert('success', 'Role updated'); loadUsers(usersPage); }
+}
+
+async function loadApprovals() {
+  try {
+    const r = await fetch('/api/admin/tutors/pending');
+    const { tutors } = await r.json();
+    const renderList = (id) => {
+      const el = document.getElementById(id);
+      if (!tutors.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No pending approvals</p>'; return; }
+      el.innerHTML = tutors.map(t => `
+        <div style="display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-weight:600">${t.name}</div>
+            <div style="color:var(--muted);font-size:.78rem">${t.email} · ${t.subjects ? JSON.parse(t.subjects).slice(0,3).join(', ') : 'No subjects'}</div>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <button class="btn btn-sm btn-green" onclick="approvetutor(${t.id},true)">Approve</button>
+            <button class="btn btn-sm btn-red" onclick="approvetutor(${t.id},false)">Reject</button>
+          </div>
+        </div>`).join('');
+    };
+    renderList('approvals-preview');
+    renderList('approvals-list');
+  } catch(e) {}
+}
+
+async function approvetutor(id, approved) {
+  const r = await fetch(`/api/admin/tutors/${id}/approve`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ approved }) });
+  if (r.ok) { showAlert('success', approved ? 'Tutor approved!' : 'Tutor rejected'); loadApprovals(); loadStats(); }
+}
+
+async function loadBookings() {
+  try {
+    const r = await fetch('/api/admin/bookings');
+    const { bookings } = await r.json();
+    const tbody = document.getElementById('bookings-table');
+    const statusColors = { pending:'var(--yellow)', confirmed:'var(--green)', completed:'var(--accent)', cancelled:'var(--red)' };
+    tbody.innerHTML = bookings.map(b => `
+      <tr>
+        <td>${b.tutor_name}</td>
+        <td>${b.student_name}</td>
+        <td>${b.subject}</td>
+        <td style="color:var(--muted)">${new Date(b.scheduled_at*1000).toLocaleDateString()}</td>
+        <td>${b.duration_minutes}min</td>
+        <td style="color:${statusColors[b.status]||'var(--muted)'}">${b.status}</td>
+        <td style="color:var(--green)">$${b.price?.toFixed(2) || '—'}</td>
+      </tr>`).join('');
+  } catch(e) {}
+}
+
+document.getElementById('users-search-btn').addEventListener('click', () => loadUsers(1));
+document.getElementById('user-search').addEventListener('keydown', e => { if (e.key === 'Enter') loadUsers(1); });
+document.getElementById('role-filter').addEventListener('change', () => loadUsers(1));
+
+function setupTabs() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i === item));
+      document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('active', tc.id === `tab-${item.dataset.tab}`));
+    });
+  });
+}
+
+function showAlert(type, msg) {
+  const el = document.getElementById(`alert-${type}`); el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method:'POST' }); window.location = '/';
+});
+
+init();
+</script>
+</body>
+</html>

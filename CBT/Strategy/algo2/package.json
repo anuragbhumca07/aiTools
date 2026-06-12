@@ -1,10 +1,11 @@
 {
   "name": "cbt-algo2",
   "version": "1.0.0",
-  "description": "CBT Algo2 — Swing Trading (Tickmill/MetaApi)",
+  "description": "Fixed 1-lot · $100 SL · Decremental Dollar Trail — CBT Algo 2",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

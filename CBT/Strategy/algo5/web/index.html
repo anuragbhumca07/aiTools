@@ -243,7 +243,7 @@
 <header>
   <div>
     <div class="title">CBT Algo5 — Trailing SL</div>
-    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · 1.5×ATR SL · Trails $50/step after $300 profit · 10s fast poll · Opposite-Signal Exit · $1000 Hard Stop</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥20 · |EMA21-Slope|≥12 · Macro EMA55/200 Gate · 6/7 · RSI-Short≤50 · 1.5×ATR SL · Trails $50/step after $300 profit · 10s fast poll · :01s Entry</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -380,13 +380,16 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — Swing v2 · Trailing SL after $300 profit</div>
+    <div class="card-title">Algo Logic — Swing v2 · Trailing SL after $300 profit · Sideways Market Filters v2</div>
     <div class="logic-gate">⚡ Hard Gate 1: ADX(14) ≥ 25 — strong directional trend required</div>
-    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ 15 — minimum directional conviction</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🎯 Hard Gate 2: |DI+ − DI−| ≥ <span style="color:var(--teal);font-weight:700">20</span> — tightened from 15 · filters 55% of prior loss trades (sideways filter)</div>
     <div class="logic-gate new-gate" style="margin-top:4px">📈 Hard Gate 3: ADX rising — adx[n] &gt; adx[n-3] — trend must be strengthening</div>
-    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 4: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
-    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 5: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">〰 Hard Gate 4: <span style="color:var(--teal);font-weight:700">|EMA21 slope| ≥ 12</span> — NEW · blocks flat/choppy slope entries · slope = ema21[n]−ema21[n-3] · loss trades avg 9.6 vs wins avg 19.3</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌡 Hard Gate 5: ATR ≤ 1.3×ATR_MA — blocks high-volatility spike entries</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">📍 Hard Gate 6: |price − EMA21| ≤ 1.5×ATR — forces pullback entries, blocks chasing</div>
+    <div class="logic-gate new-gate" style="margin-top:4px">🌐 Hard Gate 7: <span style="color:var(--teal);font-weight:700">Macro alignment</span> — NEW · BUY blocked when EMA55 &lt; EMA200 (bearish macro) · SELL blocked when EMA55 &gt; EMA200 (bullish macro) · eliminates counter-trend longs in bear markets</div>
     <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trailing Rule: once profit ≥ $300, SL locks in $250 · every +$50 profit → SL advances $50 · fast poll every 10s while trailing active</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">⏱ Entry Timing: <span style="color:var(--accent);font-weight:700">:01s after candle close</span> — signal evaluated on CLOSED bar only · stale entries (&gt;2 min after close) blocked automatically</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
         <div class="lh" style="color:var(--teal)">▲ BUY (LONG) — need 6/7</div>
@@ -397,7 +400,10 @@
         <div class="logic-rule">5. <span>RSI ∈ [42–72]</span></div>
         <div class="logic-rule">6. <span>MACD Hist &gt; 0</span></div>
         <div class="logic-rule">7. <span class="new">Candle close ≥ 45% of range</span></div>
-        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+        <div class="logic-rule" style="margin-top:6px;color:var(--teal);font-size:.72rem">
+          ⛔ Blocked by Gate 7 if EMA55 &lt; EMA200 (macro bearish)
+        </div>
+        <div class="logic-rule" style="color:var(--accent)">
           SL = entry − 1.5×ATR · Risk $150 · Initial TP = entry + 3×ATR
         </div>
       </div>
@@ -407,10 +413,13 @@
         <div class="logic-rule">2. <span>EMA21 &lt; EMA55</span></div>
         <div class="logic-rule">3. <span>EMA55 &lt; EMA200</span> (may miss 1)</div>
         <div class="logic-rule">4. <span class="new">EMA21 slope falling</span></div>
-        <div class="logic-rule">5. <span>RSI ∈ [28–58]</span></div>
+        <div class="logic-rule">5. <span>RSI ∈ [28–<span style="color:var(--teal)">50</span>]</span> <span style="color:var(--muted);font-size:.7rem">(tightened from 58)</span></div>
         <div class="logic-rule">6. <span>MACD Hist &lt; 0</span></div>
         <div class="logic-rule">7. <span class="new">Candle close ≤ 55% of range</span></div>
-        <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
+        <div class="logic-rule" style="margin-top:6px;color:var(--teal);font-size:.72rem">
+          ⛔ Blocked by Gate 7 if EMA55 &gt; EMA200 (macro bullish)
+        </div>
+        <div class="logic-rule" style="color:var(--accent)">
           SL = entry + 1.5×ATR · Risk $150 · Initial TP = entry − 3×ATR
         </div>
       </div>
@@ -670,7 +679,7 @@ function applyState(s) {
     $('ic-di').style.color   = (dip != null && dim != null) ? (dip > dim ? 'var(--green)' : 'var(--red)') : 'var(--text)';
     const spread = (dip != null && dim != null) ? Math.abs(dip - dim) : null;
     $('ic-dispread').textContent = spread != null ? fmt(spread, 1) : '—';
-    $('ic-dispread').style.color = spread != null ? (spread >= 15 ? 'var(--green)' : 'var(--red)') : 'var(--text)';
+    $('ic-dispread').style.color = spread != null ? (spread >= 20 ? 'var(--green)' : 'var(--red)') : 'var(--text)';
   }
   const ls = s.lastSignal;
   if (ls) {
@@ -759,7 +768,7 @@ function prependLog(entry) {
     <td>${fmt(ind.atr)}</td>
     <td style="color:${adxV>=25?'var(--green)':adxV!=null?'var(--red)':'var(--text)'}">${adxV!=null?fmt(adxV,1):'—'}</td>
     <td style="color:${dip!=null&&dim!=null?(dip>dim?'var(--green)':'var(--red)'):'var(--text)'}">${dip!=null&&dim!=null?fmt(dip,1)+'/'+fmt(dim,1):'—'}</td>
-    <td style="color:${spread!=='—'&&parseFloat(spread)>=15?'var(--green)':'var(--red)'}">${spread}</td>
+    <td style="color:${spread!=='—'&&parseFloat(spread)>=20?'var(--green)':'var(--red)'}">${spread}</td>
     <td style="color:${vr!=='—'&&parseFloat(vr)>=1.0?'var(--green)':'var(--text)'}">${vr}</td>
     <td class="reason-cell" title="${esc(notes)}">${isTrail?`<strong style="color:var(--accent)">${esc(notes.substring(0,60))}</strong>`:esc(notes.substring(0,60))}${notes.length>60?'…':''}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);

@@ -38,16 +38,34 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // Robinhood and algo4 tests use shared local servers — run in their dedicated projects only
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js'],
     },
 
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js'],
     },
 
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js'],
+    },
+
+    // Backend project: runs Robinhood server tests serially on a single browser
+    {
+      name: 'backend',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/robinhood.spec.js'],
+    },
+
+    // Algo4 project: runs algo4 tests serially on a single browser (shared server on :3011)
+    {
+      name: 'algo4',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/cbt-algo4.spec.js'],
     },
 
     /* Test against mobile viewports. */

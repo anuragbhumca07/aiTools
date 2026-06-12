@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tutor Dashboard — uLearn</title>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--accent:var(--purple);--accent-glow:rgba(139,92,246,.25);--teal:#14b8a6;}
+
+.page{max-width:1200px;margin:0 auto;padding:2rem 5%;display:grid;grid-template-columns:240px 1fr;gap:2rem;min-height:calc(100vh - 66px);}
+.sidebar{position:sticky;top:82px;height:fit-content;}
+
+.user-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;text-align:center;margin-bottom:1rem;}
+.user-avatar{width:72px;height:72px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;color:#fff;margin:0 auto 1rem;overflow:hidden;}
+.user-avatar img{width:100%;height:100%;object-fit:cover;}
+.user-name{font-weight:700;font-size:1rem;margin-bottom:.2rem;}
+.user-role{font-size:.78rem;color:var(--muted);}
+.view-profile-link{display:inline-block;margin-top:.5rem;font-size:.78rem;color:var(--purple);}
+
+.nav-menu{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.8rem 1.1rem;cursor:pointer;transition:all .2s;border-left:3px solid transparent;font-size:.875rem;font-weight:500;color:var(--muted);}
+.nav-item:hover{background:rgba(139,92,246,.05);color:var(--text);}
+.nav-item.active{background:rgba(139,92,246,.08);border-left-color:var(--purple);color:var(--purple);}
+.nav-item i{color:inherit;width:16px;height:16px;}
+
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;transition:border-color .2s;}
+.stat-card:hover{border-color:var(--border2);}
+.stat-card .label{font-size:.75rem;color:var(--muted);font-weight:600;margin-bottom:.35rem;display:flex;align-items:center;gap:.35rem;}
+.stat-card .value{font-size:1.7rem;font-weight:800;font-family:var(--font-display);}
+
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem;}
+.section-title{font-weight:700;font-size:.95rem;margin-bottom:1.1rem;display:flex;align-items:center;justify-content:space-between;color:var(--text);}
+
+.booking-item{display:flex;align-items:center;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--border);}
+.booking-item:last-child{border-bottom:none;}
+.booking-avatar{width:40px;height:40px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.875rem;color:#fff;overflow:hidden;flex-shrink:0;}
+.booking-avatar img{width:100%;height:100%;object-fit:cover;}
+
+.status-badge{display:inline-block;padding:.18rem .55rem;border-radius:100px;font-size:.72rem;font-weight:600;}
+.status-pending{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.28);}
+.status-confirmed{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.28);}
+.status-completed{background:rgba(139,92,246,.12);color:var(--purple);border:1px solid rgba(139,92,246,.28);}
+.status-cancelled{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.28);}
+
+.form-group{margin-bottom:1rem;}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;}
+.form-control{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:.6rem .85rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;transition:border-color .2s;}
+.form-control:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+
+.tag-input-area{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:.4rem .75rem;display:flex;flex-wrap:wrap;gap:.4rem;min-height:42px;cursor:text;transition:border-color .2s;}
+.tag-input-area:focus-within{border-color:var(--purple);}
+.tag-item{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.22);color:var(--purple);border-radius:100px;padding:.15rem .6rem;font-size:.78rem;display:flex;align-items:center;gap:.35rem;}
+.tag-item button{background:none;border:none;color:var(--purple);font-size:.9rem;line-height:1;padding:0;cursor:pointer;}
+.tag-input{background:none;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:.8rem;min-width:80px;flex:1;}
+
+.avail-editor{display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;margin-top:.75rem;}
+.avail-day-col{text-align:center;}
+.avail-day-label{font-size:.72rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;}
+.avail-toggle{width:100%;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:all .2s;font-size:.7rem;color:var(--dim);}
+.avail-toggle.active{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.28);color:var(--green);}
+
+.review-item{padding:.9rem 0;border-bottom:1px solid var(--border);}
+.review-item:last-child{border-bottom:none;}
+.reviewer-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;}
+.rev-avatar{width:34px;height:34px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.8rem;color:#fff;}
+
+.chart-container{background:var(--bg2);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;}
+
+.alert-bar{padding:.75rem 1rem;border-radius:9px;font-size:.875rem;margin-bottom:1rem;display:none;}
+.alert-success{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);color:var(--green);}
+.alert-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);color:var(--red);}
+
+.progress-bar{height:6px;background:var(--bg2);border-radius:100px;overflow:hidden;margin-top:.35rem;}
+.progress-fill{height:100%;background:var(--grad);border-radius:100px;transition:width .5s;}
+
+@media(max-width:900px){
+  .page{grid-template-columns:1fr;}
+  .sidebar{position:static;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="ul-blob ul-blob-1" style="opacity:.5"></div>
+<div class="ul-blob ul-blob-2" style="opacity:.4"></div>
+
+<nav class="nav scrolled">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <div class="nav-actions">
+      <a href="/messages.html" class="btn btn-ghost"><i data-lucide="message-circle" style="width:14px;height:14px"></i> Messages</a>
+      <button class="btn btn-ghost" id="logout-btn"><i data-lucide="log-out" style="width:14px;height:14px"></i></button>
+    </div>
+  </div>
+</nav>
+
+<div class="page">
+  <aside class="sidebar">
+    <div class="user-card">
+      <div class="user-avatar" id="side-avatar"></div>
+      <div class="user-name" id="side-name">Loading...</div>
+      <div class="user-role">Tutor</div>
+      <a href="#" id="view-profile-link" class="view-profile-link">View Public Profile →</a>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" data-tab="overview"><i data-lucide="layout-dashboard"></i> Overview</div>
+      <div class="nav-item" data-tab="sessions"><i data-lucide="calendar"></i> Sessions</div>
+      <div class="nav-item" data-tab="profile-edit"><i data-lucide="edit-3"></i> Edit Profile</div>
+      <div class="nav-item" data-tab="availability"><i data-lucide="clock"></i> Availability</div>
+      <div class="nav-item" data-tab="reviews"><i data-lucide="star"></i> Reviews</div>
+      <div class="nav-item" data-tab="earnings"><i data-lucide="trending-up"></i> Earnings</div>
+    </nav>
+  </aside>
+
+  <main>
+    <div id="alert-success" class="alert-bar alert-success"></div>
+    <div id="alert-error" class="alert-bar alert-error"></div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-content active" id="tab-overview">
+      <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Dashboard</h2>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="label"><i data-lucide="users" style="width:13px;height:13px;color:var(--purple)"></i> Students</div>
+          <div class="value" id="stat-students">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label"><i data-lucide="calendar" style="width:13px;height:13px;color:var(--green)"></i> Sessions</div>
+          <div class="value" id="stat-sessions">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label"><i data-lucide="star" style="width:13px;height:13px;color:var(--amber)"></i> Rating</div>
+          <div class="value" id="stat-rating">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label"><i data-lucide="dollar-sign" style="width:13px;height:13px;color:var(--cyan)"></i> Earnings</div>
+          <div class="value" id="stat-earnings">$—</div>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Profile Completion</div>
+        <div id="completion-items"></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Upcoming Sessions <a href="#" onclick="switchTab('sessions')" style="font-size:.78rem;color:var(--purple)">View All</a></div>
+        <div id="upcoming-list"></div>
+      </div>
+    </div>
+
+    <!-- SESSIONS -->
+    <div class="tab-content" id="tab-sessions">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Sessions</h2>
+      <div class="section-card"><div id="all-sessions-list"></div></div>
+    </div>
+
+    <!-- PROFILE EDIT -->
+    <div class="tab-content" id="tab-profile-edit">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Edit Tutor Profile</h2>
+      <div class="section-card">
+        <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.5rem">
+          <div class="user-avatar" id="profile-edit-avatar" style="width:80px;height:80px;font-size:1.4rem"></div>
+          <div>
+            <input type="file" id="avatar-upload" accept="image/*" style="display:none">
+            <button class="btn btn-ghost" onclick="document.getElementById('avatar-upload').click()">
+              <i data-lucide="camera" style="width:14px;height:14px"></i> Change Photo
+            </button>
+          </div>
+        </div>
+        <form id="tutor-profile-form">
+          <div class="form-group">
+            <label class="form-label">Headline</label>
+            <input type="text" class="form-control" id="tp-headline" placeholder="e.g. PhD Mathematician · MIT Grad · Top-Rated Tutor">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" class="form-control" id="tp-name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              <input type="text" class="form-control" id="tp-location">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bio</label>
+            <textarea class="form-control" id="tp-bio" rows="4" placeholder="Tell students about your background, teaching style, and experience..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subjects (press Enter to add)</label>
+            <div class="tag-input-area" id="subjects-tags">
+              <input type="text" class="tag-input" id="subjects-input" placeholder="Add subject...">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Levels (press Enter to add)</label>
+            <div class="tag-input-area" id="levels-tags">
+              <input type="text" class="tag-input" id="levels-input" placeholder="e.g. High School...">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Hourly Rate (USD)</label>
+              <input type="number" class="form-control" id="tp-rate" min="5" max="500" step="5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Experience (years)</label>
+              <input type="number" class="form-control" id="tp-exp" min="0" max="50">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teaching Mode</label>
+            <select class="form-control" id="tp-mode">
+              <option value="online">Online Only</option>
+              <option value="in-person">In-Person Only</option>
+              <option value="both" selected>Both</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Languages (press Enter to add)</label>
+            <div class="tag-input-area" id="languages-tags">
+              <input type="text" class="tag-input" id="languages-input" placeholder="e.g. English...">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Response Time</label>
+            <select class="form-control" id="tp-response">
+              <option value="< 30 min">Within 30 minutes</option>
+              <option value="< 1 hour" selected>Within 1 hour</option>
+              <option value="< 2 hours">Within 2 hours</option>
+              <option value="< 24 hours">Within 24 hours</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="save" style="width:14px;height:14px"></i> Save Profile
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- AVAILABILITY -->
+    <div class="tab-content" id="tab-availability">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Weekly Availability</h2>
+      <div class="section-card">
+        <p style="color:var(--muted);font-size:.875rem;margin-bottom:1.25rem">Toggle the days you are available for sessions</p>
+        <div class="avail-editor" id="avail-editor"></div>
+        <button class="btn btn-primary" id="save-avail" style="margin-top:1.25rem">
+          <i data-lucide="save" style="width:14px;height:14px"></i> Save Availability
+        </button>
+      </div>
+    </div>
+
+    <!-- REVIEWS -->
+    <div class="tab-content" id="tab-reviews">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">My Reviews</h2>
+      <div class="section-card"><div id="reviews-list"></div></div>
+    </div>
+
+    <!-- EARNINGS -->
+    <div class="tab-content" id="tab-earnings">
+      <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:1.5rem;font-family:var(--font-display)">Earnings Overview</h2>
+      <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card"><div class="label">Total Earned</div><div class="value" id="total-earned">$0</div></div>
+        <div class="stat-card"><div class="label">Sessions Done</div><div class="value" id="sessions-done">0</div></div>
+        <div class="stat-card"><div class="label">Avg per Session</div><div class="value" id="avg-session">$0</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Earnings Chart (Last 7 Sessions)</div>
+        <div class="chart-container">
+          <svg id="earnings-chart" width="100%" height="160" viewBox="0 0 600 160"></svg>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+lucide.createIcons();
+let currentUser = null, tutorProfile = null;
+let subjectTags = [], levelTags = [], langTags = [];
+let availData = {};
+
+async function init() {
+  const r = await fetch('/auth/me');
+  const { user } = await r.json();
+  if (!user) { window.location = '/login.html'; return; }
+  if (user.role !== 'tutor' && user.role !== 'admin') { window.location = '/dashboard-student.html'; return; }
+  currentUser = user;
+  renderUserSidebar(user);
+  showVerificationBanner(user);
+  setupTabs();
+  loadDashboard();
+}
+
+function showVerificationBanner(u) {
+  if (u.is_verified) return;
+  const banner = document.createElement('div');
+  banner.id = 'verify-banner';
+  banner.style.cssText = `position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.875rem;font-weight:500;box-shadow:0 2px 16px rgba(0,0,0,.4)`;
+  banner.innerHTML = `<span>⚠️ <strong>Email not verified.</strong> Your profile shows as "Verification Pending" to others. Check your inbox or <button id="resend-btn" style="background:rgba(255,255,255,.25);border:none;color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:.8rem;margin-left:6px">Resend verification email</button></span><button onclick="document.getElementById('verify-banner').remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:1.1rem;padding:0 4px">✕</button>`;
+  document.body.prepend(banner);
+  document.body.style.paddingTop = '46px';
+  document.getElementById('resend-btn')?.addEventListener('click', async () => {
+    document.getElementById('resend-btn').textContent = 'Sending...';
+    const r = await fetch('/auth/resend-verification', { method:'POST' });
+    const d = await r.json();
+    document.getElementById('resend-btn').textContent = d.ok ? '✅ Sent!' : '❌ Failed';
+  });
+}
+
+function renderUserSidebar(u) {
+  document.getElementById('side-name').textContent = u.name;
+  const av = document.getElementById('side-avatar');
+  if (u.avatar) av.innerHTML = `<img src="${u.avatar}" alt="${u.name}">`;
+  else av.textContent = u.name.charAt(0).toUpperCase();
+}
+
+async function loadDashboard() {
+  try {
+    const ownR = await fetch('/api/tutors?limit=50');
+    const { tutors } = await ownR.json();
+    tutorProfile = tutors.find(t => t.user_id === currentUser.id);
+    if (tutorProfile) {
+      const fp = await fetch(`/api/tutors/${tutorProfile.id}`);
+      const { tutor } = await fp.json();
+      tutorProfile = tutor;
+      document.getElementById('stat-students').textContent = tutor.total_students || 0;
+      document.getElementById('stat-sessions').textContent = tutor.total_sessions || 0;
+      document.getElementById('stat-rating').textContent = (tutor.avg_rating || 0).toFixed(1);
+      document.getElementById('view-profile-link').href = `/tutor-profile.html?id=${tutor.id}`;
+      prefillProfileForm(tutor);
+    }
+  } catch(e) {}
+  loadBookings();
+  loadReviews();
+  loadProfileCompletion();
+}
+
+function prefillProfileForm(t) {
+  document.getElementById('tp-headline').value = t.headline || '';
+  document.getElementById('tp-name').value = t.name || '';
+  document.getElementById('tp-location').value = t.location || '';
+  document.getElementById('tp-bio').value = t.bio || '';
+  document.getElementById('tp-rate').value = t.hourly_rate || 0;
+  document.getElementById('tp-exp').value = t.experience_years || 0;
+  document.getElementById('tp-response').value = t.response_time || '< 1 hour';
+  const modeEl = document.getElementById('tp-mode');
+  for (let o of modeEl.options) if (o.value === t.teaching_mode) o.selected = true;
+  subjectTags = JSON.parse(t.subjects || '[]');
+  levelTags = JSON.parse(t.levels || '[]');
+  langTags = JSON.parse(t.languages || '["English"]');
+  renderTags('subjects-tags', subjectTags, 'subjects-input');
+  renderTags('levels-tags', levelTags, 'levels-input');
+  renderTags('languages-tags', langTags, 'languages-input');
+  const paEl = document.getElementById('profile-edit-avatar');
+  if (t.avatar) paEl.innerHTML = `<img src="${t.avatar}" alt="${t.name}">`;
+  else paEl.textContent = t.name?.charAt(0).toUpperCase() || '?';
+  availData = JSON.parse(t.availability || '{}');
+  renderAvailEditor();
+}
+
+function renderTags(containerId, tags, inputId) {
+  const container = document.getElementById(containerId);
+  const input = document.getElementById(inputId);
+  container.querySelectorAll('.tag-item').forEach(el => el.remove());
+  tags.forEach((tag, i) => {
+    const el = document.createElement('div');
+    el.className = 'tag-item';
+    el.innerHTML = `${tag} <button type="button" onclick="removeTag('${containerId}', '${inputId}', ${i})">×</button>`;
+    container.insertBefore(el, input);
+  });
+}
+
+function removeTag(containerId, inputId, idx) {
+  if (containerId === 'subjects-tags') subjectTags.splice(idx, 1);
+  else if (containerId === 'levels-tags') levelTags.splice(idx, 1);
+  else langTags.splice(idx, 1);
+  renderTags(containerId, containerId === 'subjects-tags' ? subjectTags : containerId === 'levels-tags' ? levelTags : langTags, inputId);
+}
+
+function setupTagInput(inputId, containerId, tagsArr) {
+  document.getElementById(inputId).addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = e.target.value.trim();
+      if (val && !tagsArr.includes(val)) { tagsArr.push(val); renderTags(containerId, tagsArr, inputId); e.target.value = ''; }
+    }
+  });
+}
+
+function renderAvailEditor() {
+  const days = ['mon','tue','wed','thu','fri','sat','sun'];
+  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const editor = document.getElementById('avail-editor');
+  editor.innerHTML = days.map((d, i) => `
+    <div class="avail-day-col">
+      <div class="avail-day-label">${labels[i]}</div>
+      <button type="button" class="avail-toggle${availData[d] ? ' active' : ''}" data-day="${d}">${availData[d] ? '✓' : '—'}</button>
+    </div>`).join('');
+  editor.querySelectorAll('.avail-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.day;
+      if (availData[day]) { delete availData[day]; btn.classList.remove('active'); btn.textContent = '—'; }
+      else { availData[day] = [9,20]; btn.classList.add('active'); btn.textContent = '✓'; }
+    });
+  });
+}
+
+async function loadBookings() {
+  try {
+    const r = await fetch('/api/bookings');
+    const { bookings } = await r.json();
+    const upcoming = bookings.filter(b => b.scheduled_at > Date.now()/1000 && ['pending','confirmed'].includes(b.status));
+    const completed = bookings.filter(b => b.status === 'completed');
+    const earned = completed.reduce((s, b) => s + (b.price || 0), 0);
+    document.getElementById('stat-earnings').textContent = '$' + Math.round(earned);
+    document.getElementById('total-earned').textContent = '$' + Math.round(earned);
+    document.getElementById('sessions-done').textContent = completed.length;
+    document.getElementById('avg-session').textContent = completed.length ? '$' + Math.round(earned/completed.length) : '$0';
+
+    const renderList = (list) => list.length === 0
+      ? '<p style="color:var(--muted);font-size:.875rem">No sessions found</p>'
+      : list.map(b => {
+        const d = new Date(b.scheduled_at * 1000);
+        const init = b.student_name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+        return `<div class="booking-item">
+          <div class="booking-avatar">${b.student_avatar ? `<img src="${b.student_avatar}">` : init}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:.875rem">${b.student_name}</div>
+            <div style="color:var(--muted);font-size:.78rem">${b.subject} · ${d.toLocaleDateString()} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${b.duration_minutes}min</div>
+          </div>
+          <div style="text-align:right">
+            <span class="status-badge status-${b.status}">${b.status}</span>
+            ${b.status === 'pending' ? `<div style="margin-top:.3rem;display:flex;gap:.3rem;justify-content:flex-end">
+              <button onclick="updateBooking(${b.id},'confirmed')" class="btn" style="padding:.2rem .5rem;font-size:.7rem;background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2)">Confirm</button>
+              <button onclick="updateBooking(${b.id},'cancelled')" class="btn" style="padding:.2rem .5rem;font-size:.7rem;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)">Decline</button>
+            </div>` : ''}
+            ${b.status === 'confirmed' ? `<button onclick="updateBooking(${b.id},'completed')" class="btn" style="margin-top:.3rem;padding:.2rem .5rem;font-size:.7rem;background:rgba(139,92,246,.1);color:var(--purple);border:1px solid rgba(139,92,246,.2)">Mark Done</button>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+
+    document.getElementById('upcoming-list').innerHTML = renderList(upcoming.slice(0,4));
+    document.getElementById('all-sessions-list').innerHTML = renderList(bookings);
+    drawEarningsChart(completed.slice(-7));
+  } catch(e) {}
+}
+
+async function updateBooking(id, status) {
+  const r = await fetch(`/api/bookings/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+  if (r.ok) { showAlert('success', `Session ${status}!`); loadBookings(); }
+}
+
+async function loadReviews() {
+  if (!tutorProfile) return;
+  try {
+    const r = await fetch(`/api/reviews/${tutorProfile.id}`);
+    const { reviews } = await r.json();
+    const list = document.getElementById('reviews-list');
+    if (!reviews?.length) { list.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No reviews yet</p>'; return; }
+    list.innerHTML = reviews.map(rv => `
+      <div class="review-item">
+        <div class="reviewer-row">
+          <div class="rev-avatar">${rv.student_name?.charAt(0) || '?'}</div>
+          <div>
+            <div style="font-weight:600;font-size:.875rem">${rv.student_name}</div>
+            <div style="color:var(--amber);font-size:.82rem">${'★'.repeat(rv.rating)}${'☆'.repeat(5-rv.rating)}</div>
+          </div>
+          <div style="margin-left:auto;color:var(--dim);font-size:.75rem">${new Date(rv.created_at*1000).toLocaleDateString()}</div>
+        </div>
+        <div style="color:var(--muted);font-size:.85rem">${rv.comment || ''}</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function loadProfileCompletion() {
+  const items = [
+    { label: 'Profile photo', done: !!currentUser.avatar },
+    { label: 'Headline', done: !!(tutorProfile?.headline) },
+    { label: 'Bio', done: !!(tutorProfile?.bio || currentUser.bio) },
+    { label: 'Subjects', done: !!(tutorProfile?.subjects && JSON.parse(tutorProfile.subjects).length > 0) },
+    { label: 'Hourly rate', done: !!(tutorProfile?.hourly_rate > 0) },
+    { label: 'Availability', done: !!(tutorProfile?.availability && Object.keys(JSON.parse(tutorProfile.availability||'{}')).length > 0) },
+  ];
+  const pct = Math.round(items.filter(i=>i.done).length / items.length * 100);
+  document.getElementById('completion-items').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
+      <span style="font-size:.875rem;color:var(--muted)">Profile strength</span>
+      <span style="font-weight:700;color:${pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--red)'}">${pct}%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.85rem">
+      ${items.map(it => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:${it.done?'var(--green)':'var(--muted)'}">
+        ${it.done ? '<i data-lucide="check-circle" style="width:13px;height:13px"></i>' : '<i data-lucide="circle" style="width:13px;height:13px"></i>'}
+        ${it.label}
+      </div>`).join('')}
+    </div>`;
+  setTimeout(() => lucide.createIcons(), 100);
+}
+
+function drawEarningsChart(sessions) {
+  const svg = document.getElementById('earnings-chart');
+  if (!sessions.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#44446a" font-size="14">No completed sessions yet</text>'; return; }
+  const values = sessions.map(s => s.price || 0);
+  const max = Math.max(...values, 1);
+  const w = 600, h = 140, pad = 30;
+  const cols = values.length;
+  const colW = (w - pad * 2) / cols;
+  let path = '', dots = '';
+  values.forEach((v, i) => {
+    const x = pad + i * colW + colW / 2;
+    const y = h - pad - (v / max) * (h - pad * 2);
+    path += (i === 0 ? 'M' : 'L') + `${x},${y}`;
+    dots += `<circle cx="${x}" cy="${y}" r="4" fill="#8b5cf6"/>`;
+    dots += `<text x="${x}" y="${h - 5}" text-anchor="middle" font-size="11" fill="#8888b0">$${v}</text>`;
+  });
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="cgrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${path}L${pad + (cols-1)*colW+colW/2},${h-pad}L${pad+colW/2},${h-pad}Z" fill="url(#cgrad)"/>
+    <path d="${path}" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round"/>
+    ${dots}`;
+}
+
+document.getElementById('tutor-profile-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = {
+    headline: document.getElementById('tp-headline').value,
+    subjects: subjectTags, levels: levelTags,
+    teaching_mode: document.getElementById('tp-mode').value,
+    hourly_rate: parseFloat(document.getElementById('tp-rate').value) || 0,
+    experience_years: parseInt(document.getElementById('tp-exp').value) || 0,
+    languages: langTags,
+    response_time: document.getElementById('tp-response').value,
+    education: [], certifications: [], availability: availData
+  };
+  await fetch('/api/students/profile', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    name: document.getElementById('tp-name').value,
+    bio: document.getElementById('tp-bio').value,
+    location: document.getElementById('tp-location').value
+  })});
+  const r = await fetch('/api/tutors/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) { showAlert('success', 'Profile saved!'); const data = await r.json(); tutorProfile = data.tutor; loadProfileCompletion(); }
+  else { const d = await r.json(); showAlert('error', d.error || 'Save failed'); }
+});
+
+document.getElementById('save-avail').addEventListener('click', async () => {
+  if (!tutorProfile) { showAlert('error', 'Please complete your profile first'); return; }
+  const subjects = JSON.parse(tutorProfile.subjects || '[]');
+  const body = { subjects, availability: availData, headline: tutorProfile.headline || '', hourly_rate: tutorProfile.hourly_rate || 0 };
+  const r = await fetch('/api/tutors/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (r.ok) showAlert('success', 'Availability saved!');
+  else showAlert('error', 'Failed to save');
+});
+
+document.getElementById('avatar-upload').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData(); fd.append('avatar', file);
+  const r = await fetch('/api/upload/avatar', { method:'POST', body: fd });
+  const data = await r.json();
+  if (r.ok) { currentUser.avatar = data.avatar; renderUserSidebar(currentUser); document.getElementById('profile-edit-avatar').innerHTML = `<img src="${data.avatar}">`; showAlert('success', 'Photo updated!'); }
+  else showAlert('error', data.error || 'Upload failed');
+});
+
+function setupTabs() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => switchTab(item.dataset.tab));
+  });
+}
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.toggle('active', tc.id === `tab-${tab}`));
+}
+function showAlert(type, msg) {
+  const el = document.getElementById(`alert-${type}`); el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/auth/logout', { method:'POST' }); window.location = '/';
+});
+setTimeout(() => {
+  setupTagInput('subjects-input', 'subjects-tags', subjectTags);
+  setupTagInput('levels-input', 'levels-tags', levelTags);
+  setupTagInput('languages-input', 'languages-tags', langTags);
+}, 100);
+
+init();
+</script>
+</body>
+</html>

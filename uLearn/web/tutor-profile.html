@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tutor Profile — uLearn</title>
+<link rel="stylesheet" href="/ulearn.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{--accent:var(--purple);--accent-glow:rgba(139,92,246,.25);--teal:#14b8a6;}
+
+/* HERO */
+.profile-hero{
+  background:linear-gradient(180deg,rgba(139,92,246,.06) 0%,transparent 100%);
+  border-bottom:1px solid var(--border);padding:calc(64px + 2rem) 5% 2.5rem;
+}
+.hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:2rem;align-items:flex-start;}
+.hero-left{display:flex;gap:1.75rem;align-items:flex-start;}
+
+.profile-avatar{
+  width:100px;height:100px;border-radius:50%;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:2rem;color:#fff;flex-shrink:0;overflow:hidden;position:relative;
+  border:3px solid rgba(139,92,246,.35);box-shadow:0 0 0 6px rgba(139,92,246,.08);
+}
+.profile-avatar img{width:100%;height:100%;object-fit:cover;}
+.verified-badge{
+  position:absolute;bottom:4px;right:4px;background:var(--green);
+  border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:3px solid var(--bg);
+}
+
+.profile-info h1{
+  font-family:var(--font-display);font-size:1.8rem;font-weight:800;letter-spacing:-.5px;
+  margin-bottom:.3rem;line-height:1.1;
+}
+.profile-headline{color:var(--muted);font-size:1rem;margin-bottom:.75rem;}
+.profile-meta{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:.9rem;}
+.meta-item{display:flex;align-items:center;gap:.35rem;font-size:.82rem;color:var(--muted);}
+.meta-item strong{color:var(--text);}
+.profile-tags{display:flex;flex-wrap:wrap;gap:.4rem;}
+.badge{
+  background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--purple);
+  font-size:.75rem;font-weight:600;padding:.2rem .55rem;border-radius:100px;
+}
+.badge-cyan{background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.2);color:var(--cyan);}
+
+/* BOOKING CARD */
+.booking-card{
+  background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius-lg);
+  padding:1.5rem;width:280px;flex-shrink:0;position:sticky;top:82px;
+  box-shadow:0 10px 40px rgba(0,0,0,.4);
+}
+.booking-price{font-size:2rem;font-weight:900;margin-bottom:.25rem;font-family:var(--font-display);}
+.booking-price .unit{font-size:.9rem;font-weight:400;color:var(--muted);}
+
+.booking-stats{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:1rem 0;}
+.bstat{text-align:center;padding:.6rem;background:var(--card);border-radius:8px;border:1px solid var(--border);}
+.bstat .num{font-size:1.1rem;font-weight:700;color:var(--purple);font-family:var(--font-display);}
+.bstat .lbl{font-size:.72rem;color:var(--muted);margin-top:.1rem;}
+
+/* CONTENT */
+.profile-content{max-width:1200px;margin:0 auto;padding:2rem 5%;display:grid;grid-template-columns:1fr 320px;gap:2rem;}
+.section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem;transition:border-color .2s;}
+.section-card:hover{border-color:var(--border2);}
+.section-title{font-size:1.05rem;font-weight:700;margin-bottom:1.1rem;display:flex;align-items:center;gap:.5rem;color:var(--text);}
+
+.about-text{color:var(--muted);line-height:1.7;font-size:.9rem;}
+
+/* EDUCATION */
+.edu-list{display:flex;flex-direction:column;gap:.9rem;}
+.edu-item{display:flex;gap:1rem;align-items:flex-start;}
+.edu-icon{
+  width:36px;height:36px;border-radius:8px;background:rgba(139,92,246,.08);
+  border:1px solid rgba(139,92,246,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.edu-degree{font-weight:600;font-size:.9rem;}
+.edu-inst{color:var(--muted);font-size:.8rem;}
+.edu-year{color:var(--dim);font-size:.75rem;}
+
+/* REVIEWS */
+.big-rating{font-size:3rem;font-weight:900;line-height:1;font-family:var(--font-display);}
+.rating-breakdown{display:flex;flex-direction:column;gap:.4rem;flex:1;margin-left:1.25rem;}
+.rating-row{display:flex;align-items:center;gap:.75rem;font-size:.8rem;}
+.rating-bar{flex:1;height:6px;background:var(--bg2);border-radius:100px;overflow:hidden;}
+.rating-bar-fill{height:100%;background:var(--amber);border-radius:100px;transition:width .5s;}
+.review-list{display:flex;flex-direction:column;gap:1rem;margin-top:1.25rem;}
+.review-item{border-top:1px solid var(--border);padding-top:1rem;}
+.reviewer{display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem;}
+.rev-avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.8rem;color:#fff;overflow:hidden;}
+.rev-avatar img{width:100%;height:100%;object-fit:cover;}
+.rev-name{font-weight:600;font-size:.875rem;}
+.rev-date{color:var(--dim);font-size:.75rem;}
+.rev-stars{color:var(--amber);font-size:.85rem;}
+.rev-comment{color:var(--muted);font-size:.875rem;line-height:1.6;}
+
+/* AVAILABILITY */
+.avail-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;text-align:center;}
+.avail-day .day-label{font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:.35rem;}
+.avail-slot{height:24px;border-radius:4px;background:var(--bg2);}
+.avail-slot.active{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.28);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:2rem;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.modal h2{font-family:var(--font-display);font-size:1.3rem;font-weight:700;margin-bottom:1.5rem;}
+.form-group{margin-bottom:1.1rem;}
+.form-label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;}
+.form-control{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:.6rem .85rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;transition:border-color .2s;}
+.form-control:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(139,92,246,.1);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+
+/* BTN TEAL */
+.btn-teal{background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.25);color:var(--teal);}
+.btn-teal:hover{background:var(--teal);color:#000;}
+
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr;}
+  .booking-card{width:100%;position:static;}
+  .profile-content{grid-template-columns:1fr;}
+  .side-col{order:-1;}
+}
+@media(max-width:600px){
+  .hero-left{flex-direction:column;}
+  .profile-avatar{width:80px;height:80px;font-size:1.5rem;}
+}
+</style>
+</head>
+<body>
+<div class="ul-blob ul-blob-1" style="opacity:.4"></div>
+<div class="ul-blob ul-blob-2" style="opacity:.3"></div>
+
+<nav class="nav scrolled">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">uLearn</a>
+    <a href="/search.html" style="color:var(--muted);font-size:.875rem;display:flex;align-items:center;gap:.4rem;transition:color .2s">
+      <i data-lucide="arrow-left" style="width:15px;height:15px"></i> Back to Search
+    </a>
+    <div class="nav-actions">
+      <a href="/login.html" class="btn btn-ghost" id="nav-login">Log In</a>
+      <a href="/login.html?tab=signup" class="btn btn-primary" id="nav-signup">Sign Up</a>
+      <div id="nav-user" style="display:none">
+        <a href="#" id="nav-dash" class="btn btn-ghost">Dashboard</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div id="profile-loading">
+  <div class="profile-hero">
+    <div class="hero-inner">
+      <div class="skeleton" style="height:120px;max-width:600px;border-radius:var(--radius-lg)"></div>
+      <div class="skeleton" style="height:120px;width:280px;border-radius:var(--radius-lg)"></div>
+    </div>
+  </div>
+</div>
+
+<div id="profile-content" style="display:none">
+  <div class="profile-hero">
+    <div class="hero-inner">
+      <div class="hero-left">
+        <div class="profile-avatar" id="pa">
+          <div class="verified-badge" id="verified-badge" style="display:none"><i data-lucide="check" style="width:11px;height:11px;color:#fff"></i></div>
+        </div>
+        <div class="profile-info">
+          <h1 id="tutor-name">Loading...</h1>
+          <div class="profile-headline" id="tutor-headline"></div>
+          <div class="profile-meta">
+            <div class="meta-item"><i data-lucide="star" style="width:13px;height:13px;color:var(--amber)"></i><strong id="avg-rating">—</strong> <span id="review-count"></span></div>
+            <div class="meta-item"><i data-lucide="map-pin" style="width:13px;height:13px"></i><span id="tutor-location"></span></div>
+            <div class="meta-item"><i data-lucide="briefcase" style="width:13px;height:13px"></i><span id="tutor-exp"></span></div>
+            <div class="meta-item"><i data-lucide="clock" style="width:13px;height:13px"></i><span id="response-time"></span></div>
+          </div>
+          <div class="profile-tags" id="profile-tags"></div>
+        </div>
+      </div>
+      <div class="booking-card">
+        <div class="booking-price"><span>$</span><span id="hourly-rate">—</span><span class="unit">/hr</span></div>
+        <div class="booking-stats">
+          <div class="bstat"><div class="num" id="stat-students">—</div><div class="lbl">Students</div></div>
+          <div class="bstat"><div class="num" id="stat-sessions">—</div><div class="lbl">Sessions</div></div>
+          <div class="bstat"><div class="num" id="stat-rating">—</div><div class="lbl">Rating</div></div>
+          <div class="bstat"><div class="num" id="stat-reviews">—</div><div class="lbl">Reviews</div></div>
+        </div>
+        <button class="btn btn-primary" id="book-btn" style="width:100%;justify-content:center;margin-bottom:.6rem">
+          <i data-lucide="calendar" style="width:15px;height:15px"></i> Book a Session
+        </button>
+        <button class="btn btn-teal" id="msg-btn" style="width:100%;justify-content:center">
+          <i data-lucide="message-circle" style="width:15px;height:15px"></i> Send Message
+        </button>
+        <div style="text-align:center;margin-top:.85rem;color:var(--muted);font-size:.75rem">
+          <i data-lucide="shield-check" style="width:12px;height:12px;display:inline;vertical-align:middle"></i>
+          Safe & secure booking
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-content">
+    <div class="main-col">
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="user" style="width:16px;height:16px;color:var(--purple)"></i> About</div>
+        <div class="about-text" id="about-text"></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="book-open" style="width:16px;height:16px;color:var(--purple)"></i> Subjects & Levels</div>
+        <div id="subjects-section"></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="graduation-cap" style="width:16px;height:16px;color:var(--purple)"></i> Education & Certifications</div>
+        <div class="edu-list" id="edu-list"></div>
+      </div>
+      <div class="section-card" id="reviews-section">
+        <div class="section-title"><i data-lucide="star" style="width:16px;height:16px;color:var(--amber)"></i> Reviews</div>
+        <div style="display:flex;gap:1.5rem;align-items:flex-start">
+          <div style="text-align:center">
+            <div class="big-rating" id="big-rating">—</div>
+            <div style="color:var(--amber);font-size:1rem;margin:.2rem 0" id="big-stars"></div>
+            <div style="color:var(--muted);font-size:.78rem" id="reviews-total"></div>
+          </div>
+          <div class="rating-breakdown" id="rating-bars"></div>
+        </div>
+        <div class="review-list" id="review-list"></div>
+      </div>
+    </div>
+    <div class="side-col">
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="calendar" style="width:16px;height:16px;color:var(--purple)"></i> Availability</div>
+        <div class="avail-grid" id="avail-grid"></div>
+        <div style="margin-top:.75rem;font-size:.78rem;color:var(--muted)">
+          <span style="display:inline-block;width:12px;height:8px;background:rgba(16,185,129,.3);border-radius:2px;margin-right:.3rem"></span>Available
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="globe" style="width:16px;height:16px;color:var(--purple)"></i> Languages</div>
+        <div id="languages-list" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title"><i data-lucide="monitor" style="width:16px;height:16px;color:var(--purple)"></i> Teaching Mode</div>
+        <div id="teaching-mode" style="color:var(--muted);font-size:.9rem"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <h2 style="margin-bottom:0">Book a Session</h2>
+      <button class="btn btn-ghost" id="close-booking">✕</button>
+    </div>
+    <form id="booking-form">
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select class="form-control" id="book-subject" required></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-control" id="book-date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Time</label>
+          <input type="time" class="form-control" id="book-time" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Duration</label>
+          <select class="form-control" id="book-duration">
+            <option value="30">30 min</option>
+            <option value="60" selected>1 hour</option>
+            <option value="90">1.5 hours</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mode</label>
+          <select class="form-control" id="book-mode">
+            <option value="online">Online</option>
+            <option value="in-person">In-Person</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <textarea class="form-control" id="book-notes" rows="2" placeholder="What do you want to focus on?"></textarea>
+      </div>
+      <div id="booking-price-display" style="background:var(--bg2);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.9rem;color:var(--muted)"></div>
+      <div id="booking-error" style="display:none;color:var(--red);font-size:.85rem;margin-bottom:.75rem"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">
+        <i data-lucide="calendar-check" style="width:15px;height:15px"></i> Confirm Booking
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+let tutorData = null;
+const tutorId = new URLSearchParams(location.search).get('id');
+
+async function loadProfile() {
+  if (!tutorId) { document.body.innerHTML += '<p style="text-align:center;padding:4rem;color:var(--muted)">Tutor not found</p>'; return; }
+  try {
+    const r = await fetch(`/api/tutors/${tutorId}`);
+    const { tutor } = await r.json();
+    if (!tutor) { window.location = '/search.html'; return; }
+    tutorData = tutor;
+    renderProfile(tutor);
+    loadReviews(tutor.id);
+  } catch(e) { console.error(e); }
+}
+
+function renderProfile(t) {
+  document.title = `${t.name} — uLearn`;
+  document.getElementById('profile-loading').style.display = 'none';
+  document.getElementById('profile-content').style.display = 'block';
+
+  const pa = document.getElementById('pa');
+  if (t.avatar) pa.innerHTML += `<img src="${t.avatar}" alt="${t.name}">`;
+  else pa.innerHTML += t.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+
+  if (t.is_verified) {
+    document.getElementById('verified-badge').style.display = 'flex';
+  } else {
+    const pendingBadge = document.createElement('span');
+    pendingBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:20px;font-size:.7rem;font-weight:600;color:var(--amber);margin-left:8px;vertical-align:middle';
+    pendingBadge.textContent = '⏳ Verification Pending';
+    document.getElementById('tutor-name').insertAdjacentElement('afterend', pendingBadge);
+  }
+
+  document.getElementById('tutor-name').textContent = t.name;
+  document.getElementById('tutor-headline').textContent = t.headline || '';
+  document.getElementById('avg-rating').textContent = (t.avg_rating || 0).toFixed(1);
+  document.getElementById('review-count').textContent = `(${t.review_count || 0} reviews)`;
+  document.getElementById('tutor-location').textContent = t.location || 'Location not set';
+  document.getElementById('tutor-exp').textContent = t.experience_years ? `${t.experience_years} years experience` : '';
+  document.getElementById('response-time').textContent = `Responds ${t.response_time || '< 1 hour'}`;
+  document.getElementById('hourly-rate').textContent = t.hourly_rate;
+  document.getElementById('stat-students').textContent = t.total_students || 0;
+  document.getElementById('stat-sessions').textContent = t.total_sessions || 0;
+  document.getElementById('stat-rating').textContent = (t.avg_rating || 0).toFixed(1);
+  document.getElementById('stat-reviews').textContent = t.review_count || 0;
+
+  const subjects = JSON.parse(t.subjects || '[]');
+  document.getElementById('profile-tags').innerHTML = subjects.map(s => `<span class="badge">${s}</span>`).join('');
+  document.getElementById('about-text').textContent = t.bio || 'No bio provided yet.';
+
+  const levels = JSON.parse(t.levels || '[]');
+  document.getElementById('subjects-section').innerHTML = `
+    <div style="margin-bottom:.75rem">
+      <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">SUBJECTS</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">${subjects.map(s=>`<span class="badge">${s}</span>`).join('')}</div>
+    </div>
+    <div>
+      <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">LEVELS</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">${levels.map(l=>`<span class="badge badge-cyan">${l}</span>`).join('')}</div>
+    </div>`;
+
+  const education = JSON.parse(t.education || '[]');
+  const certs = JSON.parse(t.certifications || '[]');
+  const eduHtml = [...education.map(e => `
+    <div class="edu-item">
+      <div class="edu-icon"><i data-lucide="graduation-cap" style="width:16px;height:16px;color:var(--purple)"></i></div>
+      <div><div class="edu-degree">${e.degree}</div><div class="edu-inst">${e.institution}</div><div class="edu-year">${e.year}</div></div>
+    </div>`),
+    ...certs.map(c => `
+    <div class="edu-item">
+      <div class="edu-icon"><i data-lucide="award" style="width:16px;height:16px;color:var(--amber)"></i></div>
+      <div><div class="edu-degree">${c}</div></div>
+    </div>`)].join('');
+  document.getElementById('edu-list').innerHTML = eduHtml || '<p style="color:var(--muted);font-size:.875rem">No education listed</p>';
+
+  const avail = JSON.parse(t.availability || '{}');
+  const days = ['mon','tue','wed','thu','fri','sat','sun'];
+  const dayLabels = ['M','T','W','T','F','S','S'];
+  document.getElementById('avail-grid').innerHTML = days.map((d, i) => `
+    <div class="avail-day">
+      <div class="day-label">${dayLabels[i]}</div>
+      <div class="avail-slot ${avail[d] ? 'active' : ''}"></div>
+    </div>`).join('');
+
+  const langs = JSON.parse(t.languages || '["English"]');
+  document.getElementById('languages-list').innerHTML = langs.map(l => `<span class="badge">${l}</span>`).join('');
+
+  const modeMap = { online: '💻 Online only', 'in-person': '📍 In-person only', both: '🌐 Online & In-person' };
+  document.getElementById('teaching-mode').textContent = modeMap[t.teaching_mode] || t.teaching_mode;
+
+  const bookSubject = document.getElementById('book-subject');
+  subjects.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; bookSubject.appendChild(o); });
+
+  document.getElementById('book-date').min = new Date().toISOString().split('T')[0];
+
+  function updatePrice() {
+    const dur = parseInt(document.getElementById('book-duration').value);
+    const price = (t.hourly_rate * dur / 60).toFixed(2);
+    document.getElementById('booking-price-display').innerHTML = `Estimated cost: <strong style="color:var(--purple)">$${price}</strong> for ${dur} min session`;
+  }
+  document.getElementById('book-duration').addEventListener('change', updatePrice);
+  updatePrice();
+
+  setTimeout(() => lucide.createIcons(), 100);
+}
+
+async function loadReviews(tutorId) {
+  try {
+    const r = await fetch(`/api/reviews/${tutorId}`);
+    const { reviews, total, distribution } = await r.json();
+    document.getElementById('big-rating').textContent = tutorData?.avg_rating?.toFixed(1) || '—';
+    const stars = Math.round(tutorData?.avg_rating || 0);
+    document.getElementById('big-stars').innerHTML = '★'.repeat(stars) + '☆'.repeat(5-stars);
+    document.getElementById('reviews-total').textContent = `${total} reviews`;
+
+    document.getElementById('rating-bars').innerHTML = [5,4,3,2,1].map(r => {
+      const d = distribution?.find(d=>d.rating===r);
+      const pct = total > 0 ? ((d?.count||0)/total*100).toFixed(0) : 0;
+      return `<div class="rating-row">
+        <span style="color:var(--dim);width:12px">${r}</span>
+        <div class="rating-bar"><div class="rating-bar-fill" style="width:${pct}%"></div></div>
+        <span style="color:var(--dim);width:28px">${d?.count||0}</span>
+      </div>`;
+    }).join('');
+
+    document.getElementById('review-list').innerHTML = reviews.length > 0
+      ? reviews.map(rv => `
+        <div class="review-item">
+          <div class="reviewer">
+            <div class="rev-avatar">${rv.student_avatar ? `<img src="${rv.student_avatar}" alt="${rv.student_name}">` : rv.student_name.charAt(0)}</div>
+            <div>
+              <div class="rev-name">${rv.student_name}</div>
+              <div class="rev-stars">${'★'.repeat(rv.rating)}${'☆'.repeat(5-rv.rating)}</div>
+            </div>
+            <div style="margin-left:auto;color:var(--dim);font-size:.75rem">${new Date(rv.created_at*1000).toLocaleDateString()}</div>
+          </div>
+          <div class="rev-comment">${rv.comment || ''}</div>
+        </div>`).join('')
+      : '<p style="color:var(--muted);font-size:.875rem;margin-top:.75rem">No reviews yet</p>';
+  } catch(e) { console.error(e); }
+}
+
+document.getElementById('book-btn').addEventListener('click', async () => {
+  const { user } = await (await fetch('/auth/me')).json();
+  if (!user) { window.location = '/login.html?return=' + encodeURIComponent(location.href); return; }
+  document.getElementById('booking-modal').classList.add('open');
+});
+
+document.getElementById('msg-btn').addEventListener('click', async () => {
+  const { user } = await (await fetch('/auth/me')).json();
+  if (!user) { window.location = '/login.html?return=' + encodeURIComponent(location.href); return; }
+  const r = await fetch('/api/conversations', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ other_id: tutorData.user_id }) });
+  const { conversation } = await r.json();
+  window.location = '/messages.html?conv=' + conversation.id;
+});
+
+document.getElementById('close-booking').addEventListener('click', () => {
+  document.getElementById('booking-modal').classList.remove('open');
+});
+
+document.getElementById('booking-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('booking-error');
+  errEl.style.display = 'none';
+  const date = document.getElementById('book-date').value;
+  const time = document.getElementById('book-time').value;
+  if (!date || !time) { errEl.textContent = 'Please select date and time'; errEl.style.display = 'block'; return; }
+  const scheduledAt = Math.floor(new Date(`${date}T${time}`).getTime() / 1000);
+  const body = {
+    tutor_id: parseInt(tutorId),
+    subject: document.getElementById('book-subject').value,
+    scheduled_at: scheduledAt,
+    duration_minutes: parseInt(document.getElementById('book-duration').value),
+    mode: document.getElementById('book-mode').value,
+    notes: document.getElementById('book-notes').value
+  };
+  try {
+    const r = await fetch('/api/bookings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) { errEl.textContent = data.error || 'Booking failed'; errEl.style.display = 'block'; return; }
+    document.getElementById('booking-modal').classList.remove('open');
+    alert('Booking request sent successfully! The tutor will confirm shortly.');
+    window.location = '/dashboard-student.html';
+  } catch(err) {
+    errEl.textContent = 'Server error. Please try again.'; errEl.style.display = 'block';
+  }
+});
+
+document.getElementById('booking-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('booking-modal')) document.getElementById('booking-modal').classList.remove('open');
+});
+
+async function initNav() {
+  try {
+    const r = await fetch('/auth/me');
+    const { user } = await r.json();
+    if (user) {
+      document.getElementById('nav-login').style.display = 'none';
+      document.getElementById('nav-signup').style.display = 'none';
+      const nd = document.getElementById('nav-user');
+      nd.style.display = 'block';
+      const link = document.getElementById('nav-dash');
+      link.href = user.role === 'tutor' ? '/dashboard-tutor.html' : user.role === 'admin' ? '/admin.html' : '/dashboard-student.html';
+    }
+  } catch(e) {}
+}
+
+initNav();
+loadProfile();
+</script>
+</body>
+</html>

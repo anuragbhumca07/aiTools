@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — uLearn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{--bg:#080b14;--bg2:#0d1117;--card:#111827;--card2:#1a2234;--border:#1e2d45;--border2:#2d4a6e;--text:#e8edf5;--muted:#7890a8;--dim:#445566;--accent:#3b82f6;--accent-glow:rgba(59,130,246,.25);--purple:#8b5cf6;--teal:#14b8a6;--green:#22c55e;--font:'Inter',system-ui,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+.nav{background:rgba(8,11,20,.95);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;padding:0 1.5rem;flex-shrink:0}
+.nav-logo{font-weight:800;font-size:1.3rem;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.nav-title{font-weight:700;font-size:.95rem;margin-left:1rem}
+.nav-dash{margin-left:auto;color:var(--muted);font-size:.875rem;display:flex;align-items:center;gap:.4rem}
+.nav-dash:hover{color:var(--text)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .9rem;border-radius:10px;font-size:.825rem;font-weight:600;transition:all .2s;border:none}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+/* CHAT LAYOUT */
+.chat-layout{flex:1;display:flex;overflow:hidden}
+/* SIDEBAR */
+.chat-sidebar{width:300px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sidebar-header h3{font-size:.95rem;font-weight:700}
+.conv-search{padding:.75rem 1rem;border-bottom:1px solid var(--border)}
+.conv-search-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text);font-family:var(--font);font-size:.8rem;outline:none}
+.conv-search-input::placeholder{color:var(--dim)}
+.conv-list{flex:1;overflow-y:auto;padding:.5rem}
+.conv-item{display:flex;align-items:center;gap:.75rem;padding:.75rem .85rem;border-radius:10px;cursor:pointer;transition:background .2s;position:relative}
+.conv-item:hover{background:var(--card2)}
+.conv-item.active{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.15)}
+.conv-avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex-shrink:0;overflow:hidden;position:relative}
+.conv-avatar img{width:100%;height:100%;object-fit:cover}
+.online-dot{position:absolute;bottom:1px;right:1px;width:11px;height:11px;background:var(--green);border-radius:50%;border:2px solid var(--card)}
+.conv-info{flex:1;min-width:0}
+.conv-name{font-weight:600;font-size:.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-last{color:var(--muted);font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.1rem}
+.conv-time{color:var(--dim);font-size:.7rem;flex-shrink:0;align-self:flex-start;margin-top:.1rem}
+.unread-badge{position:absolute;top:.7rem;right:.85rem;background:var(--accent);color:#fff;border-radius:100px;font-size:.65rem;font-weight:700;padding:.1rem .35rem;min-width:18px;text-align:center}
+.empty-convs{text-align:center;padding:2rem 1rem;color:var(--muted);font-size:.875rem}
+/* CHAT WINDOW */
+.chat-window{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.9rem;flex-shrink:0}
+.chat-header-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:#fff;overflow:hidden}
+.chat-header-avatar img{width:100%;height:100%;object-fit:cover}
+.chat-header-name{font-weight:700;font-size:.9rem}
+.chat-header-status{font-size:.75rem;color:var(--muted)}
+.chat-header-status.online{color:var(--green)}
+.header-actions{margin-left:auto;display:flex;gap:.5rem}
+.messages-area{flex:1;overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:.6rem}
+.message{max-width:70%;position:relative}
+.message.sent{align-self:flex-end}
+.message.received{align-self:flex-start}
+.msg-bubble{padding:.65rem .9rem;border-radius:var(--radius);font-size:.875rem;line-height:1.5;word-break:break-word}
+.message.sent .msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.message.received .msg-bubble{background:var(--card2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg-meta{font-size:.68rem;color:var(--dim);margin-top:.2rem;text-align:right}
+.message.received .msg-meta{text-align:left}
+.typing-indicator{align-self:flex-start;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);border-bottom-left-radius:4px;padding:.5rem .85rem;display:none}
+.typing-dots{display:flex;gap:4px;align-items:center}
+.typing-dots span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:bounce .8s infinite}
+.typing-dots span:nth-child(2){animation-delay:.15s}
+.typing-dots span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* INPUT */
+.chat-input-area{padding:.9rem 1.25rem;border-top:1px solid var(--border);display:flex;gap:.75rem;align-items:flex-end;flex-shrink:0}
+.msg-input{flex:1;background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem .9rem;color:var(--text);font-family:var(--font);font-size:.875rem;outline:none;resize:none;max-height:120px;transition:border-color .2s;line-height:1.4}
+.msg-input:focus{border-color:var(--accent)}
+.msg-input::placeholder{color:var(--dim)}
+.send-btn{background:linear-gradient(135deg,#3b82f6,#8b5cf6);border:none;border-radius:10px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:#fff;transition:all .2s;flex-shrink:0}
+.send-btn:hover{opacity:.9;transform:scale(1.05)}
+.send-btn:disabled{opacity:.4}
+/* EMPTY STATE */
+.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;color:var(--muted)}
+.empty-chat i{opacity:.3}
+.empty-chat h3{font-size:1.05rem;font-weight:700;color:var(--text)}
+.empty-chat p{font-size:.875rem;text-align:center;max-width:280px}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+@media(max-width:700px){
+  .chat-sidebar{width:100%;display:none}
+  .chat-sidebar.mobile-open{display:flex;position:fixed;inset:0;z-index:200;top:56px}
+  .show-sidebar-btn{display:flex}
+}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="/" class="nav-logo">uLearn</a>
+  <span class="nav-title">Messages</span>
+  <a href="#" id="nav-dash" class="nav-dash">
+    <i data-lucide="layout-dashboard" style="width:15px;height:15px"></i>
+    Dashboard
+  </a>
+</nav>
+
+<div class="chat-layout">
+  <!-- SIDEBAR -->
+  <div class="chat-sidebar" id="chat-sidebar">
+    <div class="sidebar-header">
+      <h3>Conversations</h3>
+    </div>
+    <div class="conv-search">
+      <input type="text" class="conv-search-input" id="conv-search" placeholder="Search conversations...">
+    </div>
+    <div class="conv-list" id="conv-list">
+      <div class="empty-convs">Loading...</div>
+    </div>
+  </div>
+
+  <!-- CHAT WINDOW -->
+  <div class="chat-window">
+    <div class="empty-chat" id="empty-chat">
+      <i data-lucide="message-square" style="width:64px;height:64px"></i>
+      <h3>Your Messages</h3>
+      <p>Select a conversation to start chatting, or message a tutor from their profile page.</p>
+    </div>
+
+    <div id="active-chat" style="display:none;flex:1;flex-direction:column;overflow:hidden;display:none">
+      <div class="chat-header" id="chat-header">
+        <div class="chat-header-avatar" id="chat-other-avatar"></div>
+        <div>
+          <div class="chat-header-name" id="chat-other-name"></div>
+          <div class="chat-header-status" id="chat-other-status">Offline</div>
+        </div>
+        <div class="header-actions">
+          <a href="#" id="view-profile-btn" class="btn btn-ghost" style="font-size:.78rem">View Profile</a>
+        </div>
+      </div>
+      <div class="messages-area" id="messages-area">
+        <div class="typing-indicator" id="typing-indicator">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <textarea class="msg-input" id="msg-input" placeholder="Type a message..." rows="1"></textarea>
+        <button class="send-btn" id="send-btn" disabled>
+          <i data-lucide="send" style="width:18px;height:18px"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+let currentUser = null;
+let activeConvId = null;
+let conversations = [];
+let socket = null;
+let onlineUsers = new Set();
+
+async function init() {
+  const r = await fetch('/auth/me');
+  const { user } = await r.json();
+  if (!user) { window.location = '/login.html'; return; }
+  currentUser = user;
+
+  const dash = document.getElementById('nav-dash');
+  dash.href = user.role === 'tutor' ? '/dashboard-tutor.html' : user.role === 'admin' ? '/admin.html' : '/dashboard-student.html';
+
+  initSocket();
+  loadConversations();
+
+  const convParam = new URLSearchParams(location.search).get('conv');
+  if (convParam) {
+    setTimeout(() => openConversation(parseInt(convParam)), 800);
+  }
+}
+
+function initSocket() {
+  socket = io();
+  socket.on('connect', () => {});
+  socket.on('new_message', (msg) => {
+    if (msg.conversation_id === activeConvId) {
+      appendMessage(msg);
+      scrollToBottom();
+      fetch(`/api/messages/read/${activeConvId}`, { method:'PATCH' });
+    }
+    loadConversations();
+  });
+  socket.on('typing', (data) => {
+    const ti = document.getElementById('typing-indicator');
+    if (data.typing && activeConvId) {
+      ti.style.display = 'block';
+      clearTimeout(window._typingTimeout);
+      window._typingTimeout = setTimeout(() => ti.style.display = 'none', 2000);
+    } else {
+      ti.style.display = 'none';
+    }
+  });
+  socket.on('user_online', ({ userId }) => { onlineUsers.add(userId); updateOnlineStatus(); });
+  socket.on('user_offline', ({ userId }) => { onlineUsers.delete(userId); updateOnlineStatus(); });
+}
+
+function updateOnlineStatus() {
+  if (!activeConvId) return;
+  const conv = conversations.find(c => c.id === activeConvId);
+  if (conv) {
+    const statusEl = document.getElementById('chat-other-status');
+    const isOnline = onlineUsers.has(conv.other_id);
+    statusEl.textContent = isOnline ? 'Online' : 'Offline';
+    statusEl.className = 'chat-header-status' + (isOnline ? ' online' : '');
+  }
+}
+
+async function loadConversations() {
+  try {
+    const r = await fetch('/api/conversations');
+    const { conversations: convs } = await r.json();
+    conversations = convs;
+    renderConversations(convs);
+  } catch(e) {
+    document.getElementById('conv-list').innerHTML = '<div class="empty-convs">Failed to load</div>';
+  }
+}
+
+function renderConversations(convs) {
+  const list = document.getElementById('conv-list');
+  if (!convs || convs.length === 0) {
+    list.innerHTML = '<div class="empty-convs">No conversations yet.<br>Message a tutor to get started!</div>';
+    return;
+  }
+  list.innerHTML = convs.map(c => {
+    const initials = c.other_name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+    const isOnline = onlineUsers.has(c.other_id);
+    const time = c.last_message_at ? formatTime(c.last_message_at) : '';
+    return `
+      <div class="conv-item${c.id === activeConvId ? ' active' : ''}" data-conv="${c.id}" onclick="openConversation(${c.id})">
+        <div class="conv-avatar">
+          ${c.other_avatar ? `<img src="${c.other_avatar}" alt="${c.other_name}">` : initials}
+          ${isOnline ? '<div class="online-dot"></div>' : ''}
+        </div>
+        <div class="conv-info">
+          <div class="conv-name">${c.other_name}</div>
+          <div class="conv-last">${c.last_message || 'Start a conversation'}</div>
+        </div>
+        <div class="conv-time">${time}</div>
+        ${c.unread_count > 0 ? `<div class="unread-badge">${c.unread_count}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function openConversation(convId) {
+  activeConvId = convId;
+  const conv = conversations.find(c => c.id === convId);
+  if (!conv) return;
+
+  if (socket) {
+    socket.emit('join_conversation', convId);
+  }
+
+  // Update UI
+  renderConversations(conversations);
+  document.getElementById('empty-chat').style.display = 'none';
+  const ac = document.getElementById('active-chat');
+  ac.style.display = 'flex';
+  ac.style.flexDirection = 'column';
+
+  const initials = conv.other_name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  const avatarEl = document.getElementById('chat-other-avatar');
+  avatarEl.innerHTML = conv.other_avatar ? `<img src="${conv.other_avatar}" alt="${conv.other_name}">` : initials;
+  document.getElementById('chat-other-name').textContent = conv.other_name;
+  const isOnline = onlineUsers.has(conv.other_id);
+  const statusEl = document.getElementById('chat-other-status');
+  statusEl.textContent = isOnline ? 'Online' : 'Offline';
+  statusEl.className = 'chat-header-status' + (isOnline ? ' online' : '');
+
+  // Load messages
+  const area = document.getElementById('messages-area');
+  area.innerHTML = '<div class="typing-indicator" id="typing-indicator" style="display:none"><div class="typing-dots"><span></span><span></span><span></span></div></div>';
+
+  try {
+    const r = await fetch(`/api/conversations/${convId}/messages`);
+    const { messages } = await r.json();
+    messages.forEach(msg => appendMessage(msg));
+    scrollToBottom();
+  } catch(e) {}
+
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('msg-input').disabled = false;
+  document.getElementById('msg-input').focus();
+}
+
+function appendMessage(msg) {
+  const area = document.getElementById('messages-area');
+  const isSent = msg.sender_id === currentUser.id;
+  const div = document.createElement('div');
+  div.className = `message ${isSent ? 'sent' : 'received'}`;
+  div.innerHTML = `
+    <div class="msg-bubble">${escapeHtml(msg.content)}</div>
+    <div class="msg-meta">${formatTime(msg.created_at)}</div>`;
+  const ti = document.getElementById('typing-indicator');
+  if (ti) area.insertBefore(div, ti);
+  else area.appendChild(div);
+}
+
+function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const content = input.value.trim();
+  if (!content || !activeConvId) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (socket && socket.connected) {
+    socket.emit('send_message', { conversation_id: activeConvId, content });
+  } else {
+    // Fallback to HTTP
+    fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: activeConvId, content })
+    }).then(r => r.json()).then(({ message }) => {
+      appendMessage(message);
+      scrollToBottom();
+      loadConversations();
+    });
+  }
+}
+
+function scrollToBottom() {
+  const area = document.getElementById('messages-area');
+  area.scrollTop = area.scrollHeight;
+}
+
+function formatTime(ts) {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString([], {month:'short',day:'numeric'});
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// Send button
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+// Enter key (Shift+Enter for newline)
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// Auto-resize textarea
+document.getElementById('msg-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  if (socket && activeConvId) {
+    socket.emit('typing', { conversationId: activeConvId, typing: this.value.length > 0 });
+  }
+});
+
+// Conv search filter
+document.getElementById('conv-search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  const filtered = conversations.filter(c => c.other_name.toLowerCase().includes(q));
+  renderConversations(filtered);
+});
+
+init();
+</script>
+</body>
+</html>

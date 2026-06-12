@@ -8,8 +8,8 @@ const Database = require('better-sqlite3');
 const session  = require('express-session');
 const { OAuth2Client } = require('google-auth-library');
 const {
-  computeIndicators, generateSignal, checkExit,
-  fetchCandles, fetchCandlesHistorical,
+  computeIndicators, generateSignal, checkExit, computeTrailUpdate,
+  fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
 } = require('./algo');
 
 // ── Config ────────────────────────────────────────────────────────
@@ -18,20 +18,79 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const AUTH_REQUIRED    = !!GOOGLE_CLIENT_ID;
 const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-algo2-dev-secret';
 
-// Tickmill / MetaApi credentials
 const METAAPI_TOKEN      = process.env.METAAPI_TOKEN      || '';
 const METAAPI_ACCOUNT_ID = process.env.METAAPI_ACCOUNT_ID || '';
 const METAAPI_REGION     = process.env.METAAPI_REGION     || 'new-york';
-const TICKMILL_DEMO      = {
+
+const WA_INSTANCE = process.env.WA_INSTANCE || '';
+const WA_TOKEN    = process.env.WA_TOKEN    || '';
+const WA_GROUP    = process.env.WA_GROUP    || '';
+
+const TICKMILL_DEMO = {
   accountNumber: '25326583',
   accountType:   'Classic',
   currency:      'USD',
-  // password stored in env only — never hard-code secrets
 };
 
 const DATA_DIR = path.join(__dirname, 'data');
 const LOGS_DIR = path.join(__dirname, 'logs');
 [DATA_DIR, LOGS_DIR].forEach(d => fs.mkdirSync(d, { recursive: true }));
+
+// ── WhatsApp notifications (Green API) ───────────────────────────
+function sendWhatsApp(text) {
+  if (!WA_INSTANCE || !WA_TOKEN || !WA_GROUP) return;
+  const chatId = WA_GROUP.includes('@') ? WA_GROUP : `${WA_GROUP}@g.us`;
+  const body   = JSON.stringify({ chatId, message: text });
+  const opts   = {
+    hostname: 'api.green-api.com',
+    path:     `/waInstance${WA_INSTANCE}/sendMessage/${WA_TOKEN}`,
+    method:   'POST',
+    headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  };
+  const req = https.request(opts, res => {
+    let raw = '';
+    res.on('data', d => raw += d);
+    res.on('end', () => {
+      if (res.statusCode !== 200) console.error('[WA] send failed:', res.statusCode, raw);
+    });
+  });
+  req.on('error', err => console.error('[WA] request error:', err.message));
+  req.write(body);
+  req.end();
+}
+
+function waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, balance) {
+  const dir   = side === 'long' ? '🟢' : '🔴';
+  const label = side === 'long' ? 'LONG' : 'SHORT';
+  const sym   = symbol.replace('USDT', '/USDT');
+  const f     = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  sendWhatsApp(
+    `${dir} *[Algo2] ENTRY — ${label} ${sym} ${timeframe}*\n` +
+    `Price  : $${f(price)}\n` +
+    `Size   : 1 lot\n` +
+    `SL     : $${f(sl)}  ($100 fixed — breakeven at $100 profit)\n` +
+    `Ref TP : $${f(tp)}  ($250 trail target)\n` +
+    `Balance: $${f(balance)}`
+  );
+}
+
+function waExit(side, symbol, timeframe, pnl, reason, balance, wins, totalTrades, trailed, lockProfit) {
+  const win    = pnl > 0;
+  const icon   = win ? '✅' : '❌';
+  const label  = side === 'long' ? 'LONG' : 'SHORT';
+  const sym    = symbol.replace('USDT', '/USDT');
+  const wr     = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
+  const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pnlStr = `${pnl >= 0 ? '+' : ''}$${f(Math.abs(pnl))}`;
+  sendWhatsApp(
+    `${icon} *[Algo2] EXIT — ${label} ${sym} ${timeframe}*\n` +
+    `Reason   : ${reason}\n` +
+    `PnL      : *${pnlStr}*\n` +
+    `Trailing : ${trailed ? `Yes (locked $${lockProfit})` : 'No'}\n` +
+    `Balance  : $${f(balance)}\n` +
+    `Win Rate : ${wr}% (${wins}/${totalTrades})`
+  );
+}
 
 // ── Google auth client ─────────────────────────────────────────────
 const googleClient = AUTH_REQUIRED ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -74,31 +133,27 @@ const stmtInsert = db.prepare(`
 
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
-  'swing-v1': {
-    name: 'swing-v1: EMA Ribbon Swing',
-    description: 'EMA21/55/200 + ADX(25) gate + 5/6 conditions + 3:1 R:R + 60-candle max hold',
+  'swing-v3-closed-candle': {
+    name: 'swing-v3-closed-candle: EMA Ribbon Swing (Fixed 1-lot · $100 SL · Decremental Trail)',
+    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + :01s No-Drift Timer + $100 fixed SL + decremental trail ($100→BE, $200→$125 locked, $250→$200 locked then $25 trail) + 10s fast poll + Opposite Signal Exit',
   },
 };
 
 // ── Tickmill / MetaApi Adapter ─────────────────────────────────────
-// Connects to live Tickmill MT4 demo via MetaApi when credentials are set.
-// Falls back to Kraken paper-trading mode when not configured.
 const tickmill = {
   connected:   false,
   mode:        METAAPI_TOKEN ? 'metaapi' : 'paper-kraken',
-  openOrders:  new Map(), // userId:side -> orderId
+  openOrders:  new Map(),
 
   async init() {
     if (!METAAPI_TOKEN || !METAAPI_ACCOUNT_ID) {
       console.log('[Algo2] MetaApi not configured — running in paper-Kraken mode');
-      console.log('[Algo2] To connect Tickmill: set METAAPI_TOKEN and METAAPI_ACCOUNT_ID');
       return;
     }
     try {
-      // Verify connection by pinging account status
       const status = await this._apiGet(`/users/current/accounts/${METAAPI_ACCOUNT_ID}`);
       this.connected = status && status.state === 'deployed';
-      console.log(`[Algo2] MetaApi ${this.connected ? '✓ connected' : '✗ not deployed'} — account ${METAAPI_ACCOUNT_ID}`);
+      console.log(`[Algo2] MetaApi ${this.connected ? '✓ connected' : '✗ not deployed'}`);
     } catch (err) {
       console.error('[Algo2] MetaApi connection error:', err.message);
     }
@@ -115,9 +170,7 @@ const tickmill = {
       const req = https.request(opts, res => {
         let raw = '';
         res.on('data', d => raw += d);
-        res.on('end', () => {
-          try { resolve(JSON.parse(raw)); } catch { resolve({}); }
-        });
+        res.on('end', () => { try { resolve(JSON.parse(raw)); } catch { resolve({}); } });
       });
       req.on('error', reject);
       req.end();
@@ -140,9 +193,7 @@ const tickmill = {
       const req = https.request(opts, res => {
         let raw = '';
         res.on('data', d => raw += d);
-        res.on('end', () => {
-          try { resolve(JSON.parse(raw)); } catch { resolve({}); }
-        });
+        res.on('end', () => { try { resolve(JSON.parse(raw)); } catch { resolve({}); } });
       });
       req.on('error', reject);
       req.write(data);
@@ -154,7 +205,7 @@ const tickmill = {
     if (!this.connected) return { paper: true, orderId: `paper_${Date.now()}` };
     try {
       const tradeType = side === 'long' ? 'ORDER_TYPE_BUY' : 'ORDER_TYPE_SELL';
-      const tkSymbol  = symbol.replace('USDT', 'USD'); // BTCUSDT → BTCUSD for MT4
+      const tkSymbol  = symbol.replace('USDT', 'USD');
       const result = await this._apiPost(
         `/users/current/accounts/${METAAPI_ACCOUNT_ID}/trade`,
         { actionType: tradeType, symbol: tkSymbol, volume: lots, stopLoss, takeProfit, comment }
@@ -181,16 +232,17 @@ const tickmill = {
   },
 };
 
-// Initialize MetaApi in background
 tickmill.init().catch(() => {});
 
 // ── Per-user session management ────────────────────────────────────
 const userSessions = new Map();
 
+const CANDLE_MS = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+
 function defaultState() {
   return {
-    running: false, symbol: 'BTCUSDT', timeframe: '4h',
-    strategyId: 'swing-v1', mode: 'paper',
+    running: false, symbol: 'BTCUSDT', timeframe: '1m',
+    strategyId: 'swing-v3-closed-candle', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -206,8 +258,9 @@ function getSession(userId) {
       state:          defaultState(),
       logs:           [],
       sseClients:     new Set(),
-      ticker:         null,
+      ticker:         null,    // setTimeout handle (no-drift)
       alignTimeout:   null,
+      fastTicker:     null,    // 10-second trailing poll
       tickBusy:       false,
       lastCandleTime: null,
     });
@@ -215,7 +268,6 @@ function getSession(userId) {
   return userSessions.get(userId);
 }
 
-// ── Session-scoped helpers ─────────────────────────────────────────
 function broadcast(sess, obj) {
   const msg = `data: ${JSON.stringify(obj)}\n\n`;
   for (const res of sess.sseClients) {
@@ -259,7 +311,138 @@ function updateDrawdown(state) {
   }
 }
 
-// ── Main swing tick (session-scoped) ──────────────────────────────
+// ── Exit helper ───────────────────────────────────────────────────
+async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, ts) {
+  const { state } = sess;
+  const { sessionId } = state;
+  const userId = sess.userId;
+  const { side, entryPrice, size, stopLoss, takeProfit, mae, tickmillOrderId, trailing, trailLockProfit } = position;
+
+  const rawPnl = side === 'long'
+    ? (exitPrice - entryPrice) * size
+    : (entryPrice - exitPrice) * size;
+  const pnl = parseFloat(rawPnl.toFixed(4));
+
+  let closeResult = { paper: true };
+  if (tickmillOrderId && !tickmillOrderId.startsWith('paper_')) {
+    closeResult = await tickmill.closeOrder(tickmillOrderId);
+  }
+
+  state.balance   += pnl;
+  state.pnl       += pnl;
+  if (pnl > 0) state.wins++;
+  state.totalTrades++;
+  updateDrawdown(state);
+  state.position = null;
+
+  const trade = {
+    session_id: sessionId, user_id: userId,
+    type: 'exit', side, symbol: state.symbol, timeframe: state.timeframe,
+    price: exitPrice, size, pnl,
+    stop_loss: stopLoss, take_profit: takeProfit,
+    reason: exitReasonStr,
+    balance_after: parseFloat(state.balance.toFixed(4)),
+    timestamp: ts,
+    mae: parseFloat((mae || 0).toFixed(4)),
+    tickmill_order: closeResult.closed ? tickmillOrderId : null,
+  };
+  stmtInsert.run(trade);
+  waExit(side, state.symbol, state.timeframe, pnl, exitReasonStr, state.balance, state.wins, state.totalTrades, trailing || false, trailLockProfit || 0);
+  pushLog(sess, { ts, type: 'EXIT', side, price: exitPrice, pnl,
+                  mae: (mae || 0).toFixed(2),
+                  reason: [exitReasonStr], indicators });
+  broadcast(sess, { type: 'trade', trade, state: publicState(state) });
+}
+
+// ── Fast ticker (10-second trailing poll) ─────────────────────────
+
+function stopFastTicker(sess) {
+  if (sess.fastTicker) { clearInterval(sess.fastTicker); sess.fastTicker = null; }
+}
+
+function manageFastTicker(sess) {
+  const { state } = sess;
+  const pos = state.position;
+  const needFast = state.running && pos &&
+    ((pos.unrealizedPnl || 0) >= 100 || pos.trailing);
+
+  if (needFast && !sess.fastTicker) {
+    console.log(`[Algo2] Starting fast 10s poll (unrealPnl=${(pos.unrealizedPnl||0).toFixed(2)})`);
+    sess.fastTicker = setInterval(() => fastTick(sess), 10000);
+  } else if (!needFast && sess.fastTicker) {
+    console.log('[Algo2] Stopping fast poll');
+    stopFastTicker(sess);
+  }
+}
+
+async function runFastTick(sess) {
+  const { state } = sess;
+  if (!state.running || !state.position) {
+    stopFastTicker(sess);
+    return;
+  }
+
+  const ts = new Date().toISOString();
+  try {
+    const price = await fetchCurrentPrice(state.symbol);
+    const pos   = state.position;
+    const { side, entryPrice, size, stopLoss } = pos;
+
+    const unrealPnl = side === 'long'
+      ? (price - entryPrice) * size
+      : (entryPrice - price) * size;
+    pos.unrealizedPnl = parseFloat(unrealPnl.toFixed(4));
+    if (unrealPnl < (pos.mae || 0)) pos.mae = unrealPnl;
+
+    const slHit = side === 'long' ? price <= pos.stopLoss : price >= pos.stopLoss;
+    if (slHit) {
+      const reason = pos.trailing
+        ? `Trailing SL hit: $${pos.stopLoss.toFixed(2)} (locked $${pos.trailLockProfit || 0} profit)`
+        : `SL hit (fast): $${pos.stopLoss.toFixed(2)}`;
+      await handleExit(sess, pos, pos.stopLoss, reason, state.lastIndicators || {}, ts);
+      stopFastTicker(sess);
+      return;
+    }
+
+    const trailUpdate = computeTrailUpdate(pos, unrealPnl);
+    if (trailUpdate) {
+      const { oldSl, newSl, lockProfit, trailHigh: newTrailHigh } = trailUpdate;
+      if (newSl !== pos.stopLoss) pos.stopLoss = newSl;
+      if (newTrailHigh !== undefined) pos.trailHigh = newTrailHigh;
+      pos.trailing        = true;
+      pos.trailLockProfit = lockProfit;
+
+      const note = `SL updated: $${oldSl.toFixed(2)} → $${newSl.toFixed(2)} (locks $${lockProfit} profit)`;
+      console.log(`[Algo2] TRAIL: ${note}`);
+      pushLog(sess, {
+        ts, type: 'TICK', signal: 'TRAIL-UPDATE', price,
+        indicators: { ...(state.lastIndicators || {}), price },
+        reason: [note],
+      });
+    } else if (pos.trailing) {
+      pushLog(sess, {
+        ts, type: 'TICK', signal: 'TRAIL-WATCH', price,
+        indicators: { ...(state.lastIndicators || {}), price },
+        reason: [`Trailing active — locked $${pos.trailLockProfit || 0}, SL: $${pos.stopLoss.toFixed(2)}, PnL: $${unrealPnl.toFixed(2)}`],
+      });
+    }
+
+    broadcast(sess, { type: 'tick', state: publicState(state) });
+  } catch (err) {
+    console.error('[Algo2 fastTick]', err.message);
+  }
+}
+
+async function fastTick(sess) {
+  if (sess.tickBusy) return;
+  sess.tickBusy = true;
+  try { await runFastTick(sess); } finally {
+    sess.tickBusy = false;
+    manageFastTicker(sess);
+  }
+}
+
+// ── Main candle-aligned tick ──────────────────────────────────────
 async function runTick(sess) {
   const { state } = sess;
   const { symbol, timeframe, sessionId } = state;
@@ -267,26 +450,38 @@ async function runTick(sess) {
   const ts     = new Date().toISOString();
   try {
     state.error = null;
-    const candles          = await fetchCandles(symbol, timeframe, 250); // need 200+ for EMA200
-    const latestCandleTime = candles[candles.length - 1].time;
-    const price            = candles[candles.length - 1].close;
 
-    // ── Exit check ─────────────────────────────────────────────
+    // Fetch 251 candles: last one is the forming (incomplete) candle.
+    // closedCandles = the 250 fully-closed candles; signal uses only these.
+    // allCandles includes the forming candle for live SL detection.
+    const allCandles    = await fetchCandles(symbol, timeframe, 251);
+    const closedCandles = allCandles.slice(0, -1);
+    const latestClosedTime = closedCandles[closedCandles.length - 1].time;
+    const price            = closedCandles[closedCandles.length - 1].close; // entry/exit reference price
+    const livePrice        = allCandles[allCandles.length - 1].close;       // forming candle — used for unrealPnL display
+
+    // ── Static SL / $1000 adverse exit — uses allCandles (live price) ──
     if (state.position) {
-      const exitResult = checkExit(state.position, candles);
+      const exitResult = checkExit(state.position, allCandles);
       state.lastIndicators = exitResult.indicators;
 
       if (exitResult.exit) {
-        const { side, entryPrice, size, stopLoss, takeProfit, mae, tickmillOrderId } = state.position;
-        const rawPnl = side === 'long'
-          ? (price - entryPrice) * size
-          : (entryPrice - price) * size;
+        const reason0 = exitResult.reasons[0] || '';
+        let exitPrice = livePrice;
+        if (reason0.startsWith('SL hit'))    exitPrice = state.position.stopLoss;
+        else if (reason0.startsWith('$1000')) exitPrice = state.position.side === 'long'
+          ? state.position.entryPrice - 1000
+          : state.position.entryPrice + 1000;
+
+        const pos = state.position;
+        const rawPnl = pos.side === 'long'
+          ? (exitPrice - pos.entryPrice) * pos.size
+          : (pos.entryPrice - exitPrice) * pos.size;
         const pnl = parseFloat(rawPnl.toFixed(4));
 
-        // Close Tickmill order if live
         let closeResult = { paper: true };
-        if (tickmillOrderId && !tickmillOrderId.startsWith('paper_')) {
-          closeResult = await tickmill.closeOrder(tickmillOrderId);
+        if (pos.tickmillOrderId && !pos.tickmillOrderId.startsWith('paper_')) {
+          closeResult = await tickmill.closeOrder(pos.tickmillOrderId);
         }
 
         state.balance   += pnl;
@@ -295,62 +490,93 @@ async function runTick(sess) {
         state.totalTrades++;
         updateDrawdown(state);
         state.position = null;
+        stopFastTicker(sess);
 
         const trade = {
           session_id: sessionId, user_id: userId,
-          type: 'exit', side, symbol, timeframe,
-          price, size, pnl,
-          stop_loss: stopLoss, take_profit: takeProfit,
+          type: 'exit', side: pos.side, symbol, timeframe,
+          price: exitPrice, size: pos.size, pnl,
+          stop_loss: pos.stopLoss, take_profit: pos.takeProfit,
           reason: exitResult.reasons.join(' | '),
           balance_after: parseFloat(state.balance.toFixed(4)),
           timestamp: ts,
-          mae:  parseFloat((mae || 0).toFixed(4)),
-          tickmill_order: closeResult.closed ? tickmillOrderId : null,
+          mae: parseFloat((pos.mae || 0).toFixed(4)),
+          tickmill_order: closeResult.closed ? pos.tickmillOrderId : null,
         };
         stmtInsert.run(trade);
-        pushLog(sess, { ts, type: 'EXIT', side, price, pnl,
-                        mae: (mae || 0).toFixed(2),
-                        reason: exitResult.reasons, indicators: state.lastIndicators });
+        waExit(pos.side, symbol, timeframe, pnl, exitResult.reasons[0] || '', state.balance, state.wins, state.totalTrades, pos.trailing || false, pos.trailLockProfit || 0);
+        pushLog(sess, { ts, type: 'EXIT', side: pos.side, price: exitPrice, pnl,
+                        mae: (pos.mae || 0).toFixed(2),
+                        reason: exitResult.reasons, indicators: exitResult.indicators });
         broadcast(sess, { type: 'trade', trade, state: publicState(state) });
         return;
       }
 
+      // Update unrealized PnL using live price (forming candle)
       const { side, entryPrice, size } = state.position;
-      state.position.unrealizedPnl = parseFloat(
-        (side === 'long' ? (price - entryPrice) * size : (entryPrice - price) * size).toFixed(4)
-      );
+      const unrealPnl = side === 'long' ? (livePrice - entryPrice) * size : (entryPrice - livePrice) * size;
+      state.position.unrealizedPnl = parseFloat(unrealPnl.toFixed(4));
+      if (unrealPnl < (state.position.mae || 0)) state.position.mae = unrealPnl;
+
+      // Advance trailing SL on candle close too (belt-and-suspenders with fast tick)
+      const trailUpdate = computeTrailUpdate(state.position, unrealPnl);
+      if (trailUpdate) {
+        const { oldSl, newSl, lockProfit, trailHigh: newTrailHigh } = trailUpdate;
+        if (newSl !== state.position.stopLoss) state.position.stopLoss = newSl;
+        if (newTrailHigh !== undefined) state.position.trailHigh = newTrailHigh;
+        state.position.trailing        = true;
+        state.position.trailLockProfit = lockProfit;
+        pushLog(sess, {
+          ts, type: 'TICK', signal: 'TRAIL-UPDATE', price: livePrice,
+          indicators: exitResult ? exitResult.indicators : state.lastIndicators,
+          reason: [`SL updated: $${oldSl.toFixed(2)} → $${newSl.toFixed(2)} (locks $${lockProfit} profit)`],
+        });
+      }
+
+      manageFastTicker(sess);
     }
 
-    // ── Candle-change gate ─────────────────────────────────────
-    const isNewCandle = latestCandleTime !== sess.lastCandleTime;
+    // ── New-candle guard uses closed candle time ──────────────────────
+    const isNewCandle = latestClosedTime !== sess.lastCandleTime;
     if (!isNewCandle) {
       broadcast(sess, { type: 'tick', state: publicState(state) });
       return;
     }
-    sess.lastCandleTime = latestCandleTime;
+    sess.lastCandleTime = latestClosedTime;
 
-    // ── Signal check (new candle only) ────────────────────────
-    const { signal, reason, indicators, buyScore, sellScore } = generateSignal(candles);
+    // ── Generate signal from closed candles only ──────────────────────
+    const { signal, reason, indicators, buyScore, sellScore } = generateSignal(closedCandles);
     state.lastIndicators = indicators;
     state.lastSignal     = { signal, buyScore, sellScore };
 
-    if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
-      const { atr } = indicators;
-      const stopDist = Math.max(3 * atr, price * 0.0025); // wider swing stop
-      const riskAmt  = state.balance * 0.015;
-      const size     = parseFloat((riskAmt / stopDist).toFixed(8));
-      const side     = signal === 'BUY' ? 'long' : 'short';
-      const sl       = side === 'long' ? price - stopDist : price + stopDist;
-      const tp       = side === 'long' ? price + stopDist * 3 : price - stopDist * 3;
-      const lots     = parseFloat((riskAmt / (price * 100)).toFixed(2)); // approximate lots
+    // ── Opposite-signal exit ──────────────────────────────────────────
+    if (state.position) {
+      const { side } = state.position;
+      const isOpposite = (side === 'long' && signal === 'SELL') || (side === 'short' && signal === 'BUY');
+      if (isOpposite) {
+        stopFastTicker(sess);
+        await handleExit(sess, state.position, price, `Opposite signal: ${signal}`, indicators, ts);
+        // Fall through to enter opposite position
+      } else {
+        pushLog(sess, { ts, type: 'TICK', signal: `${signal} (B:${buyScore} S:${sellScore})`, price, indicators, reason });
+        broadcast(sess, { type: 'tick', state: publicState(state) });
+        return;
+      }
+    }
 
-      // Place Tickmill order (or paper)
-      const orderResult = await tickmill.placeOrder(side, symbol, lots, sl, tp, 'CBT Algo2 Swing');
+    // ── Entry logic ───────────────────────────────────────────────────
+    if (!state.position && (signal === 'BUY' || signal === 'SELL')) {
+      const side = signal === 'BUY' ? 'long' : 'short';
+      const size = 1; // fixed 1 lot
+      const sl   = side === 'long' ? price - 100 : price + 100; // $100 fixed SL
+      const tp   = side === 'long' ? price + 250 : price - 250; // $250 reference TP
+
+      const orderResult = await tickmill.placeOrder(side, symbol, size, sl, tp, 'CBT Algo2 Closed Candle');
 
       state.position = {
         side, entryPrice: price, size, stopLoss: sl, takeProfit: tp,
-        entryTime: ts, unrealizedPnl: 0,
-        phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
+        entryTime: ts, unrealizedPnl: 0, mae: 0,
+        trailing: false, trailLockProfit: 0, trailHigh: price,
         tickmillOrderId: orderResult.orderId,
       };
 
@@ -365,15 +591,14 @@ async function runTick(sess) {
         tickmill_order: orderResult.orderId,
       };
       stmtInsert.run(trade);
+      waEntry(side, symbol, timeframe, price, size, sl, tp, 0, state.balance);
       pushLog(sess, { ts, type: 'ENTRY', side, signal, price, size,
                       stopLoss: sl, takeProfit: tp,
                       balance: state.balance.toFixed(4), reason, indicators,
                       tickmill: orderResult });
       broadcast(sess, { type: 'trade', trade, state: publicState(state) });
-    } else {
-      pushLog(sess, { ts, type: 'TICK',
-                      signal: `${signal} (B:${buyScore} S:${sellScore})`,
-                      price, indicators, reason });
+    } else if (!state.position) {
+      pushLog(sess, { ts, type: 'TICK', signal: `${signal} (B:${buyScore} S:${sellScore})`, price, indicators, reason });
       broadcast(sess, { type: 'tick', state: publicState(state) });
     }
   } catch (err) {
@@ -389,26 +614,36 @@ async function tick(sess) {
   try { await runTick(sess); } finally { sess.tickBusy = false; }
 }
 
-function startAlignedTicks(sess, intervalMs) {
-  stopTicker(sess);
-  const now   = Date.now();
-  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 2000;
-  sess.alignTimeout = setTimeout(() => {
+// ── No-drift self-rescheduling timer ─────────────────────────────
+// Recomputes delay from Date.now() every tick so it always fires at
+// :01s after each candle boundary — zero cumulative drift over days.
+function scheduleNextTick(sess, intervalMs) {
+  const now = Date.now();
+  const msToNextBoundary = intervalMs - (now % intervalMs);
+  const delay = msToNextBoundary + 1000; // 1s after candle boundary
+  sess.ticker = setTimeout(() => {
+    if (!sess.state.running) return;
     tick(sess);
-    sess.ticker = setInterval(() => tick(sess), intervalMs);
+    scheduleNextTick(sess, intervalMs);
   }, delay);
 }
 
-function stopTicker(sess) {
-  if (sess.alignTimeout) { clearTimeout(sess.alignTimeout);  sess.alignTimeout = null; }
-  if (sess.ticker)       { clearInterval(sess.ticker);       sess.ticker       = null; }
+function startAlignedTicks(sess, intervalMs) {
+  stopTicker(sess);
+  scheduleNextTick(sess, intervalMs);
 }
 
-// ── Backtest runner (swing variant) ───────────────────────────────
+function stopTicker(sess) {
+  if (sess.alignTimeout) { clearTimeout(sess.alignTimeout); sess.alignTimeout = null; }
+  if (sess.ticker)       { clearTimeout(sess.ticker);       sess.ticker       = null; }
+  stopFastTicker(sess);
+}
+
+// ── Backtest ──────────────────────────────────────────────────────
 async function runBacktest(symbol, timeframe, months) {
   const allCandles = await fetchCandlesHistorical(symbol, timeframe, months);
   if (allCandles.length < 210) {
-    throw new Error(`Need 210+ candles for EMA200. Got ${allCandles.length} — try longer duration or wider timeframe.`);
+    throw new Error(`Need 210+ candles for EMA200. Got ${allCandles.length} — try longer duration.`);
   }
 
   const WINDOW = 250;
@@ -419,12 +654,60 @@ async function runBacktest(symbol, timeframe, months) {
   let wins = 0;
 
   for (let i = WINDOW; i < allCandles.length; i++) {
-    const seg   = allCandles.slice(Math.max(0, i - WINDOW + 1), i + 1);
-    const price = allCandles[i].close;
+    const seg    = allCandles.slice(Math.max(0, i - WINDOW + 1), i + 1);
+    const price  = allCandles[i].close;
+    const canH   = allCandles[i].high;
+    const canL   = allCandles[i].low;
+    const sig    = generateSignal(seg);
 
     if (pos) {
-      const ex = checkExit(pos, seg);
-      if (ex.exit) {
+      const peakPx  = pos.side === 'long' ? canH : canL;
+      const peakPnl = pos.side === 'long'
+        ? (peakPx - pos.entryPrice) * pos.size
+        : (pos.entryPrice - peakPx) * pos.size;
+      const tu = computeTrailUpdate(pos, peakPnl);
+      if (tu) {
+        pos.stopLoss        = tu.newSl;
+        pos.trailing        = true;
+        pos.trailLockProfit = tu.lockProfit;
+      }
+
+      const slHit      = pos.side === 'long' ? canL <= pos.stopLoss  : canH >= pos.stopLoss;
+      const adverseHit = pos.side === 'long'
+        ? canL <= pos.entryPrice - 1000
+        : canH >= pos.entryPrice + 1000;
+
+      if (slHit || adverseHit) {
+        let exitPrice, reason;
+        if (adverseHit && (!slHit ||
+            (pos.side === 'long' ? pos.entryPrice - 1000 < pos.stopLoss : pos.entryPrice + 1000 > pos.stopLoss))) {
+          exitPrice = pos.side === 'long' ? pos.entryPrice - 1000 : pos.entryPrice + 1000;
+          reason    = '$1000 adverse stop';
+        } else {
+          exitPrice = pos.stopLoss;
+          reason    = pos.trailing
+            ? `Trailing SL hit: $${exitPrice.toFixed(2)} (locked $${pos.trailLockProfit})`
+            : `SL hit: $${exitPrice.toFixed(2)}`;
+        }
+        const pnl = pos.side === 'long'
+          ? (exitPrice - pos.entryPrice) * pos.size
+          : (pos.entryPrice - exitPrice) * pos.size;
+        balance += pnl;
+        if (pnl > 0) wins++;
+        if (balance > peakBal) peakBal = balance;
+        const dd = peakBal - balance;
+        if (dd > maxDD) maxDD = dd;
+        trades.push({
+          side: pos.side, entryPrice: +pos.entryPrice.toFixed(4), exitPrice: +exitPrice.toFixed(4),
+          pnl: +pnl.toFixed(2), balance: +balance.toFixed(2),
+          entryTime: new Date(pos.entryTime).toISOString(),
+          exitTime:  new Date(allCandles[i].time).toISOString(),
+          reason, mae: +(pos.mae || 0).toFixed(2), trailed: pos.trailing || false,
+        });
+        pos = null;
+
+      } else if ((pos.side === 'long' && sig.signal === 'SELL') ||
+                 (pos.side === 'short' && sig.signal === 'BUY')) {
         const pnl = pos.side === 'long'
           ? (price - pos.entryPrice) * pos.size
           : (pos.entryPrice - price) * pos.size;
@@ -434,42 +717,31 @@ async function runBacktest(symbol, timeframe, months) {
         const dd = peakBal - balance;
         if (dd > maxDD) maxDD = dd;
         trades.push({
-          side:       pos.side,
-          entryPrice: +pos.entryPrice.toFixed(4),
-          exitPrice:  +price.toFixed(4),
-          pnl:        +pnl.toFixed(2),
-          balance:    +balance.toFixed(2),
-          entryTime:  new Date(pos.entryTime).toISOString(),
-          exitTime:   new Date(allCandles[i].time).toISOString(),
-          reason:     ex.reasons[0] || '',
-          mae:        +(pos.mae || 0).toFixed(2),
-          phase:      pos.phase || 1,
+          side: pos.side, entryPrice: +pos.entryPrice.toFixed(4), exitPrice: +price.toFixed(4),
+          pnl: +pnl.toFixed(2), balance: +balance.toFixed(2),
+          entryTime: new Date(pos.entryTime).toISOString(),
+          exitTime:  new Date(allCandles[i].time).toISOString(),
+          reason: `Opposite signal: ${sig.signal}`, mae: +(pos.mae || 0).toFixed(2), trailed: pos.trailing || false,
         });
         pos = null;
+
       } else {
-        const unreal = pos.side === 'long'
+        const unrealPnl = pos.side === 'long'
           ? (price - pos.entryPrice) * pos.size
           : (pos.entryPrice - price) * pos.size;
-        if (unreal < (pos.mae || 0)) pos.mae = unreal;
+        if (unrealPnl < (pos.mae || 0)) pos.mae = unrealPnl;
       }
     }
 
-    if (!pos) {
-      const sig = generateSignal(seg);
-      if (sig.signal === 'BUY' || sig.signal === 'SELL') {
-        const { atr } = sig.indicators;
-        const stopDist = Math.max(3 * atr, price * 0.0025);
-        const riskAmt  = balance * 0.015;
-        const size     = riskAmt / stopDist;
-        const side     = sig.signal === 'BUY' ? 'long' : 'short';
-        pos = {
-          side, entryPrice: price, size,
-          stopLoss:   side === 'long' ? price - stopDist : price + stopDist,
-          takeProfit: side === 'long' ? price + stopDist * 3 : price - stopDist * 3,
-          entryTime:  allCandles[i].time,
-          phase: 1, candlesHeld: 0, lastCandleTime: null, mae: 0,
-        };
-      }
+    if (!pos && (sig.signal === 'BUY' || sig.signal === 'SELL')) {
+      const newSide = sig.signal === 'BUY' ? 'long' : 'short';
+      pos = {
+        side: newSide, entryPrice: price, size: 1,
+        stopLoss:   newSide === 'long' ? price - 100 : price + 100,
+        takeProfit: newSide === 'long' ? price + 250 : price - 250,
+        entryTime:  allCandles[i].time,
+        mae: 0, trailing: false, trailLockProfit: 0, trailHigh: price,
+      };
     }
   }
 
@@ -484,7 +756,7 @@ async function runBacktest(symbol, timeframe, months) {
       pnl: +pnl.toFixed(2), balance: +balance.toFixed(2),
       entryTime: new Date(pos.entryTime).toISOString(),
       exitTime: new Date(allCandles[allCandles.length - 1].time).toISOString(),
-      reason: 'End of backtest', mae: +(pos.mae || 0).toFixed(2), phase: pos.phase || 1,
+      reason: 'End of backtest', mae: +(pos.mae || 0).toFixed(2), trailed: pos.trailing || false,
     });
   }
 
@@ -523,7 +795,6 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Not authenticated' });
 }
 
-// ── Auth routes ────────────────────────────────────────────────────
 app.get('/api/config', (req, res) => res.json({
   authRequired:   AUTH_REQUIRED,
   googleClientId: GOOGLE_CLIENT_ID,
@@ -542,8 +813,7 @@ app.post('/auth/google', async (req, res) => {
 });
 app.post('/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 
-// ── Public routes ──────────────────────────────────────────────────
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'swing-v3-algo2-fixed-lot' }));
 app.get('/api/strategies', (_, res) =>
   res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s })))
 );
@@ -556,9 +826,8 @@ app.get('/api/tickmill', (_, res) => res.json({
   metaapiConfigured: !!(METAAPI_TOKEN && METAAPI_ACCOUNT_ID),
 }));
 
-// ── Protected routes ───────────────────────────────────────────────
-app.get('/api/state', requireAuth, (req, res) => res.json(publicState(getSession(req.userId).state)));
-app.get('/api/logs',  requireAuth, (req, res) => res.json(getSession(req.userId).logs));
+app.get('/api/state',  requireAuth, (req, res) => res.json(publicState(getSession(req.userId).state)));
+app.get('/api/logs',   requireAuth, (req, res) => res.json(getSession(req.userId).logs));
 app.get('/api/trades', requireAuth, (req, res) => {
   const { session } = req.query;
   const userId = req.userId;
@@ -578,9 +847,9 @@ app.post('/api/start', requireAuth, (req, res) => {
   const sess = getSession(req.userId);
   if (sess.state.running) return res.json({ ok: false, msg: 'Already running' });
   const {
-    symbol = 'BTCUSDT', timeframe = '4h',
-    balance = 10000, interval = 14400, // 4h default
-    strategyId = 'swing-v1', mode = 'paper',
+    symbol = 'BTCUSDT', timeframe = '1m',
+    balance = 10000, interval = 60,
+    strategyId = 'swing-v3-closed-candle', mode = 'paper',
   } = req.body || {};
   const ms  = Math.max(5000, parseInt(interval, 10) * 1000);
   const bal = parseFloat(balance);
@@ -615,7 +884,7 @@ app.post('/api/stop', requireAuth, (req, res) => {
 });
 
 app.post('/api/backtest', requireAuth, async (req, res) => {
-  const { symbol = 'BTCUSDT', timeframe = '4h', months = 3 } = req.body || {};
+  const { symbol = 'BTCUSDT', timeframe = '1m', months = 3 } = req.body || {};
   const m = Math.max(1, Math.min(12, parseInt(months, 10) || 3));
   try {
     const result = await runBacktest(symbol, timeframe, m);
@@ -643,5 +912,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT Algo2 (Swing/Tickmill) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+  console.log(`CBT Algo2 (Fixed 1-lot · $100 SL · Decremental Trail) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
 );
