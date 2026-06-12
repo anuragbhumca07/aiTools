@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Fyers NSE — Multi-Algo Dashboard</title>
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --border: #21262d;
+  --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #e3b341;
+  --purple: #bc8cff; --orange: #f0883e; --teal: #39d353;
+  --font: 'Courier New', Courier, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+
+/* ── Header ──────────────────── */
+header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 18px; background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.hdr-title   { font-size: 1.1rem; font-weight: 700; color: var(--purple); }
+.hdr-sub     { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+.spacer      { flex: 1; }
+.badge {
+  padding: 2px 10px; border-radius: 20px; font-size: .7rem; font-weight: 700;
+  border: 1px solid; letter-spacing: .4px; white-space: nowrap;
+}
+.badge-open   { color: var(--green); border-color: var(--green); }
+.badge-closed { color: var(--red);   border-color: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.badge-running { color: var(--teal); border-color: var(--teal); animation: pulse 1.5s infinite; }
+.fyers-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px; font-size: .7rem;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.dot.ok { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.dot.err { background: var(--red); }
+
+/* ── Layout ──────────────────── */
+.wrap { max-width: 1700px; margin: 0 auto; padding: 14px 16px; }
+
+/* ── Global stats bar ─────────── */
+.global-bar {
+  display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 14px;
+}
+@media(max-width:900px){ .global-bar { grid-template-columns: repeat(3,1fr); } }
+.gb-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px;
+}
+.gb-box .lbl { font-size: .66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+.gb-box .val { font-size: 1.1rem; font-weight: 700; }
+
+/* ── Auth banner ──────────────── */
+#auth-banner {
+  display: none; padding: 12px 16px; margin-bottom: 12px;
+  background: rgba(88,166,255,.07); border: 1px solid rgba(88,166,255,.3);
+  border-radius: 8px; font-size: .82rem; align-items: center; gap: 12px;
+}
+#auth-banner.show { display: flex; }
+
+/* ── Action bar ───────────────── */
+.action-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center;
+}
+.btn {
+  padding: 6px 14px; border: none; border-radius: 6px;
+  font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: opacity .15s, transform .1s; letter-spacing: .3px;
+}
+.btn:hover   { opacity: .85; transform: translateY(-1px); }
+.btn:active  { transform: translateY(0); }
+.btn:disabled { opacity: .4; cursor: default; transform: none; }
+.btn-start-all { background: var(--teal);   color: #000; }
+.btn-stop-all  { background: var(--red);    color: #fff; }
+.btn-auth      { background: var(--accent); color: #000; }
+.btn-secondary { background: rgba(255,255,255,.07); color: var(--muted); border: 1px solid var(--border); }
+select.mode-sel {
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 6px 8px; font-family: var(--font); font-size: 12px;
+}
+
+/* ── 6 Algo cards grid ────────── */
+.algo-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 12px;
+}
+@media(max-width:1100px){ .algo-grid { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:680px)  { .algo-grid { grid-template-columns: 1fr; } }
+
+.algo-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  transition: border-color .2s;
+  position: relative; overflow: hidden;
+}
+.algo-card.running { border-color: rgba(57,211,83,.4); }
+.algo-card.error   { border-color: rgba(248,81,73,.4); }
+.algo-card:hover   { border-color: var(--purple); }
+
+.card-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; border-radius: 6px; padding: 2px 4px; margin-left: -4px; transition: background .15s; }
+.card-hdr:hover { background: rgba(188,140,255,.08); }
+.card-hdr .slot-name { font-weight: 700; font-size: .9rem; color: var(--purple); }
+.card-hdr .stock-tag {
+  padding: 1px 8px; border-radius: 20px; font-size: .68rem; font-weight: 700;
+  background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.3); color: var(--accent);
+}
+.card-hdr .port-tag {
+  padding: 1px 6px; border-radius: 4px; font-size: .64rem;
+  background: rgba(255,255,255,.06); color: var(--muted);
+}
+.card-hdr .spacer { flex: 1; }
+
+/* Status indicator */
+.slot-status {
+  display: flex; align-items: center; gap: 5px; font-size: .72rem;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status-dot.running { background: var(--teal); box-shadow: 0 0 5px var(--teal); animation: pulse 1.5s infinite; }
+.status-dot.error   { background: var(--red); }
+
+/* Card stats */
+.card-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin: 8px 0; }
+.cs-box { background: rgba(0,0,0,.2); border-radius: 5px; padding: 5px 8px; }
+.cs-box .lbl { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+.cs-box .val { font-size: .82rem; font-weight: 700; }
+
+/* Signal indicator */
+.sig-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: .72rem; }
+.sig-pill {
+  padding: 1px 8px; border-radius: 20px; font-size: .68rem; font-weight: 700;
+  background: rgba(255,255,255,.06); border: 1px solid var(--border); color: var(--muted);
+}
+.sig-pill.buy  { background: rgba(57,211,83,.12);  border-color: var(--teal); color: var(--teal); }
+.sig-pill.sell { background: rgba(248,81,73,.12);  border-color: var(--red);  color: var(--red); }
+.sig-pill.hold { color: var(--muted); }
+
+/* Card controls */
+.card-controls { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.card-controls select {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 5px; padding: 4px 6px; font-family: var(--font); font-size: .72rem;
+  flex: 1; min-width: 80px;
+}
+.btn-sm {
+  padding: 4px 10px; border: none; border-radius: 5px;
+  font-family: var(--font); font-size: .72rem; font-weight: 700; cursor: pointer;
+}
+.btn-sm:disabled { opacity: .4; cursor: default; }
+.btn-sm-start { background: var(--teal); color: #000; }
+.btn-sm-stop  { background: var(--red);  color: #fff; }
+.btn-sm-open  { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
+
+/* Card log tail */
+.card-log { margin-top: 8px; max-height: 80px; overflow-y: auto; }
+.log-line { font-size: .65rem; color: var(--muted); border-bottom: 1px solid rgba(255,255,255,.03); padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-line.err { color: var(--red); }
+
+/* Open position pill */
+.pos-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 20px; font-size: .68rem; font-weight: 700;
+  border: 1px solid;
+}
+.pos-pill.long  { color: var(--teal); border-color: rgba(57,211,83,.5); background: rgba(57,211,83,.08); }
+.pos-pill.short { color: var(--red);  border-color: rgba(248,81,73,.5); background: rgba(248,81,73,.08); }
+.pos-pill.flat  { color: var(--muted); border-color: var(--border); }
+
+/* Signal monitor table */
+.sig-monitor {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; margin-top: 14px;
+}
+.sig-monitor .ttl { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; }
+.sig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 8px; }
+.sig-box {
+  background: rgba(0,0,0,.2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px;
+}
+.sig-box .sb-name { font-size: .72rem; font-weight: 700; margin-bottom: 3px; color: var(--text); }
+.sig-box .sb-sig  { font-size: .78rem; font-weight: 700; }
+.sig-box .sb-scores { font-size: .65rem; color: var(--muted); margin-top: 2px; }
+
+/* Market closed overlay on card */
+.market-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; font-size: .78rem; color: var(--yellow); pointer-events: none;
+  opacity: 0; transition: opacity .3s;
+}
+.market-overlay.show { opacity: 1; }
+
+/* Activity log */
+.activity-log {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; margin-top: 14px;
+  max-height: 200px; overflow-y: auto;
+}
+.activity-log .ttl { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px; position: sticky; top: -14px; background: var(--card); padding-bottom: 4px; }
+.act-line { font-size: .72rem; color: var(--muted); padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.03); display: flex; gap: 8px; }
+.act-line .ts  { color: rgba(139,148,158,.6); white-space: nowrap; }
+.act-line .msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#market-status-bar {
+  text-align: center; padding: 5px;
+  background: rgba(57,211,83,.06); border-bottom: 1px solid rgba(57,211,83,.2);
+  font-size: .72rem; color: var(--teal);
+}
+#market-status-bar.closed { background: rgba(248,81,73,.06); border-color: rgba(248,81,73,.2); color: var(--red); }
+</style>
+</head>
+<body>
+
+<div id="market-status-bar">⏳ Connecting…</div>
+
+<header>
+  <div>
+    <div class="hdr-title">🇮🇳 Fyers NSE — Multi-Algo Dashboard</div>
+    <div class="hdr-sub">6 independent algos · EMA Ribbon Swing v2 · Ports 3011–3016</div>
+  </div>
+  <span id="market-badge" class="badge badge-closed">MARKET CLOSED</span>
+  <div class="fyers-pill">
+    <div class="dot" id="fyers-dot"></div>
+    <span id="fyers-lbl" style="color:var(--muted)">Fyers: checking…</span>
+  </div>
+  <div class="spacer"></div>
+  <span id="hdr-time" style="font-size:.7rem;color:var(--muted)">—</span>
+</header>
+
+<div class="wrap">
+
+  <!-- Auth banner -->
+  <div id="auth-banner">
+    <span style="color:var(--accent)">🔗</span>
+    <span>Fyers account not connected — connect to enable live data fetching and trading</span>
+    <button class="btn btn-auth" onclick="connectFyers()">Connect Fyers Account</button>
+  </div>
+
+  <!-- Global stats -->
+  <div class="global-bar" id="global-bar">
+    <div class="gb-box"><div class="lbl">Running Algos</div><div class="val" id="gb-running">0 / 6</div></div>
+    <div class="gb-box"><div class="lbl">Total PnL ₹</div><div class="val" id="gb-pnl" style="color:var(--muted)">₹0.00</div></div>
+    <div class="gb-box"><div class="lbl">Total Trades</div><div class="val" id="gb-trades">0</div></div>
+    <div class="gb-box"><div class="lbl">Win Rate</div><div class="val" id="gb-wr">—</div></div>
+    <div class="gb-box"><div class="lbl">Open Positions</div><div class="val" id="gb-positions">0</div></div>
+    <div class="gb-box"><div class="lbl">Market</div><div class="val" id="gb-market" style="font-size:.75rem">—</div></div>
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="btn btn-start-all" onclick="startAll()">▶ Start All Algos</button>
+    <button class="btn btn-stop-all"  onclick="stopAll()">■ Stop All Algos</button>
+    <select class="mode-sel" id="global-mode">
+      <option value="paper">Paper Trade</option>
+      <option value="live">Live Market</option>
+    </select>
+    <span style="font-size:.72rem;color:var(--muted);margin-left:4px">Global mode</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-secondary" onclick="openAllTabs()">🔗 Open All Algo UIs</button>
+    <a href="http://localhost:3020" target="_blank" style="text-decoration:none">
+      <button class="btn btn-secondary">🏭 MCX Commodities</button>
+    </a>
+  </div>
+
+  <!-- 6 Algo cards -->
+  <div class="algo-grid" id="algo-grid">
+    <!-- Populated by JS -->
+  </div>
+
+  <!-- Signal Monitor -->
+  <div class="sig-monitor">
+    <div class="ttl">📡 Live Signal Monitor — All Running Algos</div>
+    <div class="sig-grid" id="sig-grid">
+      <div style="color:var(--muted);font-size:.78rem">Start algos to see signals…</div>
+    </div>
+  </div>
+
+  <!-- Activity Log -->
+  <div class="activity-log">
+    <div class="ttl">📋 Dashboard Activity Log</div>
+    <div id="activity-log-body">
+      <div class="act-line"><span class="ts">—</span><span class="msg">Dashboard started</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const fmtINR  = v => v >= 0 ? '+₹' + parseFloat(v).toFixed(2) : '-₹' + Math.abs(parseFloat(v)).toFixed(2);
+const fmtTime = () => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) + ' IST';
+
+const NSE_STOCKS = [
+  { label: 'RELIANCE',     value: 'NSE:RELIANCE-EQ' },
+  { label: 'TCS',          value: 'NSE:TCS-EQ' },
+  { label: 'INFY',         value: 'NSE:INFY-EQ' },
+  { label: 'HDFC BANK',    value: 'NSE:HDFCBANK-EQ' },
+  { label: 'ICICI BANK',   value: 'NSE:ICICIBANK-EQ' },
+  { label: 'SBI',          value: 'NSE:SBIN-EQ' },
+  { label: 'WIPRO',        value: 'NSE:WIPRO-EQ' },
+  { label: 'HCL TECH',     value: 'NSE:HCLTECH-EQ' },
+  { label: 'AXIS BANK',    value: 'NSE:AXISBANK-EQ' },
+  { label: 'BAJ FINANCE',  value: 'NSE:BAJFINANCE-EQ' },
+  { label: 'TATA MOTORS',  value: 'NSE:TATAMOTORS-EQ' },
+  { label: 'ADANI ENT',    value: 'NSE:ADANIENT-EQ' },
+  { label: 'ADANI PORTS',  value: 'NSE:ADANIPORTS-EQ' },
+  { label: 'MARUTI',       value: 'NSE:MARUTI-EQ' },
+  { label: 'SUN PHARMA',   value: 'NSE:SUNPHARMA-EQ' },
+  { label: 'KOTAK BANK',   value: 'NSE:KOTAKBANK-EQ' },
+  { label: 'TECH MAHINDRA',value: 'NSE:TECHM-EQ' },
+  { label: 'BHARTI AIRTEL',value: 'NSE:BHARTIARTL-EQ' },
+  { label: 'BAJAJ AUTO',   value: 'NSE:BAJAJ-AUTO-EQ' },
+  { label: 'M&M',          value: 'NSE:M&M-EQ' },
+  { label: 'TATA STEEL',   value: 'NSE:TATASTEEL-EQ' },
+  { label: 'ONGC',         value: 'NSE:ONGC-EQ' },
+  { label: 'POWER GRID',   value: 'NSE:POWERGRID-EQ' },
+];
+
+let slots = [];
+let es;
+let activityCount = 0;
+
+// ── Init ─────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [sum, slotsData] = await Promise.all([
+      fetch('/api/summary').then(r => r.json()),
+      fetch('/api/slots').then(r => r.json()),
+    ]);
+    slots = slotsData;
+    renderCards();
+    applyGlobalSummary(sum);
+    updateFyersStatus(sum.fyersConnected);
+    if (!sum.fyersConnected) $('auth-banner').classList.add('show');
+    updateMarket(sum.isMarketOpen, sum.marketStatus);
+  } catch (e) { logActivity(`Init error: ${e.message}`); }
+  connectSSE();
+  setInterval(() => { $('hdr-time').textContent = fmtTime(); }, 1000);
+}
+
+function connectSSE() {
+  if (es) { es.close(); es = null; }
+  es = new EventSource('/events');
+  es.onmessage = e => handleEvent(JSON.parse(e.data));
+  es.onerror   = () => { if (es) { es.close(); es = null; } setTimeout(connectSSE, 4000); };
+}
+
+function handleEvent(d) {
+  switch (d.type) {
+    case 'init':
+      slots = d.slots;
+      renderCards();
+      applyGlobalSummary(d.summary);
+      updateFyersStatus(d.summary.fyersConnected);
+      updateMarket(d.summary.isMarketOpen, d.summary.marketStatus);
+      break;
+    case 'heartbeat':
+      updateFyersStatus(d.fyersConnected);
+      updateMarket(d.isMarketOpen, d.marketStatus);
+      recomputeGlobal();
+      break;
+    case 'state_update': {
+      const slot = slots.find(s => s.id === d.slotId);
+      if (slot) { slot.state = d.state; updateCard(slot); }
+      recomputeGlobal();
+      updateSignalMonitor();
+      break;
+    }
+    case 'slot_started': {
+      const slot = slots.find(s => s.id === d.slotId);
+      if (slot) { slot.running = true; slot.pid = d.pid; updateCard(slot); }
+      logActivity(`Algo ${d.slotId} started (PID ${d.pid})`);
+      break;
+    }
+    case 'slot_stopped': {
+      const slot = slots.find(s => s.id === d.slotId);
+      if (slot) { slot.running = false; slot.pid = null; slot.state = null; updateCard(slot); }
+      logActivity(`Algo ${d.slotId} stopped (exit code ${d.code})`);
+      break;
+    }
+    case 'log': {
+      const slot = slots.find(s => s.id === d.slotId);
+      if (slot) { slot.logs = slot.logs || []; slot.logs.unshift({ ts: new Date().toISOString(), msg: d.line }); if (slot.logs.length > 20) slot.logs.length = 20; updateCardLog(slot); }
+      break;
+    }
+    case 'fyers_connected':
+      updateFyersStatus(true);
+      $('auth-banner').classList.remove('show');
+      logActivity('Fyers connected successfully');
+      break;
+  }
+}
+
+// ── Global summary ────────────────────────────────────────────────
+function recomputeGlobal() {
+  let totalPnl = 0, totalTrades = 0, totalWins = 0, openPos = 0, running = 0;
+  slots.forEach(s => {
+    if (s.running) running++;
+    if (s.state) {
+      totalPnl    += s.state.pnl || 0;
+      totalTrades += s.state.totalTrades || 0;
+      totalWins   += s.state.wins || 0;
+      if (s.state.position) openPos++;
+    }
+  });
+  $('gb-running').textContent = `${running} / 6`;
+  const pnlEl = $('gb-pnl');
+  pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + '₹' + Math.abs(totalPnl).toFixed(2);
+  pnlEl.style.color = totalPnl > 0 ? 'var(--green)' : totalPnl < 0 ? 'var(--red)' : 'var(--muted)';
+  $('gb-trades').textContent  = totalTrades;
+  $('gb-wr').textContent      = totalTrades > 0 ? ((totalWins/totalTrades)*100).toFixed(1) + '%' : '—';
+  $('gb-positions').textContent = openPos;
+}
+
+function applyGlobalSummary(sum) {
+  $('gb-running').textContent = `${sum.runningCount || 0} / 6`;
+  const pnl = sum.totalPnl || 0;
+  const pnlEl = $('gb-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + '₹' + Math.abs(pnl).toFixed(2);
+  pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--muted)';
+  $('gb-trades').textContent = sum.totalTrades || 0;
+  $('gb-wr').textContent     = sum.winRate ? sum.winRate + '%' : '—';
+}
+
+function updateMarket(open, msg) {
+  const bar   = $('market-status-bar');
+  const badge = $('market-badge');
+  const gbm   = $('gb-market');
+  bar.textContent = open ? `● NSE Market OPEN · ${msg}` : `● ${msg}`;
+  bar.className = open ? '' : 'closed';
+  badge.textContent = open ? '● MARKET OPEN'  : '● MARKET CLOSED';
+  badge.className   = open ? 'badge badge-open' : 'badge badge-closed';
+  if (gbm) gbm.textContent = msg;
+}
+
+function updateFyersStatus(connected) {
+  const dot = $('fyers-dot'), lbl = $('fyers-lbl');
+  if (connected) {
+    dot.className = 'dot ok'; lbl.textContent = 'Fyers: connected'; lbl.style.color = 'var(--green)';
+    $('auth-banner').classList.remove('show');
+  } else {
+    dot.className = 'dot err'; lbl.textContent = 'Fyers: not connected'; lbl.style.color = 'var(--red)';
+  }
+}
+
+// ── Card rendering ────────────────────────────────────────────────
+function stockSelectOpts(selected) {
+  return NSE_STOCKS.map(s =>
+    `<option value="${esc(s.value)}" ${s.value === selected ? 'selected' : ''}>${esc(s.label)}</option>`
+  ).join('');
+}
+
+function renderCards() {
+  const grid = $('algo-grid');
+  grid.innerHTML = '';
+  slots.forEach(slot => {
+    const div = document.createElement('div');
+    div.id = `card-${slot.id}`;
+    div.className = 'algo-card';
+    div.innerHTML = cardHTML(slot);
+    grid.appendChild(div);
+  });
+}
+
+function cardHTML(slot) {
+  const s   = slot.state;
+  const pnl = s?.pnl || 0;
+  const pnlColor = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--muted)';
+  const sig = s?.lastSignal?.signal || 'HOLD';
+  const sigClass = sig === 'BUY' ? 'buy' : sig === 'SELL' ? 'sell' : 'hold';
+  const pos = s?.position;
+  const posClass  = pos ? (pos.side === 'long' ? 'long' : 'short') : 'flat';
+  const posText   = pos ? `${pos.side.toUpperCase()} × ${pos.qty} @ ₹${parseFloat(pos.entryPrice).toFixed(2)}` : 'FLAT';
+  const winRate   = s && s.totalTrades > 0 ? ((s.wins / s.totalTrades) * 100).toFixed(0) + '%' : '—';
+
+  const logsHtml = (slot.logs || []).slice(0, 6).map(l => {
+    const isErr = l.msg && l.msg.includes('[ERR]');
+    return `<div class="log-line ${isErr ? 'err' : ''}" title="${esc(l.msg)}">${esc(l.msg || '')}</div>`;
+  }).join('');
+
+  return `
+    <div class="card-hdr" onclick="window.open('http://localhost:${slot.port}','_algo_${slot.id}')" style="cursor:pointer" title="Click to open ${esc(slot.name)} UI">
+      <span class="slot-name">${esc(slot.name)}</span>
+      <span class="stock-tag" id="stock-tag-${slot.id}">${esc(slot.symbolLabel || slot.symbol)}</span>
+      <span class="port-tag">:${slot.port}</span>
+      <div class="spacer"></div>
+      <div class="slot-status">
+        <div class="status-dot ${slot.running ? 'running' : ''}" id="dot-${slot.id}"></div>
+        <span id="status-txt-${slot.id}" style="color:${slot.running ? 'var(--teal)' : 'var(--muted)'}">${slot.running ? 'RUNNING' : 'STOPPED'}</span>
+      </div>
+    </div>
+
+    <div class="card-stats">
+      <div class="cs-box">
+        <div class="lbl">PnL</div>
+        <div class="val" id="pnl-${slot.id}" style="color:${pnlColor}">${(pnl >= 0 ? '+' : '') + '₹' + Math.abs(pnl).toFixed(2)}</div>
+      </div>
+      <div class="cs-box">
+        <div class="lbl">Trades</div>
+        <div class="val" id="trades-${slot.id}">${s?.totalTrades || 0}</div>
+      </div>
+      <div class="cs-box">
+        <div class="lbl">Win Rate</div>
+        <div class="val" id="wr-${slot.id}" style="color:${parseFloat(winRate)>=50?'var(--green)':winRate!=='—'?'var(--red)':'var(--muted)'}">${winRate}</div>
+      </div>
+    </div>
+
+    <div class="sig-row">
+      <span class="sig-pill ${sigClass}" id="sig-${slot.id}">${sig}</span>
+      <span id="buyscore-${slot.id}" style="font-size:.68rem;color:var(--muted)">B:${s?.lastSignal?.buyScore||0}/7 S:${s?.lastSignal?.sellScore||0}/7</span>
+      <span class="spacer"></span>
+      <span class="pos-pill ${posClass}" id="pos-${slot.id}">${esc(posText)}</span>
+    </div>
+
+    <div class="card-controls">
+      <select id="sym-sel-${slot.id}" ${slot.running ? 'disabled' : ''}>${stockSelectOpts(slot.symbol)}</select>
+      <select id="tf-sel-${slot.id}" ${slot.running ? 'disabled' : ''} style="width:70px">
+        <option value="1m" selected>1m</option>
+        <option value="5m">5m</option>
+        <option value="15m">15m</option>
+        <option value="30m">30m</option>
+        <option value="1h">1h</option>
+      </select>
+      <button class="btn-sm btn-sm-start" id="btn-start-${slot.id}" onclick="startSlot(${slot.id})" ${slot.running ? 'disabled' : ''}>▶</button>
+      <button class="btn-sm btn-sm-stop"  id="btn-stop-${slot.id}"  onclick="stopSlot(${slot.id})"  ${!slot.running ? 'disabled' : ''}>■</button>
+      <a href="http://localhost:${slot.port}" target="_blank"><button class="btn-sm btn-sm-open" title="Open Algo UI">↗</button></a>
+    </div>
+
+    <div class="card-log" id="log-${slot.id}">${logsHtml || '<div class="log-line" style="color:var(--muted)">No log output</div>'}</div>
+    <div class="market-overlay" id="overlay-${slot.id}">⏸ Market Closed</div>`;
+}
+
+function updateCard(slot) {
+  const card = $(`card-${slot.id}`);
+  if (!card) return;
+
+  const s   = slot.state;
+  const pnl = s?.pnl || 0;
+
+  // Status dot + text
+  const dot = $(`dot-${slot.id}`), stxt = $(`status-txt-${slot.id}`);
+  if (dot) { dot.className = 'status-dot ' + (slot.running ? 'running' : ''); }
+  if (stxt) { stxt.textContent = slot.running ? 'RUNNING' : 'STOPPED'; stxt.style.color = slot.running ? 'var(--teal)' : 'var(--muted)'; }
+
+  // Card border class
+  card.className = 'algo-card' + (slot.running ? ' running' : '') + (slot.error ? ' error' : '');
+
+  // PnL
+  const pnlEl = $(`pnl-${slot.id}`);
+  if (pnlEl) {
+    pnlEl.textContent = (pnl >= 0 ? '+' : '') + '₹' + Math.abs(pnl).toFixed(2);
+    pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--muted)';
+  }
+
+  // Stats
+  const tradesEl = $(`trades-${slot.id}`);
+  if (tradesEl) tradesEl.textContent = s?.totalTrades || 0;
+  const wrEl = $(`wr-${slot.id}`);
+  if (wrEl && s) {
+    const wr = s.totalTrades > 0 ? ((s.wins/s.totalTrades)*100).toFixed(0) + '%' : '—';
+    wrEl.textContent  = wr;
+    wrEl.style.color  = parseFloat(wr) >= 50 ? 'var(--green)' : wr !== '—' ? 'var(--red)' : 'var(--muted)';
+  }
+
+  // Signal
+  const sigEl = $(`sig-${slot.id}`);
+  if (sigEl && s?.lastSignal) {
+    const sig = s.lastSignal.signal || 'HOLD';
+    sigEl.textContent = sig;
+    sigEl.className   = 'sig-pill ' + (sig === 'BUY' ? 'buy' : sig === 'SELL' ? 'sell' : 'hold');
+  }
+  const bsEl = $(`buyscore-${slot.id}`);
+  if (bsEl && s?.lastSignal) {
+    bsEl.textContent = `B:${s.lastSignal.buyScore||0}/7 S:${s.lastSignal.sellScore||0}/7`;
+  }
+
+  // Position
+  const posEl = $(`pos-${slot.id}`);
+  if (posEl) {
+    const pos = s?.position;
+    posEl.textContent = pos ? `${pos.side.toUpperCase()} × ${pos.qty} @ ₹${parseFloat(pos.entryPrice).toFixed(2)}` : 'FLAT';
+    posEl.className   = 'pos-pill ' + (pos ? (pos.side === 'long' ? 'long' : 'short') : 'flat');
+  }
+
+  // Stock tag
+  const stag = $(`stock-tag-${slot.id}`);
+  if (stag) stag.textContent = slot.symbolLabel || slot.symbol.split(':')[1]?.replace('-EQ','') || slot.symbol;
+
+  // Button states
+  const bs = $(`btn-start-${slot.id}`), bst = $(`btn-stop-${slot.id}`);
+  const symSel = $(`sym-sel-${slot.id}`), tfSel = $(`tf-sel-${slot.id}`);
+  if (bs)  bs.disabled  = slot.running;
+  if (bst) bst.disabled = !slot.running;
+  if (symSel) symSel.disabled = slot.running;
+  if (tfSel)  tfSel.disabled  = slot.running;
+}
+
+function updateCardLog(slot) {
+  const logEl = $(`log-${slot.id}`);
+  if (!logEl) return;
+  const lines = (slot.logs || []).slice(0, 6).map(l => {
+    const isErr = l.msg && l.msg.includes('[ERR]');
+    return `<div class="log-line ${isErr ? 'err' : ''}" title="${esc(l.msg)}">${esc(l.msg || '')}</div>`;
+  }).join('');
+  logEl.innerHTML = lines || '<div class="log-line" style="color:var(--muted)">No output</div>';
+}
+
+// ── Signal monitor ────────────────────────────────────────────────
+function updateSignalMonitor() {
+  const grid = $('sig-grid');
+  const active = slots.filter(s => s.running && s.state?.lastSignal);
+  if (!active.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.78rem">Start algos to see signals…</div>';
+    return;
+  }
+  grid.innerHTML = active.map(s => {
+    const sig = s.state.lastSignal;
+    const ind = s.state.lastIndicators || {};
+    const color = sig.signal === 'BUY' ? 'var(--teal)' : sig.signal === 'SELL' ? 'var(--red)' : 'var(--muted)';
+    return `
+      <div class="sig-box">
+        <div class="sb-name">${esc(s.name)} — ${esc(s.symbolLabel || s.symbol)}</div>
+        <div class="sb-sig" style="color:${color}">${sig.signal}</div>
+        <div class="sb-scores">B:${sig.buyScore||0}/7 · S:${sig.sellScore||0}/7 · ADX:${ind.adx ? parseFloat(ind.adx).toFixed(1) : '—'}</div>
+        ${ind.price ? `<div style="font-size:.65rem;color:var(--muted)">₹${parseFloat(ind.price).toFixed(2)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ── Slot controls ─────────────────────────────────────────────────
+async function startSlot(id) {
+  const symSel = $(`sym-sel-${id}`), tfSel = $(`tf-sel-${id}`);
+  const symbol    = symSel ? symSel.value : null;
+  const timeframe = tfSel  ? tfSel.value  : '15m';
+  const mode      = $('global-mode')?.value || 'paper';
+  const symbolLabel = NSE_STOCKS.find(s => s.value === symbol)?.label || symbol;
+
+  // Update slot config
+  const slot = slots.find(s => s.id === id);
+  if (slot && symbol) { slot.symbol = symbol; slot.symbolLabel = symbolLabel; }
+
+  try {
+    const r = await fetch(`/api/slot/${id}/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, timeframe, mode, symbolLabel }),
+    });
+    const d = await r.json();
+    if (!d.ok) logActivity(`Failed to start Algo ${id}: ${d.msg}`);
+    else logActivity(`Starting Algo ${id} (${symbolLabel}) on port ${slot?.port}`);
+  } catch (e) { logActivity(`Error starting Algo ${id}: ${e.message}`); }
+}
+
+async function stopSlot(id) {
+  try {
+    await fetch(`/api/slot/${id}/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    logActivity(`Stopping Algo ${id}…`);
+  } catch (e) { logActivity(`Error stopping Algo ${id}: ${e.message}`); }
+}
+
+async function startAll() {
+  const mode = $('global-mode')?.value || 'paper';
+  logActivity(`Starting all algos in ${mode} mode…`);
+  try {
+    await fetch('/api/start-all', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+  } catch (e) { logActivity(`Error: ${e.message}`); }
+}
+
+async function stopAll() {
+  logActivity('Stopping all algos…');
+  try { await fetch('/api/stop-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); }
+  catch (e) { logActivity(`Error: ${e.message}`); }
+}
+
+function openAllTabs() {
+  slots.forEach(s => window.open(`http://localhost:${s.port}`, `_algo_${s.id}`));
+}
+
+function connectFyers() {
+  fetch('/api/fyers/auth-url').then(r => r.json()).then(d => {
+    if (d.url) window.open(d.url, '_blank', 'width=600,height=700');
+    logActivity('Opened Fyers auth page…');
+  });
+}
+
+// ── Activity log ──────────────────────────────────────────────────
+function logActivity(msg) {
+  const body = $('activity-log-body');
+  const line = document.createElement('div');
+  line.className = 'act-line';
+  const ts = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${esc(msg)}</span>`;
+  body.insertBefore(line, body.firstChild);
+  activityCount++;
+  while (body.children.length > 100) body.removeChild(body.lastChild);
+}
+
+init();
+</script>
+</body>
+</html>

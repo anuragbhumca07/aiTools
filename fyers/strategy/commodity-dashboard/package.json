@@ -1,0 +1,12 @@
+{
+  "name": "fyers-commodity-dashboard",
+  "version": "1.0.0",
+  "description": "Fyers MCX Commodity Multi-Algo Dashboard — Gold, Silver, Crude, NatGas, Copper, Aluminium",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

@@ -152,7 +152,7 @@ def handle(cmd):
         ticket = int(cmd.get("ticket", 0))
         positions = mt5.positions_get(ticket=ticket)
         if not positions:
-            return {"ok": False, "error": f"Position {ticket} not found (already closed?)"}
+            return {"ok": True, "data": {"ticket": ticket, "already_closed": True}}
         pos        = positions[0]
         close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
         tick       = mt5.symbol_info_tick(pos.symbol)
