@@ -15,9 +15,9 @@ app.use(express.static(path.join(__dirname, 'web')));
 // ── Python runner ───────────────────────────────────────────────────
 function runPython(args, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(PYTHON, [path.join(TRADER_DIR, 'main.py'), ...args], {
+    const proc = spawn(PYTHON, ['-m', 'main', ...args], {
       cwd: TRADER_DIR,
-      env: { ...process.env, PYTHONPATH: TRADER_DIR },
+      env: { ...process.env },
     });
 
     let stdout = '';
