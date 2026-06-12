@@ -1,0 +1,5 @@
+CBT/
+node_modules/
+test-results/
+paper_state.json
+*.log
