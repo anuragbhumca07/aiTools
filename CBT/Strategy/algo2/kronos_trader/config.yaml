@@ -1,0 +1,65 @@
+mode: paper
+
+asset:
+  symbol: XBTUSD
+  base: XBT
+  quote: USD
+  timeframe: 1h
+
+kronos:
+  enabled: false
+  model_id: "shiyu-coder/Kronos"
+  model_size: base
+  lookback_candles: 128
+  forecast_horizon: 24
+  n_samples: 50
+  bullish_threshold: 0.62
+  bearish_threshold: 0.38
+  volatility_expansion_threshold: 0.55
+
+signals:
+  vwap:
+    enabled: true
+    anchor: session
+    bands: [1.0, 2.0]
+  volume_profile:
+    enabled: true
+    lookback_candles: 200
+    value_area_pct: 0.70
+  order_blocks:
+    enabled: true
+    min_body_pct: 0.60
+    freshness_candles: 50
+    min_displacement_pct: 0.30
+  liquidity:
+    enabled: true
+    swing_lookback: 20
+    sweep_threshold_pct: 0.05
+
+entry:
+  min_composite_score: 0.50
+  require_kronos_confirmation: false
+  require_liquidity_sweep: false
+  max_spread_pct: 0.10
+
+risk:
+  capital_usd: 10000
+  risk_per_trade_pct: 1.0
+  max_open_positions: 1
+  max_daily_loss_pct: 3.0
+  reward_ratio_min: 1.5
+
+stop_loss:
+  method: atr
+  atr_period: 14
+  atr_multiplier_sl: 1.5
+  atr_multiplier_trailing: 2.0
+  trailing_activation_r: 1.0
+  trailing_method: highlow
+  breakeven_at_r: 1.0
+
+backtest:
+  commission_pct: 0.026
+  slippage_pct: 0.01
+  initial_capital: 10000
+  days: 30
