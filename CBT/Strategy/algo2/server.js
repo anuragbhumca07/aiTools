@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 
 const app = express();
@@ -9,13 +10,32 @@ const PORT = parseInt(process.env.PORT || '3009', 10);
 const PYTHON = process.env.PYTHON_CMD || 'python';
 const TRADER_DIR = path.join(__dirname, 'kronos_trader');
 
+// ── Startup diagnostics ─────────────────────────────────────────────
+console.log(`BUILD_TAG=server_v6 | TRADER_DIR=${TRADER_DIR}`);
+try {
+  console.log(`trader_files=${JSON.stringify(fs.readdirSync(TRADER_DIR))}`);
+  console.log(`data_exists=${fs.existsSync(path.join(TRADER_DIR, 'data'))}`);
+} catch(e) {
+  console.log(`stat_error=${e.message}`);
+}
+
+// ── Write a path-injecting wrapper at startup (bypasses Docker cache) ─
+const WRAPPER = path.join('/tmp', 'kronos_run.py');
+fs.writeFileSync(WRAPPER,
+  'import sys, os\n' +
+  `_D = ${JSON.stringify(TRADER_DIR)}\n` +
+  'sys.path.insert(0, _D)\n' +
+  'os.chdir(_D)\n' +
+  `exec(open(os.path.join(_D, 'main.py')).read())\n`
+);
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
 
 // ── Python runner ───────────────────────────────────────────────────
 function runPython(args, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(PYTHON, ['-m', 'main', ...args], {
+    const proc = spawn(PYTHON, [WRAPPER, ...args], {
       cwd: TRADER_DIR,
       env: { ...process.env, PYTHONPATH: TRADER_DIR },
     });
@@ -54,7 +74,13 @@ function runPython(args, timeoutMs = 30000) {
 }
 
 // ── Routes ──────────────────────────────────────────────────────────
-app.get('/health', (_, res) => res.json({ status: 'ok', service: 'kronos-trader', port: PORT }));
+app.get('/health', (_, res) => res.json({
+  status: 'ok',
+  service: 'kronos-trader',
+  port: PORT,
+  build: 'server_v6',
+  data_exists: fs.existsSync(path.join(TRADER_DIR, 'data')),
+}));
 
 app.get('/api/status', async (req, res) => {
   try {
@@ -98,5 +124,4 @@ app.get('*', (_, res) => res.sendFile(path.join(__dirname, 'web', 'index.html'))
 
 app.listen(PORT, () => {
   console.log(`Kronos Trader running on :${PORT}`);
-  console.log(`Python: ${PYTHON}  |  Trader dir: ${TRADER_DIR}`);
 });
