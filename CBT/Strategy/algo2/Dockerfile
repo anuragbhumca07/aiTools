@@ -1,6 +1,5 @@
 FROM node:20-bookworm-slim
 
-# Install Python 3 + pip
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
@@ -18,22 +17,29 @@ RUN pip install --no-cache-dir --break-system-packages -r kronos_trader/requirem
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# App source — copy everything fresh (no layer reuse from prior stale builds)
+# CACHE_BUST: change this value to force Docker to rebuild all layers below
+ARG CACHE_BUST=20260612_v3
+RUN echo "Cache bust: $CACHE_BUST"
+
+# Copy app source fresh
 COPY server.js ./
 COPY web/ ./web/
 COPY kronos_trader/ ./kronos_trader/
 
-# Permanently register /app/kronos_trader in Python's site-packages via .pth file.
-# This fires for every Python process in this container before any import runs —
-# no reliance on PYTHONPATH, cwd, sys.path tricks, or -m flag behaviour.
+# Verify what was actually copied
+RUN echo "=== kronos_trader contents ===" && ls -la /app/kronos_trader/ \
+ && echo "=== data/ contents ===" && ls -la /app/kronos_trader/data/ \
+ && echo "=== main.py first 10 lines ===" && head -10 /app/kronos_trader/main.py
+
+# Register /app/kronos_trader permanently in Python's path via .pth
 RUN python3 -c "\
 import site, os; \
 pth = os.path.join(site.getsitepackages()[0], 'kronos_trader.pth'); \
 open(pth, 'w').write('/app/kronos_trader\n'); \
-print('Wrote', pth) \
+print('Wrote .pth to', pth) \
 "
 
-# Verify the full import chain works at build time
+# Verify imports work at build time
 RUN python3 -c "from data.kraken_rest import get_ohlcv, get_ticker; from data.data_manager import DataManager; print('data OK')"
 RUN python3 -c "from signals.vwap import VWAPSignal; from backtest.engine import BacktestEngine; print('signals+backtest OK')"
 
