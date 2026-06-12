@@ -24,6 +24,12 @@ COPY server.js ./
 COPY web/ ./web/
 COPY kronos_trader/ ./kronos_trader/
 
+# Bake PYTHONPATH into the image so every Python subprocess can find subpackages
+ENV PYTHONPATH=/app/kronos_trader
+
+# Verify the data package is importable at build time — fails build if files are missing
+RUN python -c "from data.kraken_rest import get_ohlcv, get_ticker; print('data package OK')"
+
 EXPOSE 3009
 
 CMD ["node", "server.js"]
