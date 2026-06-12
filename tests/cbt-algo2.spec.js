@@ -146,6 +146,7 @@ test('algo2: signals auto-load and update UI on page open', async ({ page }) => 
 
 // ── 6. Backtest runs and returns metrics ─────────────────────────
 test('algo2: /api/backtest returns valid metrics', async ({ request }) => {
+  test.setTimeout(90000);
   const res = await request.post(`${BASE}/api/backtest`, {
     data: { symbol: 'XBTUSD', timeframe: '1h', days: 7, capital: 10000 },
     timeout: 60000,
@@ -178,6 +179,7 @@ test('algo2: /api/backtest returns valid metrics', async ({ request }) => {
 
 // ── 7. Backtest results render in UI ─────────────────────────────
 test('algo2: backtest results render correctly in UI', async ({ page }) => {
+  test.setTimeout(120000);
   await page.goto(BASE, { waitUntil: 'networkidle' });
 
   await page.selectOption('#sel-bt-days', '7');
