@@ -17,7 +17,7 @@ function runPython(args, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON, [path.join(TRADER_DIR, 'main.py'), ...args], {
       cwd: TRADER_DIR,
-      env: { ...process.env },
+      env: { ...process.env, PYTHONPATH: TRADER_DIR },
     });
 
     let stdout = '';
