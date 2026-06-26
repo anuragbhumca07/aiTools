@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CBT TradingHome — Algo Hub</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #e3b341;
+    --purple: #bc8cff; --orange: #f0883e; --teal: #39d353;
+    --font: 'Courier New', Courier, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 16px 20px 60px; }
+
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 24px; background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .logo { font-size: 2rem; }
+  header .title-block .title { font-size: 1.3rem; font-weight: 700; color: var(--accent); letter-spacing: .5px; }
+  header .title-block .subtitle { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+  .stat-pill {
+    padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 700;
+    border: 1px solid var(--border); color: var(--muted); background: rgba(255,255,255,.03);
+    letter-spacing: .5px;
+  }
+  .stat-pill .num { color: var(--text); font-weight: 800; }
+  .spacer { flex: 1; }
+  #refresh-btn {
+    padding: 6px 16px; border: 1px solid var(--accent); background: rgba(88,166,255,.08);
+    color: var(--accent); border-radius: 6px; cursor: pointer; font-family: var(--font);
+    font-size: .78rem; font-weight: 700; letter-spacing: .4px;
+  }
+  #refresh-btn:hover { background: rgba(88,166,255,.18); }
+  #refresh-btn:disabled { opacity: .5; cursor: default; }
+  #last-check { font-size: .7rem; color: var(--muted); margin-left: 10px; }
+
+  .intro {
+    margin-top: 16px; padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(88,166,255,.08), rgba(57,211,83,.04));
+    border: 1px solid rgba(88,166,255,.2); border-radius: 8px;
+    font-size: .85rem; color: var(--text);
+  }
+  .intro strong { color: var(--accent); }
+
+  .group {
+    margin-top: 24px;
+  }
+  .group-header {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0 12px;
+    border-bottom: 2px solid var(--border); margin-bottom: 14px;
+  }
+  .group-icon { font-size: 1.5rem; }
+  .group-name {
+    font-size: 1.1rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .group-count { color: var(--muted); font-size: .78rem; }
+  .group-tagline { color: var(--muted); font-size: .78rem; margin-left: auto; font-style: italic; }
+
+  .algo-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 12px;
+  }
+
+  .algo-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; transition: all .2s;
+    display: flex; flex-direction: column; min-height: 170px;
+    position: relative; overflow: hidden;
+  }
+  .algo-card.deployed {
+    border-color: rgba(57,211,83,.25);
+    box-shadow: 0 0 0 1px rgba(57,211,83,.05);
+  }
+  .algo-card.deployed:hover {
+    border-color: var(--teal); transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(57,211,83,.12);
+  }
+  .algo-card.local-only {
+    border-color: rgba(139,148,158,.2); background: rgba(255,255,255,.015);
+  }
+  .algo-card .row-top {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  }
+  .algo-card .name {
+    font-size: 1rem; font-weight: 700; color: var(--accent);
+  }
+  .algo-card .title-line {
+    font-size: .82rem; color: var(--text); font-weight: 700; margin-top: 2px;
+  }
+  .algo-card .desc {
+    font-size: .78rem; color: var(--muted); margin-top: 8px; line-height: 1.5;
+    flex: 1;
+  }
+  .status-dot {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 20px; font-size: .68rem;
+    font-weight: 700; letter-spacing: .5px; border: 1px solid;
+    flex-shrink: 0;
+  }
+  .status-dot::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-live { color: var(--teal); border-color: var(--teal); background: rgba(57,211,83,.08); }
+  .status-live::before { background: var(--teal); box-shadow: 0 0 5px var(--teal); }
+  .status-down { color: var(--red); border-color: var(--red); background: rgba(248,81,73,.08); }
+  .status-down::before { background: var(--red); }
+  .status-loading { color: var(--muted); border-color: var(--muted); }
+  .status-loading::before { background: var(--muted); animation: pulse 1.2s infinite; }
+  .status-local { color: var(--yellow); border-color: var(--yellow); background: rgba(227,179,65,.08); }
+  .status-local::before { background: var(--yellow); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .algo-card .row-bot {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .algo-card .url {
+    font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; flex: 1; min-width: 0;
+  }
+  .open-btn {
+    padding: 6px 14px; border: 1px solid var(--teal);
+    background: var(--teal); color: #000;
+    border-radius: 6px; font-family: var(--font); font-size: .75rem;
+    font-weight: 800; letter-spacing: .8px; cursor: pointer; flex-shrink: 0;
+    text-decoration: none;
+  }
+  .open-btn:hover { background: rgba(57,211,83,.85); text-decoration: none; }
+  .open-btn.disabled {
+    background: transparent; color: var(--muted); border-color: var(--border); cursor: not-allowed;
+  }
+  .algo-card .latency {
+    font-size: .65rem; color: var(--muted); margin-left: 6px;
+  }
+
+  footer {
+    margin-top: 40px; padding: 16px 0; border-top: 1px solid var(--border);
+    text-align: center; color: var(--muted); font-size: .72rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏠</div>
+  <div class="title-block">
+    <div class="title">CBT TradingHome</div>
+    <div class="subtitle">Hub for every CBT algo — grouped by broker · live Railway status</div>
+  </div>
+  <span class="stat-pill"><span class="num" id="stat-total">0</span> algos</span>
+  <span class="stat-pill"><span class="num" id="stat-live">0</span> on Railway</span>
+  <div class="spacer"></div>
+  <button id="refresh-btn" onclick="refreshChecks()">↻ Re-check</button>
+  <span id="last-check">—</span>
+</header>
+
+<div class="wrap">
+
+  <div class="intro">
+    <strong>What is this?</strong> A single landing page that lists every algo built under CBT, grouped by broker / category.
+    Each green card has a live Railway deployment — click <em>OPEN</em> to launch the algo's dashboard in a new tab.
+    Yellow cards are local-only services not yet deployed to Railway.
+  </div>
+
+  <div id="groups"></div>
+
+  <footer>
+    CBT TradingHome · Built with Express · See <a href="https://github.com/anuragbhumca07" target="_blank" rel="noopener">anuragbhumca07</a>
+  </footer>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let ALGOS = [], GROUPS = [], META = {};
+
+async function loadAlgos() {
+  const d = await fetch('/api/algos').then(r => r.json());
+  ALGOS  = d.algos;
+  GROUPS = d.groups;
+  META   = d.groupMeta;
+  $('stat-total').textContent = ALGOS.length;
+  $('stat-live').textContent  = ALGOS.filter(a => a.url).length;
+  renderGroups();
+  refreshChecks();
+}
+
+function renderGroups() {
+  const root = $('groups');
+  root.innerHTML = '';
+  for (const g of GROUPS) {
+    const groupAlgos = ALGOS.filter(a => a.group === g);
+    if (!groupAlgos.length) continue;
+    const meta = META[g] || { icon: '📦', color: 'var(--accent)', tagline: '' };
+    const section = document.createElement('section');
+    section.className = 'group';
+    section.id = 'group-' + g.toLowerCase();
+    const deployed = groupAlgos.filter(a => a.url).length;
+    section.innerHTML = `
+      <div class="group-header" style="border-color:${meta.color}">
+        <span class="group-icon">${meta.icon}</span>
+        <span class="group-name" style="color:${meta.color}">${g}</span>
+        <span class="group-count">${deployed} of ${groupAlgos.length} deployed</span>
+        <span class="group-tagline">${meta.tagline}</span>
+      </div>
+      <div class="algo-grid" id="grid-${g}"></div>`;
+    root.appendChild(section);
+    const grid = section.querySelector('.algo-grid');
+    for (const a of groupAlgos) grid.appendChild(buildCard(a));
+  }
+}
+
+function buildCard(a) {
+  const card = document.createElement('div');
+  card.className = 'algo-card ' + (a.url ? 'deployed' : 'local-only');
+  card.dataset.name = a.name;
+  const statusBadge = a.url
+    ? `<span class="status-dot status-loading" data-status="loading">CHECKING</span>`
+    : `<span class="status-dot status-local">LOCAL ONLY</span>`;
+  const openBtn = a.url
+    ? `<a class="open-btn" href="${a.url}" target="_blank" rel="noopener" data-test="open-${a.name}">OPEN ▸</a>`
+    : `<span class="open-btn disabled" data-test="local-${a.name}">NO RAILWAY</span>`;
+  const urlText = a.url ? a.url.replace('https://','') : '— not deployed —';
+  card.innerHTML = `
+    <div class="row-top">
+      <div>
+        <div class="name">${a.name}</div>
+        <div class="title-line">${a.title}</div>
+      </div>
+      ${statusBadge}
+    </div>
+    <div class="desc">${a.desc}</div>
+    <div class="row-bot">
+      <div class="url" title="${a.url || ''}">${urlText}<span class="latency" data-latency></span></div>
+      ${openBtn}
+    </div>`;
+  return card;
+}
+
+async function refreshChecks() {
+  const btn = $('refresh-btn');
+  btn.disabled = true; btn.textContent = '↻ Checking…';
+  // reset dots for deployed cards
+  document.querySelectorAll('.algo-card.deployed .status-dot').forEach(d => {
+    d.className = 'status-dot status-loading'; d.dataset.status = 'loading'; d.textContent = 'CHECKING';
+  });
+  document.querySelectorAll('.algo-card.deployed [data-latency]').forEach(l => l.textContent = '');
+  try {
+    const d = await fetch('/api/check').then(r => r.json());
+    for (const r of d.results) {
+      const card = document.querySelector('.algo-card[data-name="' + CSS.escape(r.name) + '"]');
+      if (!card) continue;
+      const dot = card.querySelector('.status-dot');
+      const lat = card.querySelector('[data-latency]');
+      if (!r.url) continue; // local-only — keep yellow badge
+      if (r.probe && r.probe.ok) {
+        dot.className = 'status-dot status-live'; dot.dataset.status = 'live'; dot.textContent = 'LIVE';
+        if (lat) lat.textContent = '  · ' + r.probe.ms + 'ms';
+      } else {
+        dot.className = 'status-dot status-down'; dot.dataset.status = 'down'; dot.textContent = 'DOWN';
+        if (lat) lat.textContent = r.probe && r.probe.note ? '  · ' + r.probe.note : '';
+      }
+    }
+    $('last-check').textContent = 'Checked ' + new Date(d.ts).toLocaleTimeString();
+  } catch (e) {
+    $('last-check').textContent = 'Check failed: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Re-check';
+  }
+}
+
+loadAlgos();
+</script>
+</body>
+</html>

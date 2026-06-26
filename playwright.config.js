@@ -39,19 +39,19 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       // Robinhood, algo4, and algo2 tests use shared local servers — run in their dedicated projects only
-      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo2.spec.js'],
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo44.spec.js', '**/cbt-algo2.spec.js', '**/cbt-trading-home.spec.js'],
     },
 
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
-      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo2.spec.js'],
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo44.spec.js', '**/cbt-algo2.spec.js', '**/cbt-trading-home.spec.js'],
     },
 
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo2.spec.js'],
+      testIgnore: ['**/robinhood.spec.js', '**/cbt-algo4.spec.js', '**/cbt-algo44.spec.js', '**/cbt-algo2.spec.js', '**/cbt-trading-home.spec.js'],
     },
 
     // Backend project: runs Robinhood server tests serially on a single browser
@@ -68,11 +68,25 @@ export default defineConfig({
       testMatch: ['**/cbt-algo4.spec.js'],
     },
 
+    // Algo44 project: algo4 logic with algo5-style UI, shared server on :3014
+    {
+      name: 'algo44',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/cbt-algo44.spec.js'],
+    },
+
     // Algo2 (Kronos) project: serial, shared server on :3009
     {
       name: 'algo2',
       use: { ...devices['Desktop Chrome'] },
       testMatch: ['**/cbt-algo2.spec.js'],
+    },
+
+    // TradingHome project: hits live Railway URLs for the home page + every deployed algo
+    {
+      name: 'trading-home',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/cbt-trading-home.spec.js'],
     },
 
     /* Test against mobile viewports. */

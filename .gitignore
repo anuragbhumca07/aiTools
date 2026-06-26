@@ -24,9 +24,34 @@ CBT/Strategy/algo4/data/
 CBT/Strategy/algo4/logs/
 CBT/Strategy/algo5/data/
 CBT/Strategy/algo5/logs/
+CBT/Strategy/algo6/data/
+CBT/Strategy/algo6/logs/
+CBT/Strategy/algo11/data/
+CBT/Strategy/algo11/logs/
+CBT/Strategy/algo44/data/
+CBT/Strategy/algo44/logs/
+CBT/Strategy/algo55/data/
+CBT/Strategy/algo55/logs/
+CBT/Strategy/algo66/data/
+CBT/Strategy/algo66/logs/
+CBT/TickMill/TickAlgo1/data/
+CBT/TickMill/TickAlgo1/logs/
+CBT/MT5/MT5Algo1/data/
+CBT/MT5/MT5Algo1/logs/
+Robinhood/RobAlgo6/data/
+Robinhood/RobAlgo6/logs/
+
+# Local server output captures
+CBT/**/server_stdout.txt
+CBT/**/server_stderr.txt
+Robinhood/**/server_stdout.txt
+Robinhood/**/server_stderr.txt
 
 # Playwright MCP session files
 .playwright-mcp/
+
+# Claude Code worktrees (subagent isolation state)
+.claude/worktrees/
 
 # Robinhood credentials
 Robinhood/.env
