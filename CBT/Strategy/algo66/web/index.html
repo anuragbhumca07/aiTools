@@ -471,7 +471,7 @@
       <table id="trades-tbl">
         <thead>
           <tr>
-            <th>Time</th><th>Type</th><th>Side</th>
+            <th>Date/Time</th><th>Type</th><th>Side</th>
             <th>Price</th><th>LvlLow</th><th>FlagLow</th>
             <th>Stop Loss</th><th>PnL</th><th>Balance</th>
             <th>MT5 ID</th><th>Mode</th><th>Reason</th>
@@ -490,7 +490,7 @@
     <div class="tbl-wrap log-wrap">
       <table id="log-tbl">
         <thead>
-          <tr><th>Time</th><th>Type</th><th>Message</th></tr>
+          <tr><th>Date/Time</th><th>Type</th><th>Message</th></tr>
         </thead>
         <tbody id="log-body">
           <tr><td colspan="3" class="empty-msg">Waiting for first tick…</td></tr>
@@ -506,7 +506,7 @@ const $ = id => document.getElementById(id);
 const fmt      = (v, d=4) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
 const fmt2     = v => fmt(v, 2);
 const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
-const fmtTime  = iso => { const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+const fmtTime  = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 let appState      = {};

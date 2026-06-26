@@ -441,7 +441,7 @@ function addLog(entry) {
   const area  = document.getElementById('log-area');
   const cls   = { ENTRY:'log-entry',EXIT:'log-exit',TRAIL:'log-trail','TRAIL-UPDATE':'log-trail',
                   TICK:'log-tick',ERROR:'log-error',RISK:'log-risk',SKIP:'log-skip' }[entry.type] || 'log-tick';
-  const ts    = entry.ts ? entry.ts.slice(11,19) : '';
+  const ts    = entry.ts ? (entry.ts.slice(5,10).replace('-','/') + ' ' + entry.ts.slice(11,19)) : '';
   const price = entry.price ? ` $${Number(entry.price).toFixed(2)}` : '';
   const extra = entry.pnl !== undefined ? ` PnL=${entry.pnl>=0?'+':''}$${Number(entry.pnl).toFixed(2)}` : '';
   const reason = Array.isArray(entry.reason) ? entry.reason[0] : (entry.message||entry.signal||'');
@@ -578,7 +578,7 @@ function buildBtPanel(r) {
 
   const tradeRows = trades.slice(0,200).map(t => {
     const cls = t.pnl > 0 ? 'pnl-win' : 'pnl-loss';
-    const entry = t.entryTime ? t.entryTime.slice(0,16) : '—';
+    const entry = t.entryTime ? (t.entryTime.slice(5,10).replace('-','/') + ' ' + t.entryTime.slice(11,16)) : '—';
     return `<tr>
       <td>${entry}</td>
       <td><span class="badge ${t.side==='long'?'bull':'bear'}" style="font-size:.6rem">${t.side.toUpperCase()}</span></td>
@@ -595,7 +595,7 @@ function buildBtPanel(r) {
   <div style="font-size:.65rem;color:#64748b;margin:6px 0">Showing up to 200 trades</div>
   <div class="bt-trade-wrap" id="bt-trades-body-${s.symbol}">
     <table class="bt-trade-table">
-      <thead><tr><th>Time</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R:R</th><th>Reason</th><th>Trail</th></tr></thead>
+      <thead><tr><th>Date/Time</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R:R</th><th>Reason</th><th>Trail</th></tr></thead>
       <tbody>${tradeRows}</tbody>
     </table>
   </div>`;
