@@ -93,7 +93,9 @@ def cmd_backtest(args) -> dict:
 
     intervals_per_day = {'1m': 1440, '5m': 288, '15m': 96, '30m': 48,
                          '1h': 24,   '4h': 6,   '1d': 1}
-    candles_needed = days * intervals_per_day.get(tf, 24)
+    MIN_HISTORY = 50  # must match BacktestEngine.MIN_CANDLES
+    test_candles  = days * intervals_per_day.get(tf, 24)
+    candles_needed = test_candles + MIN_HISTORY
     if len(df) > candles_needed:
         df = df.tail(candles_needed).reset_index(drop=True)
 

@@ -10,6 +10,7 @@ RUN ln -sf /usr/bin/python3 /usr/local/bin/python \
 WORKDIR /app
 
 COPY kronos_trader/ ./kronos_trader/
+RUN pip install --no-cache-dir --break-system-packages -r ./kronos_trader/requirements.txt
 RUN pip install --no-cache-dir --break-system-packages -e ./kronos_trader/
 
 COPY package.json package-lock.json ./

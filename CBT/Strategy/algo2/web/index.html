@@ -2,284 +2,360 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Kronos Trader</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Kronos Trader — AI Signal Engine</title>
 <style>
   :root {
-    --bg:#0d0f14; --panel:#161a23; --border:#232836; --accent:#7c6af7;
-    --green:#22c55e; --red:#ef4444; --yellow:#f59e0b; --dim:#6b7280;
-    --text:#e2e8f0; --sub:#94a3b8;
+    --bg: #0d1117; --card: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #f0883e;
+    --green: #3fb950; --red: #f85149; --yellow: #e3b341;
+    --teal: #39d353; --font: 'Courier New', Courier, monospace;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh}
-  .hdr{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
-  .hdr h1{font-size:18px;font-weight:700;letter-spacing:-.5px}
-  .hdr .sub{color:var(--sub);font-size:12px}
-  #status-badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;background:#1e2330;border:1px solid var(--border)}
-  #status-badge.running{background:#052e16;border-color:var(--green);color:var(--green)}
-  #status-badge.loading{background:#1c1400;border-color:var(--yellow);color:var(--yellow)}
-  #status-badge.error{background:#2a0909;border-color:var(--red);color:var(--red)}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+  a { color: var(--accent); }
 
-  .grid{display:grid;grid-template-columns:260px 1fr 280px;gap:12px;padding:12px;height:calc(100vh - 55px);overflow:hidden}
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header .title    { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+  header .subtitle { font-size: .75rem; color: var(--muted); }
+  .badge {
+    padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700;
+    border: 1px solid; letter-spacing: .5px;
+  }
+  .badge-idle    { color: var(--muted);  border-color: var(--muted); }
+  .badge-live    { color: var(--green);  border-color: var(--green); animation: pulse 1.5s infinite; }
+  .badge-loading { color: var(--yellow); border-color: var(--yellow); }
+  .badge-error   { color: var(--red);    border-color: var(--red); }
+  .badge-bt      { color: var(--accent); border-color: var(--accent); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .spacer { flex: 1; }
+  #last-update { color: var(--muted); font-size: .72rem; }
 
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;overflow:auto}
-  .panel h2{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--sub);margin-bottom:10px}
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 12px 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-top: 12px;
+  }
+  .card-title {
+    font-size: .72rem; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media(max-width:900px){ .grid-2 { grid-template-columns: 1fr; } }
 
-  /* Kronos gauge */
-  .gauge-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-  .gauge-label{width:90px;font-size:12px;color:var(--sub)}
-  .gauge-bar{flex:1;height:6px;background:#1a2035;border-radius:3px;overflow:hidden}
-  .gauge-fill{height:100%;border-radius:3px;transition:width .4s}
-  .gauge-fill.bull{background:var(--green)}
-  .gauge-fill.bear{background:var(--red)}
-  .gauge-fill.vol{background:var(--yellow)}
-  .gauge-val{width:44px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+  .ctrl-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-group label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  select, input[type=number] {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 13px;
+    outline: none; transition: border-color .2s;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  select { cursor: pointer; }
+  .btn {
+    padding: 7px 18px; border: none; border-radius: 6px;
+    font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: opacity .15s, transform .1s; letter-spacing: .4px;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: default; transform: none; }
+  .btn-start    { background: var(--teal);   color: #000; }
+  .btn-stop     { background: var(--red);    color: #fff; }
+  .btn-refresh  { background: var(--muted);  color: #000; }
+  .btn-backtest { background: var(--accent); color: #000; }
 
-  /* Signal badges */
-  .sig-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
-  .sig-row:last-child{border-bottom:none}
-  .sig-name{font-size:12px;color:var(--sub)}
-  .sig-val{font-size:12px;font-weight:600}
-  .sig-val.bull{color:var(--green)}
-  .sig-val.bear{color:var(--red)}
-  .sig-val.neu{color:var(--dim)}
+  .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+  /* Kronos gauges */
+  .gauge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .gauge-label { width: 120px; font-size: .75rem; color: var(--muted); }
+  .gauge-bar { flex: 1; height: 6px; background: rgba(255,255,255,.07); border-radius: 3px; overflow: hidden; }
+  .gauge-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .gauge-fill.bull { background: var(--green); }
+  .gauge-fill.bear { background: var(--red); }
+  .gauge-fill.vol  { background: var(--yellow); }
+  .gauge-val { width: 48px; font-size: .78rem; text-align: right; font-weight: 700; }
+
+  /* Signal rows */
+  .sig-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .sig-row:last-child { border-bottom: none; }
+  .sig-name { font-size: .75rem; color: var(--muted); }
+  .sig-val  { font-size: .78rem; font-weight: 700; }
+  .sig-bull { color: var(--green); }
+  .sig-bear { color: var(--red); }
+  .sig-neu  { color: var(--muted); }
 
   /* Composite */
-  .composite-box{background:#0a0c12;border-radius:6px;padding:12px;margin-top:8px;text-align:center}
-  #composite-direction{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
-  #composite-direction.long{color:var(--green)}
-  #composite-direction.short{color:var(--red)}
-  #composite-direction.neutral{color:var(--dim)}
-  #composite-score{font-size:28px;font-weight:800;margin:2px 0}
-  .score-label{font-size:10px;color:var(--sub);text-transform:uppercase;letter-spacing:.6px}
+  .composite-box {
+    background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px; margin-top: 10px; text-align: center;
+  }
+  #composite-direction { font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; }
+  .dir-long    { color: var(--green); }
+  .dir-short   { color: var(--red); }
+  .dir-neutral { color: var(--muted); }
+  #composite-score { font-size: 1.8rem; font-weight: 800; margin: 2px 0; }
+  .score-label { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
 
-  /* Reasons */
-  .reasons{margin-top:8px}
-  .reason-item{font-size:11px;color:var(--sub);padding:2px 0;padding-left:8px;border-left:2px solid var(--border)}
+  .reason-item { font-size: .72rem; color: var(--muted); padding: 2px 0 2px 8px; border-left: 2px solid var(--border); margin-bottom: 2px; }
 
-  /* Market info */
-  .ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-  .ind-box{background:#0a0c12;border-radius:6px;padding:8px 10px}
-  .ind-label{font-size:10px;color:var(--sub);margin-bottom:2px;text-transform:uppercase}
-  .ind-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  /* Indicator chips */
+  .ind-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ind-chip {
+    display: flex; flex-direction: column; gap: 2px;
+    background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; min-width: 80px;
+  }
+  .ind-chip .ic-lbl { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .ind-chip .ic-val { font-size: .95rem; font-weight: 700; }
 
-  /* Controls */
-  .ctrl-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-  select,input{background:#0a0c12;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:13px;flex:1;min-width:80px}
-  button{padding:7px 14px;border-radius:5px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.15s}
-  #btn-refresh{background:var(--accent);color:#fff}
-  #btn-refresh:hover{opacity:.85}
-  #btn-run-bt{background:#0d3b26;color:var(--green);border:1px solid var(--green)}
-  #btn-run-bt:hover{background:#0f4b30}
-  #btn-run-bt:disabled{opacity:.45;cursor:not-allowed}
+  /* Backtest stats */
+  .bt-stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 8px; }
+  @media(max-width:700px){ .bt-stat-grid { grid-template-columns: repeat(2,1fr); } }
+  .stat-box { background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .stat-box .lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+  .stat-box .val { font-size: .95rem; font-weight: 700; }
 
-  /* Backtest results */
-  .bt-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-  .bt-stat{background:#0a0c12;border-radius:5px;padding:8px 10px}
-  .bt-stat .label{font-size:10px;color:var(--sub);text-transform:uppercase}
-  .bt-stat .val{font-size:15px;font-weight:700;margin-top:2px}
-  .val.pos{color:var(--green)}
-  .val.neg{color:var(--red)}
-
-  /* Equity chart */
-  #equity-chart{width:100%;height:130px;margin-top:8px}
-  canvas#equity-chart{border-radius:6px}
+  #equity-chart { width: 100%; height: 120px; margin-top: 8px; display: block; }
 
   /* Log */
-  #log-area{font-size:11px;font-family:monospace;color:var(--sub);height:140px;overflow-y:auto;background:#080a0e;border-radius:5px;padding:8px;margin-top:8px}
-  #log-area p{margin:1px 0}
-  #log-area p.info{color:var(--sub)}
-  #log-area p.ok{color:var(--green)}
-  #log-area p.warn{color:var(--yellow)}
-  #log-area p.err{color:var(--red)}
+  .log-area {
+    font-size: .78rem; font-family: var(--font); color: var(--muted);
+    max-height: 220px; overflow-y: auto; background: rgba(0,0,0,.2);
+    border-radius: 5px; padding: 8px;
+  }
+  .log-area p { margin: 1px 0; }
+  .log-ok   { color: var(--green); }
+  .log-warn { color: var(--yellow); }
+  .log-err  { color: var(--red); }
+  .log-info { color: var(--muted); }
 
-  /* Trades table */
-  .trades-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
-  .trades-table th{color:var(--sub);font-weight:600;text-align:left;padding:4px 6px;border-bottom:1px solid var(--border)}
-  .trades-table td{padding:4px 6px;border-bottom:1px solid #1a1d25}
-  .trades-table tr:hover td{background:#1a1d25}
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; margin-top: 8px; max-height: 280px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  thead th {
+    background: var(--bg); color: var(--muted); text-transform: uppercase;
+    letter-spacing: .8px; font-size: .68rem; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  tbody td { padding: 5px 8px; white-space: nowrap; color: var(--muted); }
+  .clr-g { color: var(--green) !important; }
+  .clr-r { color: var(--red)   !important; }
+  .clr-a { color: var(--accent)!important; }
+  .empty-msg { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
 
-  @media(max-width:900px){.grid{grid-template-columns:1fr;height:auto;overflow:visible}}
+  .bt-progress {
+    padding: 8px 12px; margin-top: 8px;
+    background: rgba(240,136,62,.1); border: 1px solid rgba(240,136,62,.3);
+    border-radius: 6px; color: var(--accent); font-size: .82rem;
+  }
+  #err-banner {
+    display: none; margin-top: 10px; padding: 9px 14px;
+    background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.3);
+    border-radius: 6px; color: var(--red); font-size: .82rem;
+  }
+  #err-banner.show { display: block; }
 </style>
 </head>
 <body>
 
-<header class="hdr">
+<header>
   <div>
-    <h1>Kronos Trader</h1>
-    <div class="sub">AI-Powered Algo Trading · BTC/USD</div>
+    <div class="title">Kronos Trader — AI Signal Engine</div>
+    <div class="subtitle">VWAP · Volume Profile · Order Blocks · Liquidity · Kronos AI Forecast · Kraken Live Data</div>
   </div>
-  <span id="status-badge">IDLE</span>
+  <span class="badge badge-idle" id="status-badge">IDLE</span>
+  <div class="spacer"></div>
+  <span id="last-update">—</span>
 </header>
 
-<div class="grid">
+<div class="wrap">
 
-  <!-- Left: Kronos + Signals -->
-  <div class="panel">
-    <h2>Kronos Forecast</h2>
+  <div class="grid-2">
 
-    <div class="gauge-row">
-      <span class="gauge-label">Bullish Prob</span>
-      <div class="gauge-bar"><div id="bar-bull" class="gauge-fill bull" style="width:50%"></div></div>
-      <span class="gauge-val" id="kronos-bullish-prob">50.0%</span>
-    </div>
-    <div class="gauge-row">
-      <span class="gauge-label">Bearish Prob</span>
-      <div class="gauge-bar"><div id="bar-bear" class="gauge-fill bear" style="width:50%"></div></div>
-      <span class="gauge-val" id="kronos-bearish-prob">50.0%</span>
-    </div>
-    <div class="gauge-row">
-      <span class="gauge-label">Vol Expansion</span>
-      <div class="gauge-bar"><div id="bar-vol" class="gauge-fill vol" style="width:50%"></div></div>
-      <span class="gauge-val" id="kronos-vol-prob">50.0%</span>
-    </div>
-    <div style="margin-top:4px;font-size:10px;color:var(--dim)">
-      Source: <span id="kronos-source">—</span>
+    <!-- Left: Controls + Backtest -->
+    <div class="card">
+      <div class="card-title">Live Signal Controls</div>
+      <div class="ctrl-row">
+        <div class="ctrl-group">
+          <label>Symbol</label>
+          <select id="sel-symbol">
+            <option value="BTCUSD">BTC/USD</option>
+            <option value="ETHUSD">ETH/USD</option>
+            <option value="SOLUSD">SOL/USD</option>
+            <option value="XRPUSD">XRP/USD</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Timeframe</label>
+          <select id="sel-timeframe">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h" selected>1h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1d</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Poll (sec)</label>
+          <input id="ctrl-interval" type="number" value="60" min="30" step="30" style="width:75px"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <button class="btn btn-start"   id="btn-start"   onclick="startLive()">▶ START</button>
+        <button class="btn btn-stop"    id="btn-stop"    onclick="stopLive()" disabled>■ STOP</button>
+        <button class="btn btn-refresh" id="btn-refresh" onclick="fetchSignals()">↻ Refresh</button>
+      </div>
+
+      <hr class="divider"/>
+      <div class="card-title" style="margin-bottom:10px">Backtest</div>
+      <div class="ctrl-row">
+        <div class="ctrl-group">
+          <label>Symbol</label>
+          <select id="sel-bt-symbol">
+            <option value="BTCUSD">BTC/USD</option>
+            <option value="ETHUSD">ETH/USD</option>
+            <option value="SOLUSD">SOL/USD</option>
+            <option value="XRPUSD">XRP/USD</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Timeframe</label>
+          <select id="sel-bt-timeframe">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h" selected>1h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1d</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Days</label>
+          <select id="sel-bt-days">
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="60">60 days</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>Capital ($)</label>
+          <input id="inp-capital" type="number" value="10000" min="100" step="100" style="width:100px"/>
+        </div>
+      </div>
+      <button class="btn btn-backtest" id="btn-run-bt" onclick="runBacktest()">▶ RUN BACKTEST</button>
+
+      <div id="bt-running" style="display:none" class="bt-progress">⏳ Fetching data + computing signals… (may take 30–90s)</div>
+      <div id="err-banner"></div>
     </div>
 
-    <h2 style="margin-top:14px">Signal Breakdown</h2>
-    <div class="sig-row">
-      <span class="sig-name">VWAP</span>
-      <span class="sig-val" id="sig-vwap">—</span>
-    </div>
-    <div class="sig-row">
-      <span class="sig-name">Volume Profile</span>
-      <span class="sig-val" id="sig-volume-profile">—</span>
-    </div>
-    <div class="sig-row">
-      <span class="sig-name">Order Blocks</span>
-      <span class="sig-val" id="sig-order-blocks">—</span>
-    </div>
-    <div class="sig-row">
-      <span class="sig-name">Liquidity</span>
-      <span class="sig-val" id="sig-liquidity">—</span>
+    <!-- Right: Kronos Forecast + Signals -->
+    <div class="card">
+      <div class="card-title">Kronos AI Forecast</div>
+      <div class="gauge-row">
+        <span class="gauge-label">Bullish Prob</span>
+        <div class="gauge-bar"><div id="bar-bull" class="gauge-fill bull" style="width:50%"></div></div>
+        <span class="gauge-val clr-g" id="kronos-bullish-prob">—</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-label">Bearish Prob</span>
+        <div class="gauge-bar"><div id="bar-bear" class="gauge-fill bear" style="width:50%"></div></div>
+        <span class="gauge-val clr-r" id="kronos-bearish-prob">—</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-label">Vol Expansion</span>
+        <div class="gauge-bar"><div id="bar-vol" class="gauge-fill vol" style="width:25%"></div></div>
+        <span class="gauge-val" style="color:var(--yellow)" id="kronos-vol-prob">—</span>
+      </div>
+
+      <div class="card-title" style="margin-top:14px">Signal Breakdown</div>
+      <div class="sig-row">
+        <span class="sig-name">VWAP</span>
+        <span class="sig-val sig-neu" id="sig-vwap">—</span>
+      </div>
+      <div class="sig-row">
+        <span class="sig-name">Volume Profile</span>
+        <span class="sig-val sig-neu" id="sig-volume-profile">—</span>
+      </div>
+      <div class="sig-row">
+        <span class="sig-name">Order Blocks</span>
+        <span class="sig-val sig-neu" id="sig-order-blocks">—</span>
+      </div>
+      <div class="sig-row">
+        <span class="sig-name">Liquidity</span>
+        <span class="sig-val sig-neu" id="sig-liquidity">—</span>
+      </div>
+
+      <div class="composite-box">
+        <div class="score-label">Composite Direction</div>
+        <div id="composite-direction" class="dir-neutral">NEUTRAL</div>
+        <div id="composite-score">—</div>
+        <div class="score-label">Conviction Score</div>
+      </div>
+      <div id="reasons-box" style="margin-top:8px"></div>
     </div>
 
-    <div class="composite-box">
-      <div class="score-label">Composite Direction</div>
-      <div id="composite-direction" class="neutral">NEUTRAL</div>
-      <div id="composite-score">0.00</div>
-      <div class="score-label">Conviction Score</div>
-    </div>
-
-    <div class="reasons" id="reasons-box"></div>
   </div>
 
-  <!-- Center: Market + Backtest -->
-  <div class="panel" style="display:flex;flex-direction:column;gap:14px">
-
-    <div>
-      <h2>Market</h2>
-      <div class="ind-grid">
-        <div class="ind-box">
-          <div class="ind-label">Price</div>
-          <div class="ind-val" id="ind-price">—</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-label">ATR (14)</div>
-          <div class="ind-val" id="ind-atr">—</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-label">VWAP</div>
-          <div class="ind-val" id="ind-vwap">—</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-label">Spread</div>
-          <div class="ind-val" id="ind-spread">—</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-label">POC</div>
-          <div class="ind-val" id="ind-poc">—</div>
-        </div>
-        <div class="ind-box">
-          <div class="ind-label">Zone</div>
-          <div class="ind-val" id="ind-zone">—</div>
-        </div>
-      </div>
-
-      <div class="ctrl-row">
-        <select id="sel-symbol">
-          <option value="XBTUSD">BTC/USD</option>
-          <option value="ETHUSD">ETH/USD</option>
-          <option value="SOLUSD">SOL/USD</option>
-        </select>
-        <select id="sel-timeframe">
-          <option value="1h" selected>1h</option>
-          <option value="4h">4h</option>
-          <option value="1d">1d</option>
-          <option value="15m">15m</option>
-        </select>
-        <button id="btn-refresh">↻ Refresh Signals</button>
-      </div>
-    </div>
-
-    <div>
-      <h2>Backtest</h2>
-      <div class="ctrl-row">
-        <select id="sel-bt-days">
-          <option value="7">7 days</option>
-          <option value="14">14 days</option>
-          <option value="30" selected>30 days</option>
-          <option value="60">60 days</option>
-        </select>
-        <input id="inp-capital" type="number" placeholder="Capital $" value="10000" style="max-width:120px"/>
-        <button id="btn-run-bt">▶ Run Backtest</button>
-      </div>
-
-      <div id="backtest-results" style="display:none">
-        <div class="bt-grid">
-          <div class="bt-stat"><div class="label">Total Trades</div><div class="val" id="bt-total-trades">—</div></div>
-          <div class="bt-stat"><div class="label">Win Rate</div><div class="val" id="bt-win-rate">—</div></div>
-          <div class="bt-stat"><div class="label">Profit Factor</div><div class="val" id="bt-profit-factor">—</div></div>
-          <div class="bt-stat"><div class="label">Sharpe</div><div class="val" id="bt-sharpe">—</div></div>
-          <div class="bt-stat"><div class="label">Max Drawdown</div><div class="val" id="bt-max-dd">—</div></div>
-          <div class="bt-stat"><div class="label">Total Return</div><div class="val" id="bt-total-return">—</div></div>
-          <div class="bt-stat"><div class="label">Avg Win</div><div class="val pos" id="bt-avg-win">—</div></div>
-          <div class="bt-stat"><div class="label">Avg Loss</div><div class="val neg" id="bt-avg-loss">—</div></div>
-        </div>
-        <canvas id="equity-chart" height="130"></canvas>
-      </div>
-
-      <div id="bt-running" style="display:none;padding:12px;color:var(--yellow);font-size:12px">
-        ⏳ Running backtest… fetching data + computing signals…
-      </div>
-    </div>
-
-    <div style="flex:1">
-      <h2>Trade Log</h2>
-      <div id="log-area"><p class="info">Ready. Click "Refresh Signals" to load market data.</p></div>
+  <!-- Live Market Indicators -->
+  <div class="card">
+    <div class="card-title">Live Market</div>
+    <div class="ind-chips">
+      <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ind-price">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">ATR (14)</div><div class="ic-val" id="ind-atr">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">VWAP</div><div class="ic-val" id="ind-vwap">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Spread %</div><div class="ic-val" id="ind-spread">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">POC</div><div class="ic-val" id="ind-poc">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Zone</div><div class="ic-val" id="ind-zone">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Bid</div><div class="ic-val" id="ind-bid">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Ask</div><div class="ic-val" id="ind-ask">—</div></div>
     </div>
   </div>
 
-  <!-- Right: Positions + Trades -->
-  <div class="panel">
-    <h2>Open Positions</h2>
-    <div id="open-positions">
-      <p style="color:var(--dim);font-size:12px">No open positions</p>
+  <!-- Backtest Results -->
+  <div class="card" id="backtest-results" style="display:none">
+    <div class="card-title">Backtest Results — <span id="bt-label">—</span></div>
+    <div class="bt-stat-grid">
+      <div class="stat-box"><div class="lbl">Trades</div><div class="val" id="bt-total-trades">—</div></div>
+      <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="bt-win-rate">—</div></div>
+      <div class="stat-box"><div class="lbl">Profit Factor</div><div class="val" id="bt-profit-factor">—</div></div>
+      <div class="stat-box"><div class="lbl">Sharpe</div><div class="val" id="bt-sharpe">—</div></div>
+      <div class="stat-box"><div class="lbl">Max Drawdown</div><div class="val clr-r" id="bt-max-dd">—</div></div>
+      <div class="stat-box"><div class="lbl">Total Return</div><div class="val" id="bt-total-return">—</div></div>
+      <div class="stat-box"><div class="lbl">Avg Win</div><div class="val clr-g" id="bt-avg-win">—</div></div>
+      <div class="stat-box"><div class="lbl">Avg Loss</div><div class="val clr-r" id="bt-avg-loss">—</div></div>
     </div>
-
-    <h2 style="margin-top:14px">Recent Trades</h2>
-    <div id="trades-container">
-      <table class="trades-table">
+    <canvas id="equity-chart" height="120"></canvas>
+    <div class="tbl-wrap">
+      <table>
         <thead>
-          <tr>
-            <th>Dir</th><th>Entry</th><th>Exit</th><th>P&L%</th><th>Reason</th>
-          </tr>
+          <tr><th>Dir</th><th>Entry $</th><th>Exit $</th><th>Return %</th><th>Reason</th></tr>
         </thead>
-        <tbody id="trades-body">
-          <tr><td colspan="5" style="color:var(--dim)">No trades yet</td></tr>
+        <tbody id="bt-trades-body">
+          <tr><td colspan="5" class="empty-msg">No trades yet</td></tr>
         </tbody>
       </table>
     </div>
+  </div>
 
-    <h2 style="margin-top:14px">Strategy Info</h2>
-    <div style="font-size:11px;color:var(--sub);line-height:1.6">
-      <p>• <strong>Model:</strong> Kronos (AAAI 2026) + Technical</p>
-      <p>• <strong>Signals:</strong> VWAP · Vol Profile · Order Blocks · Liquidity</p>
-      <p>• <strong>Risk:</strong> 1% per trade · ATR 1.5× SL · 1.5R TP</p>
-      <p>• <strong>Trailing:</strong> Activated at 1R · 2× ATR distance</p>
-      <p>• <strong>Circuit breaker:</strong> 3% daily loss limit</p>
-      <p style="margin-top:8px;color:#dc2626;font-size:10px">⚠ Not financial advice. Paper trade first.</p>
+  <!-- Trade Log -->
+  <div class="card">
+    <div class="card-title">Trade Log <span id="log-count" style="color:var(--muted);font-weight:400">(0)</span></div>
+    <div class="log-area" id="log-area">
+      <p class="log-info">Ready — click ▶ START to auto-poll, ↻ Refresh for one-shot, or ▶ RUN BACKTEST</p>
     </div>
   </div>
 
@@ -287,222 +363,236 @@
 
 <script>
 const $ = id => document.getElementById(id);
+const fmt = (v, d=2) => v != null && !isNaN(v)
+  ? Number(v).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d}) : '—';
+const fmtTime = () => new Date().toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
 
-function log(msg, type='info') {
-  const el = $('log-area');
-  const p = document.createElement('p');
-  p.className = type;
-  p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  el.prepend(p);
-  if (el.children.length > 80) el.removeChild(el.lastChild);
-}
+let liveTimer = null;
+let logCount  = 0;
 
-function setStatus(text, cls='') {
+function setStatus(text, cls) {
   const b = $('status-badge');
   b.textContent = text;
-  b.className = cls;
+  b.className   = 'badge ' + (cls || 'badge-idle');
 }
 
-function fmtNum(v, decimals=2) {
-  if (v == null) return '—';
-  return Number(v).toLocaleString(undefined, {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+function addLog(msg, type='info') {
+  const area = $('log-area');
+  const p = document.createElement('p');
+  p.className   = 'log-' + type;
+  p.textContent = `[${fmtTime()}] ${msg}`;
+  area.insertBefore(p, area.firstChild);
+  logCount++;
+  $('log-count').textContent = `(${logCount})`;
+  if (area.children.length > 100) area.removeChild(area.lastChild);
 }
 
-function updateSignals(data) {
-  const k = data.kronos || {};
-  const bp = (k.bullish_prob || 0.5) * 100;
-  const bear = (k.bearish_prob || 0.5) * 100;
-  const vol = (k.volatility_expansion_prob || 0.5) * 100;
+function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
+function hideErr()    { $('err-banner').classList.remove('show'); }
 
-  $('bar-bull').style.width = bp + '%';
-  $('bar-bear').style.width = bear + '%';
-  $('bar-vol').style.width = vol + '%';
-  $('kronos-bullish-prob').textContent = bp.toFixed(1) + '%';
-  $('kronos-bearish-prob').textContent = bear.toFixed(1) + '%';
-  $('kronos-vol-prob').textContent = vol.toFixed(1) + '%';
-  $('kronos-source').textContent = k.source || '—';
+function setSig(id, score, label) {
+  const el = $(id);
+  el.textContent = label;
+  el.className   = 'sig-val ' + (score > 0.05 ? 'sig-bull' : score < -0.05 ? 'sig-bear' : 'sig-neu');
+}
 
-  const sig = data.signals || {};
-  const vwap = sig.vwap || {};
-  const vp = sig.volume_profile || {};
-  const ob = sig.order_blocks || {};
-  const liq = sig.liquidity || {};
+function updateSignalUI(data) {
+  const k   = data.kronos || {};
+  const bp  = (k.bullish_prob  || 0) * 100;
+  const brp = (k.bearish_prob  || 0) * 100;
+  const vp  = (k.volatility_expansion_prob || 0) * 100;
 
-  function sigEl(el, score, label) {
-    el.textContent = label;
-    el.className = 'sig-val ' + (score > 0.05 ? 'bull' : score < -0.05 ? 'bear' : 'neu');
-  }
+  $('bar-bull').style.width = bp  + '%';
+  $('bar-bear').style.width = brp + '%';
+  $('bar-vol').style.width  = vp  + '%';
+  $('kronos-bullish-prob').textContent = bp.toFixed(1)  + '%';
+  $('kronos-bearish-prob').textContent = brp.toFixed(1) + '%';
+  $('kronos-vol-prob').textContent     = vp.toFixed(1)  + '%';
 
-  sigEl($('sig-vwap'), vwap.score||0, vwap.position || '—');
-  sigEl($('sig-volume-profile'), vp.score||0, vp.current_zone || '—');
-  sigEl($('sig-order-blocks'), ob.score||0, `${ob.fresh_bullish||0}B / ${ob.fresh_bearish||0}Br OBs`);
-  const sweepText = liq.recent_sweep ? `${liq.recent_sweep} (${liq.sweep_candles_ago}c ago)` : 'No sweep';
-  sigEl($('sig-liquidity'), liq.score||0, sweepText);
+  const sig   = data.signals || {};
+  const vwap  = sig.vwap || {};
+  const vprof = sig.volume_profile || {};
+  const ob    = sig.order_blocks || {};
+  const liq   = sig.liquidity || {};
 
-  const comp = data.composite || {};
-  const dir = (comp.direction || 'neutral').toLowerCase();
+  setSig('sig-vwap',           vwap.score  || 0, vwap.position || '—');
+  setSig('sig-volume-profile', vprof.score || 0, vprof.current_zone || '—');
+  setSig('sig-order-blocks',   ob.score    || 0, `${ob.fresh_bullish||0}B / ${ob.fresh_bearish||0}Br OBs`);
+  const sweepTxt = liq.recent_sweep
+    ? `${liq.recent_sweep} (${liq.sweep_candles_ago}c ago)` : 'No sweep';
+  setSig('sig-liquidity', liq.score || 0, sweepTxt);
+
+  const comp  = data.composite || {};
+  const dir   = (comp.direction || 'neutral').toLowerCase();
   const dirEl = $('composite-direction');
   dirEl.textContent = dir.toUpperCase();
-  dirEl.className = dir;
-  $('composite-score').textContent = fmtNum(comp.score);
+  dirEl.className   = 'dir-' + dir;
+  $('composite-score').textContent = fmt(comp.score);
 
-  const reasonsBox = $('reasons-box');
-  reasonsBox.innerHTML = '';
+  const rb = $('reasons-box');
+  rb.innerHTML = '';
   (comp.reasons || []).forEach(r => {
     const p = document.createElement('p');
-    p.className = 'reason-item';
+    p.className   = 'reason-item';
     p.textContent = r;
-    reasonsBox.appendChild(p);
+    rb.appendChild(p);
   });
 
   const mkt = data.market || {};
-  $('ind-price').textContent = '$' + fmtNum(mkt.price, 0);
-  $('ind-atr').textContent = '$' + fmtNum(mkt.atr, 0);
-  $('ind-vwap').textContent = '$' + fmtNum(vwap.vwap, 0);
-  $('ind-spread').textContent = fmtNum(mkt.spread_pct, 3) + '%';
-  $('ind-poc').textContent = '$' + fmtNum(vp.poc, 0);
-  $('ind-zone').textContent = (vp.current_zone || '—').replace(/_/g,' ');
+  $('ind-price').textContent  = '$' + fmt(mkt.price, 0);
+  $('ind-atr').textContent    = '$' + fmt(mkt.atr, 0);
+  $('ind-vwap').textContent   = '$' + fmt(vwap.vwap, 0);
+  $('ind-spread').textContent = fmt(mkt.spread_pct, 3) + '%';
+  $('ind-poc').textContent    = '$' + fmt(vprof.poc, 0);
+  $('ind-zone').textContent   = (vprof.current_zone || '—').replace(/_/g, ' ');
+  $('ind-bid').textContent    = '$' + fmt(mkt.bid, 0);
+  $('ind-ask').textContent    = '$' + fmt(mkt.ask, 0);
 }
 
-async function refreshSignals() {
-  setStatus('LOADING', 'loading');
-  log('Fetching signals from Kraken…');
+async function fetchSignals() {
   const sym = $('sel-symbol').value;
-  const tf = $('sel-timeframe').value;
+  const tf  = $('sel-timeframe').value;
+  setStatus('LOADING', 'badge-loading');
+  addLog(`Fetching signals — ${sym} ${tf}…`);
   try {
-    const res = await fetch(`/api/signals?symbol=${sym}&timeframe=${tf}`);
+    const res  = await fetch(`/api/signals?symbol=${sym}&timeframe=${tf}`);
     const data = await res.json();
     if (data.status === 'error') throw new Error(data.message);
-    updateSignals(data);
-    setStatus('LIVE', 'running');
-    log(`Signals updated — ${data.composite?.direction?.toUpperCase()} (score: ${fmtNum(data.composite?.score)})`, 'ok');
+    updateSignalUI(data);
+    setStatus('LIVE', 'badge-live');
+    addLog(`Signals updated — ${data.composite?.direction?.toUpperCase()} (score: ${fmt(data.composite?.score)}) · ${sym} ${tf}`, 'ok');
+    $('last-update').textContent = 'Updated ' + fmtTime();
+    hideErr();
   } catch(e) {
-    setStatus('ERROR', 'error');
-    log('Error: ' + e.message, 'err');
+    setStatus('ERROR', 'badge-error');
+    addLog('Error: ' + e.message, 'err');
+    showErr(e.message);
   }
 }
 
-function drawEquity(curve) {
-  const canvas = $('equity-chart');
-  if (!canvas || !curve || curve.length < 2) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width = canvas.offsetWidth;
-  const H = canvas.height = 130;
-  const mn = Math.min(...curve), mx = Math.max(...curve);
-  const rng = mx - mn || 1;
-  const pad = 10;
+function startLive() {
+  hideErr();
+  $('btn-start').disabled   = true;
+  $('btn-stop').disabled    = false;
+  $('sel-symbol').disabled  = true;
+  $('sel-timeframe').disabled = true;
+  const interval = parseInt($('ctrl-interval').value, 10) || 60;
+  fetchSignals();
+  liveTimer = setInterval(fetchSignals, interval * 1000);
+  addLog(`Auto-poll started every ${interval}s`, 'ok');
+}
 
-  ctx.clearRect(0, 0, W, H);
-  ctx.beginPath();
-  curve.forEach((v, i) => {
-    const x = pad + (i / (curve.length - 1)) * (W - 2*pad);
-    const y = H - pad - ((v - mn) / rng) * (H - 2*pad);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  const final = curve[curve.length - 1];
-  const color = final >= curve[0] ? '#22c55e' : '#ef4444';
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Fill
-  const lastX = pad + (W - 2*pad);
-  const baseY = H - pad;
-  ctx.lineTo(lastX, baseY);
-  ctx.lineTo(pad, baseY);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, color + '40');
-  grad.addColorStop(1, color + '00');
-  ctx.fillStyle = grad;
-  ctx.fill();
+function stopLive() {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  $('btn-start').disabled     = false;
+  $('btn-stop').disabled      = true;
+  $('sel-symbol').disabled    = false;
+  $('sel-timeframe').disabled = false;
+  setStatus('STOPPED', 'badge-idle');
+  addLog('Auto-poll stopped', 'warn');
 }
 
 async function runBacktest() {
-  const days = parseInt($('sel-bt-days').value);
+  const sym     = $('sel-bt-symbol').value;
+  const tf      = $('sel-bt-timeframe').value;
+  const days    = parseInt($('sel-bt-days').value, 10);
   const capital = parseFloat($('inp-capital').value) || 10000;
-  const sym = $('sel-symbol').value;
-  const tf = $('sel-timeframe').value;
 
-  $('btn-run-bt').disabled = true;
+  $('btn-run-bt').disabled         = true;
+  $('bt-running').style.display    = 'block';
   $('backtest-results').style.display = 'none';
-  $('bt-running').style.display = 'block';
-  setStatus('BACKTESTING', 'loading');
-  log(`Running ${days}-day backtest on ${sym} ${tf}…`);
+  $('bt-label').textContent        = `${sym} ${tf} · ${days} days · $${capital.toLocaleString()}`;
+  setStatus('BACKTESTING', 'badge-bt');
+  addLog(`Running ${days}-day backtest — ${sym} ${tf} · $${capital.toLocaleString()} capital…`);
+  hideErr();
 
   try {
-    const res = await fetch('/api/backtest', {
+    const res  = await fetch('/api/backtest', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({symbol: sym, timeframe: tf, days, capital}),
     });
     const data = await res.json();
     if (data.status === 'error') throw new Error(data.message);
 
     const m = data.metrics || {};
-    $('bt-total-trades').textContent = m.total_trades ?? '—';
-    $('bt-win-rate').textContent = m.win_rate != null ? (m.win_rate*100).toFixed(1) + '%' : '—';
-    $('bt-profit-factor').textContent = fmtNum(m.profit_factor);
-    $('bt-sharpe').textContent = fmtNum(m.sharpe_ratio);
+    $('bt-total-trades').textContent  = m.total_trades ?? '—';
+    $('bt-win-rate').textContent      = m.win_rate != null ? (m.win_rate*100).toFixed(1)+'%' : '—';
+    $('bt-profit-factor').textContent = fmt(m.profit_factor);
+    $('bt-sharpe').textContent        = fmt(m.sharpe_ratio);
+    $('bt-max-dd').textContent        = m.max_drawdown_pct != null ? fmt(m.max_drawdown_pct)+'%' : '—';
 
-    const dd = m.max_drawdown_pct;
-    const ddEl = $('bt-max-dd');
-    ddEl.textContent = dd != null ? fmtNum(dd) + '%' : '—';
-    ddEl.className = 'val neg';
+    const ret    = m.total_return_pct;
+    const retEl  = $('bt-total-return');
+    retEl.textContent = ret != null ? fmt(ret)+'%' : '—';
+    retEl.className   = 'val ' + (ret >= 0 ? 'clr-g' : 'clr-r');
 
-    const ret = m.total_return_pct;
-    const retEl = $('bt-total-return');
-    retEl.textContent = ret != null ? fmtNum(ret) + '%' : '—';
-    retEl.className = 'val ' + (ret >= 0 ? 'pos' : 'neg');
-
-    $('bt-avg-win').textContent = m.avg_win_pct != null ? '+' + fmtNum(m.avg_win_pct) + '%' : '—';
-    $('bt-avg-loss').textContent = m.avg_loss_pct != null ? fmtNum(m.avg_loss_pct) + '%' : '—';
+    $('bt-avg-win').textContent  = m.avg_win_pct  != null ? '+'+fmt(m.avg_win_pct)+'%'  : '—';
+    $('bt-avg-loss').textContent = m.avg_loss_pct != null ? fmt(m.avg_loss_pct)+'%' : '—';
 
     $('backtest-results').style.display = 'block';
     drawEquity(m.equity_curve || []);
 
-    // Populate trades table
-    const tbody = $('trades-body');
+    const tbody = $('bt-trades-body');
     tbody.innerHTML = '';
     const trades = data.trades || [];
-    if (trades.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--dim)">No trades in this period</td></tr>';
+    if (!trades.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">No trades in this period — try longer duration or different timeframe</td></tr>';
     } else {
-      trades.slice(-20).reverse().forEach(t => {
-        const tr = document.createElement('tr');
+      trades.slice(-30).reverse().forEach(t => {
+        const tr  = document.createElement('tr');
         const pnl = t.realised_pnl || 0;
         const pct = t.pnl_pct || 0;
         tr.innerHTML = `
-          <td style="color:${t.direction==='long'?'var(--green)':'var(--red)'}">
-            ${t.direction==='long'?'▲ LONG':'▼ SHORT'}
-          </td>
-          <td>$${fmtNum(t.entry,0)}</td>
-          <td>$${fmtNum(t.exit,0)}</td>
-          <td style="color:${pnl>=0?'var(--green)':'var(--red)'}">
-            ${pnl>=0?'+':''}${fmtNum(pct,2)}%
-          </td>
-          <td style="color:var(--dim);font-size:10px">${t.close_reason||'—'}</td>`;
+          <td class="${t.direction==='long'?'clr-g':'clr-r'}">${t.direction==='long'?'▲ LONG':'▼ SHORT'}</td>
+          <td>$${fmt(t.entry, 0)}</td>
+          <td>$${fmt(t.exit, 0)}</td>
+          <td class="${pnl>=0?'clr-g':'clr-r'}">${pnl>=0?'+':''}${fmt(pct,2)}%</td>
+          <td style="color:var(--muted);font-size:.72rem">${t.close_reason||'—'}</td>`;
         tbody.appendChild(tr);
       });
     }
 
-    setStatus('DONE', 'running');
-    log(`Backtest done — ${m.total_trades} trades, ${(m.win_rate*100).toFixed(0)}% WR, ${fmtNum(m.total_return_pct)}% return`, 'ok');
+    setStatus('DONE', 'badge-live');
+    addLog(`Backtest done — ${m.total_trades} trades · ${(m.win_rate*100).toFixed(0)}% WR · ${fmt(m.total_return_pct)}% return`, 'ok');
   } catch(e) {
-    setStatus('ERROR', 'error');
-    log('Backtest error: ' + e.message, 'err');
+    setStatus('ERROR', 'badge-error');
+    addLog('Backtest error: ' + e.message, 'err');
+    showErr(e.message);
   } finally {
-    $('btn-run-bt').disabled = false;
+    $('btn-run-bt').disabled      = false;
     $('bt-running').style.display = 'none';
   }
 }
 
-// Events
-$('btn-refresh').addEventListener('click', refreshSignals);
-$('btn-run-bt').addEventListener('click', runBacktest);
+function drawEquity(curve) {
+  const canvas = $('equity-chart');
+  if (!canvas || curve.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.width  = canvas.offsetWidth;
+  const H   = canvas.height = 120;
+  const mn  = Math.min(...curve), mx = Math.max(...curve);
+  const rng = mx - mn || 1;
+  const pad = 10;
+  ctx.clearRect(0, 0, W, H);
+  ctx.beginPath();
+  curve.forEach((v, i) => {
+    const x = pad + (i / (curve.length-1)) * (W-2*pad);
+    const y = H - pad - ((v-mn)/rng) * (H-2*pad);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  const color = curve[curve.length-1] >= curve[0] ? '#3fb950' : '#f85149';
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+  ctx.lineTo(pad + (W-2*pad), H-pad);
+  ctx.lineTo(pad, H-pad);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, color+'40'); grad.addColorStop(1, color+'00');
+  ctx.fillStyle = grad; ctx.fill();
+}
 
-// Auto-refresh signals on load
-refreshSignals();
+// Auto-load signals on page open
+fetchSignals();
 </script>
 </body>
 </html>
