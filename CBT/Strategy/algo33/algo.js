@@ -11,6 +11,10 @@ const SL_ATR_MULT        = 1.5;   // Sizing distance = SL_ATR_MULT × ATR (algo1
 const TRAIL_START_PNL    = 300.0; // Unrealised PnL that first activates trailing
 const TRAIL_STEP_PNL     = 100.0; // PnL bucket size: lock = floor((pnl-100)/100)*100
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
+const RSI_LEN            = 2;     // RSI period for entry trigger
+const RSI_BUY_LEVEL      = 90;    // BUY when RSI(2) crosses ABOVE this while buyZone
+const RSI_SELL_LEVEL     = 10;    // SELL when RSI(2) crosses BELOW this while sellZone
+const SWING_BARS         = 3;     // SL = min low / max high of last N bars
 const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
 const WARMUP_BARS = 500;          // KAMA(100) + Range Filter need long warmup
@@ -111,6 +115,30 @@ function computeATR(candles, len) {
     }
   }
   return atr;
+}
+
+// ── RSI (Wilder smoothing, Pine-style) ───────────────────────────
+function computeRSI(closes, len) {
+  const n = closes.length;
+  const out = new Array(n).fill(50);   // neutral 50 while warming
+  if (n < 2) return out;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i < n; i++) {
+    const change = closes[i] - closes[i - 1];
+    const gain = change > 0 ? change :  0;
+    const loss = change < 0 ? -change : 0;
+    if (i <= len) {
+      avgGain = (avgGain * (i - 1) + gain) / i;
+      avgLoss = (avgLoss * (i - 1) + loss) / i;
+    } else {
+      avgGain = (avgGain * (len - 1) + gain) / len;
+      avgLoss = (avgLoss * (len - 1) + loss) / len;
+    }
+    if (avgLoss === 0) { out[i] = 100; continue; }
+    const rs = avgGain / avgLoss;
+    out[i] = 100 - 100 / (1 + rs);
+  }
+  return out;
 }
 
 // ── Full-series indicator computation ────────────────────────────
@@ -218,13 +246,14 @@ function computeSeries(candles) {
   }
 
   const atr = computeATR(candles, ATR_LEN);
+  const rsi = computeRSI(src, RSI_LEN);
 
   return {
     src, highs, lows,
     smrng, filt, hband, lband, upward, downward,
     isGreenBar, isBlueBar,
     p1, p2, p3, cloudTop, cloudBot, totalDistance,
-    buyZone, sellZone, atr,
+    buyZone, sellZone, atr, rsi,
   };
 }
 
@@ -249,115 +278,92 @@ function snapshotIndicators(series, i) {
     buyZone:       series.buyZone[i],
     sellZone:      series.sellZone[i],
     atr:           series.atr[i],
+    rsi:           series.rsi[i],
+    rsiPrev:       i > 0 ? series.rsi[i - 1] : series.rsi[i],
     high:          series.highs[i],
     low:           series.lows[i],
   };
 }
 
 // ── Stateful signal generation ────────────────────────────────────
-// Flag rules:
-//   • LONG flag forms on the first bar whose LOW touches the KAMA cloud
-//     (low ≤ cloudTop) *while buyZone is active*.  Its running SL is the
-//     minimum low of the flag bar and every subsequent bar until trigger.
-//   • Flag is cleared the moment buyZone drops (strict zone gate) so a
-//     stale flag cannot fire a BUY on a non-green bar.
-//   • LONG trigger: buyZone still true AND close > p2 AND close > p3.
-//   • Short is the mirror image.
+// Entry rules (algo33 — RSI-cross variant):
+//   • LONG: buyZone still true AND RSI(2) crosses ABOVE 90 on the bar
+//     (prev bar RSI ≤ 90, current bar RSI > 90).
+//   • SHORT: sellZone true AND RSI(2) crosses BELOW 10 (prev ≥ 10, curr < 10).
+//   • SL long  = MIN low of last SWING_BARS closed bars.
+//   • SL short = MAX high of last SWING_BARS closed bars.
+//   • Qty sized in server at fill time (algo1-style: risk/SL distance).
+//   • Trailing identical to algo3.
 //
 // Triggers fire regardless of current position; callers decide whether to
 // (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
-// Quantity is sized in the server at fill time (algo1-style:
-// size = min(balance×0.015, $150) / actual SL distance).
+// flagState is not used but is echoed for API compatibility with server.js.
 function generateSignal(candles, flagState = {}, posSide = null) {
   const series = computeSeries(candles);
   const i = candles.length - 1;
 
-  let { longFlag = false, longFlagLow = null,
-        shortFlag = false, shortFlagHigh = null } = flagState;
-
   const buyZone  = series.buyZone[i];
   const sellZone = series.sellZone[i];
-  const low   = series.lows[i];
-  const high  = series.highs[i];
-  const close = series.src[i];
-  const cloudTop = series.cloudTop[i];
-  const cloudBot = series.cloudBot[i];
-  const p2 = series.p2[i];
-  const p3 = series.p3[i];
-  const atr = series.atr[i];
+  const close    = series.src[i];
+  const atr      = series.atr[i];
+  const rsi      = series.rsi[i];
+  const rsiPrev  = i > 0 ? series.rsi[i - 1] : rsi;
 
-  // ── LONG flag ────────────────────────────────────────────────────
-  if (buyZone) {
-    if (!longFlag && low <= cloudTop) {
-      longFlag = true;
-      longFlagLow = low;                          // flag candle low = seed SL
-    } else if (longFlag) {
-      longFlagLow = Math.min(longFlagLow, low);   // track lowest low up to trigger
-    }
-  } else {
-    longFlag = false; longFlagLow = null;         // zone dropped → invalidate
+  // Swing-based SL window: last SWING_BARS closed bars (inclusive of current)
+  const w0 = Math.max(0, i - (SWING_BARS - 1));
+  let swingLow  = series.lows[w0];
+  let swingHigh = series.highs[w0];
+  for (let k = w0 + 1; k <= i; k++) {
+    if (series.lows[k]  < swingLow)  swingLow  = series.lows[k];
+    if (series.highs[k] > swingHigh) swingHigh = series.highs[k];
   }
 
-  // ── SHORT flag ───────────────────────────────────────────────────
-  if (sellZone) {
-    if (!shortFlag && high >= cloudBot) {
-      shortFlag = true;
-      shortFlagHigh = high;
-    } else if (shortFlag) {
-      shortFlagHigh = Math.max(shortFlagHigh, high);
-    }
-  } else {
-    shortFlag = false; shortFlagHigh = null;
-  }
+  const rsiCrossUp   = rsiPrev <= RSI_BUY_LEVEL  && rsi > RSI_BUY_LEVEL;
+  const rsiCrossDown = rsiPrev >= RSI_SELL_LEVEL && rsi < RSI_SELL_LEVEL;
 
-  // Strict: zone must STILL be true at trigger bar.
-  const longTrigger  = longFlag  && buyZone  && close > p2 && close > p3;
-  const shortTrigger = shortFlag && sellZone && close < p2 && close < p3;
+  const longTrigger  = buyZone  && rsiCrossUp;
+  const shortTrigger = sellZone && rsiCrossDown;
 
   let signal = 'HOLD';
   const reason = [];
   let entryHint = null;
 
   if (longTrigger) {
-    const riskEst = close - longFlagLow;
+    const riskEst = close - swingLow;
     if (riskEst > 0) {
       signal = 'BUY';
-      reason.push(`Long trigger — close ${close.toFixed(2)} > p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
-      reason.push(`Flag low ${longFlagLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
-      entryHint = { side: 'long', slPrice: longFlagLow, atr, riskEstimate: riskEst };
-      longFlag = false; longFlagLow = null;
+      reason.push(`Long trigger — RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`SwingLow(${SWING_BARS}) ${swingLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
+      entryHint = { side: 'long', slPrice: swingLow, atr, riskEstimate: riskEst };
     }
   } else if (shortTrigger) {
-    const riskEst = shortFlagHigh - close;
+    const riskEst = swingHigh - close;
     if (riskEst > 0) {
       signal = 'SELL';
-      reason.push(`Short trigger — close ${close.toFixed(2)} < p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
-      reason.push(`Flag high ${shortFlagHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
-      entryHint = { side: 'short', slPrice: shortFlagHigh, atr, riskEstimate: riskEst };
-      shortFlag = false; shortFlagHigh = null;
+      reason.push(`Short trigger — RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`SwingHigh(${SWING_BARS}) ${swingHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
+      entryHint = { side: 'short', slPrice: swingHigh, atr, riskEstimate: riskEst };
     }
-  } else if (longFlag) {
-    reason.push(`Long FLAG active — waiting for close > p2(${p2.toFixed(2)}) & p3(${p3.toFixed(2)}). Running SL: ${longFlagLow.toFixed(2)}`);
-  } else if (shortFlag) {
-    reason.push(`Short FLAG active — waiting for close < p2(${p2.toFixed(2)}) & p3(${p3.toFixed(2)}). Running SL: ${shortFlagHigh.toFixed(2)}`);
   } else if (buyZone) {
-    reason.push(`BUY zone — waiting for low ≤ cloud top ${cloudTop.toFixed(2)} to form flag`);
+    reason.push(`BUY zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
   } else if (sellZone) {
-    reason.push(`SELL zone — waiting for high ≥ cloud bottom ${cloudBot.toFixed(2)} to form flag`);
+    reason.push(`SELL zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
   } else {
-    reason.push('No zone active — Range Filter or KAMA cloud not aligned');
+    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · Range Filter or KAMA cloud not aligned`);
   }
 
   const indicators = snapshotIndicators(series, i);
   indicators.candleTime = candles[i].time;
+  indicators.swingLow   = swingLow;
+  indicators.swingHigh  = swingHigh;
 
   return {
     signal,
     reason,
     indicators,
-    flagState: { longFlag, longFlagLow, shortFlag, shortFlagHigh },
+    flagState: {},                // stub for API parity with algo3
     entryHint,
-    posSide,   // echoed back for symmetry; callers already know it
+    posSide,
   };
 }
 
@@ -563,9 +569,10 @@ async function fetchCurrentPrice(symbol) {
 
 module.exports = {
   RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN, USE_BAR_COLOR,
-  WARMUP_BARS,
-  computeSeries, computeATR, snapshotIndicators, generateSignal,
+  TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN,
+  RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
+  USE_BAR_COLOR, WARMUP_BARS,
+  computeSeries, computeATR, computeRSI, snapshotIndicators, generateSignal,
   initPosition, stepPosition,
   fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
 };

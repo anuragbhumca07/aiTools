@@ -10,6 +10,7 @@ const { OAuth2Client } = require('google-auth-library');
 const {
   RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
   TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN,
+  RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   WARMUP_BARS,
   generateSignal, initPosition, stepPosition,
   fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
@@ -68,10 +69,10 @@ function waEntry(side, symbol, timeframe, price, size, sl, riskPerUnit, riskAmt,
   const sym   = symbol.replace('USDT', '/USDT');
   const f     = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   sendWhatsApp(
-    `${dir} *[Algo3 RF+KAMA] ENTRY — ${label} ${sym} ${timeframe}*\n` +
+    `${dir} *[Algo33 RSI-cross] ENTRY — ${label} ${sym} ${timeframe}*\n` +
     `Price      : $${f(price)}\n` +
     `Size       : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
-    `Initial SL : $${f(sl)}  (flag ${side === 'long' ? 'low' : 'high'}, risk/unit $${f(riskPerUnit)})\n` +
+    `Initial SL : $${f(sl)}  (swing ${side === 'long' ? 'low' : 'high'}, risk/unit $${f(riskPerUnit)})\n` +
     `Risk       : $${f(riskAmt)}  (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${f(MAX_LOSS)})\n` +
     `Trail      : starts @ +$${f(TRAIL_START_PNL, 0)} → locks $${f(TRAIL_START_PNL - TRAIL_STEP_PNL, 0)}, then +$${f(TRAIL_STEP_PNL, 0)}/step\n` +
     `Balance    : $${f(balance)}`
@@ -87,7 +88,7 @@ function waExit(side, symbol, timeframe, pnl, reason, balance, wins, totalTrades
   const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pnlStr = `${pnl >= 0 ? '+' : ''}$${f(Math.abs(pnl))}`;
   sendWhatsApp(
-    `${icon} *[Algo3 RF+KAMA] EXIT — ${label} ${sym} ${timeframe}*\n` +
+    `${icon} *[Algo33 RSI-cross] EXIT — ${label} ${sym} ${timeframe}*\n` +
     `Reason   : ${reason}\n` +
     `PnL      : *${pnlStr}*\n` +
     `Trailing : ${trailed ? 'Yes' : 'No'}\n` +
@@ -138,8 +139,8 @@ const stmtInsert = db.prepare(`
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
   'rf-kama-v2': {
-    name: 'rf-kama-v2: Range Filter + KAMA Cloud Strategy V2',
-    description: `Range Filter (period ${RF_SAMPLING_PERIOD}, mult ${RF_MULT}) + KAMA cloud gate + flag-candle triggers. Algo1-style fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. Trailing starts at +$${TRAIL_START_PNL} PnL (locks $${TRAIL_START_PNL - TRAIL_STEP_PNL}), then locks +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL step. SL & trailing scanned every 1s from entry. Exits on opposite trigger.`,
+    name: 'rf-kama-rsi-v3: RF+KAMA zone + RSI(2) cross entry',
+    description: `Zone gate: Range Filter (${RF_SAMPLING_PERIOD}, ${RF_MULT}×) + KAMA cloud. BUY when zone green & RSI(${RSI_LEN}) crosses above ${RSI_BUY_LEVEL}; SELL when zone red & RSI(${RSI_LEN}) crosses below ${RSI_SELL_LEVEL}. Algo1-style fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. ${SWING_BARS}-bar swing low/high is a trigger reference only. Trailing starts at +$${TRAIL_START_PNL} PnL (locks $${TRAIL_START_PNL - TRAIL_STEP_PNL}), then locks +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL step. SL & trailing scanned every 1s from entry. Exits on opposite trigger.`,
   },
 };
 
@@ -151,15 +152,15 @@ const tickmill = {
 
   async init() {
     if (!METAAPI_TOKEN || !METAAPI_ACCOUNT_ID) {
-      console.log('[Algo3] MetaApi not configured — running in paper-Kraken mode');
+      console.log('[Algo33] MetaApi not configured — running in paper-Kraken mode');
       return;
     }
     try {
       const status = await this._apiGet(`/users/current/accounts/${METAAPI_ACCOUNT_ID}`);
       this.connected = status && status.state === 'deployed';
-      console.log(`[Algo3] MetaApi ${this.connected ? '✓ connected' : '✗ not deployed'}`);
+      console.log(`[Algo33] MetaApi ${this.connected ? '✓ connected' : '✗ not deployed'}`);
     } catch (err) {
-      console.error('[Algo3] MetaApi connection error:', err.message);
+      console.error('[Algo33] MetaApi connection error:', err.message);
     }
   },
 
@@ -216,7 +217,7 @@ const tickmill = {
       );
       return { orderId: result.orderId || result.positionId, live: true };
     } catch (err) {
-      console.error('[Algo3] placeOrder error:', err.message);
+      console.error('[Algo33] placeOrder error:', err.message);
       return { paper: true, orderId: `paper_${Date.now()}`, error: err.message };
     }
   },
@@ -230,7 +231,7 @@ const tickmill = {
       );
       return { closed: true };
     } catch (err) {
-      console.error('[Algo3] closeOrder error:', err.message);
+      console.error('[Algo33] closeOrder error:', err.message);
       return { error: err.message };
     }
   },
@@ -250,7 +251,7 @@ function defaultFlagState() {
 function defaultState() {
   return {
     running: false, symbol: 'BTCUSDT', timeframe: '1m',
-    strategyId: 'rf-kama-v2', mode: 'paper',
+    strategyId: 'rf-kama-rsi-v3', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -398,13 +399,13 @@ async function runTick(sess) {
       const stopDist = SL_ATR_MULT * (pe.atr || 0);   // Fixed SL distance = 1.5 × ATR (algo1-style)
       if (stopDist > 0) {
         // Algo1-style: SL sits at entry ± 1.5×ATR so that qty × stopDist = riskAmt exactly.
-        // Flag low/high from the signal is retained as a trigger reference only.
+        // Swing low/high from the signal is retained as a trigger reference only.
         const slPrice = pe.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
         const riskAmt = Math.min(state.balance * RISK_FRAC, MAX_LOSS);
         const qty     = parseFloat((riskAmt / stopDist).toFixed(8));
         const pos = initPosition(pe.side, entryPx, slPrice, qty, lastBar.time, pe.atr);
         const lots = parseFloat((riskAmt / (entryPx * 100)).toFixed(2));
-        const orderResult = await tickmill.placeOrder(pe.side, symbol, lots, pos.slPrice, null, 'CBT Algo3 RF+KAMA');
+        const orderResult = await tickmill.placeOrder(pe.side, symbol, lots, pos.slPrice, null, 'CBT Algo33 RSI-cross');
         pos.tickmillOrderId = orderResult.orderId;
         state.position      = pos;
 
@@ -413,7 +414,7 @@ async function runTick(sess) {
           type: 'entry', side: pe.side, symbol, timeframe,
           price: entryPx, size: pos.size, pnl: 0,
           stop_loss: pos.slPrice, take_profit: null,
-          reason: pe.reason || `RF+KAMA trigger — flag ref ${pe.side === 'long' ? 'low' : 'high'} ${pe.slPrice.toFixed(2)} · risk $${riskAmt.toFixed(2)}`,
+          reason: pe.reason || `RSI(${RSI_LEN}) cross — swing ref ${pe.side === 'long' ? 'low' : 'high'} ${pe.slPrice.toFixed(2)} · risk $${riskAmt.toFixed(2)}`,
           balance_after: parseFloat(state.balance.toFixed(4)),
           timestamp: ts, mae: 0,
           tickmill_order: orderResult.orderId,
@@ -429,7 +430,7 @@ async function runTick(sess) {
             `Filled @ open ${entryPx.toFixed(2)}`,
             `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
             `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
-            `Flag ${pe.side === 'long' ? 'low' : 'high'} ref: $${pe.slPrice.toFixed(2)} (trigger only, not SL)`,
+            `Swing ${pe.side === 'long' ? 'low' : 'high'} ref: $${pe.slPrice.toFixed(2)} (trigger only, not SL)`,
             `Trail starts @ +$${TRAIL_START_PNL.toFixed(0)} PnL → locks $${(TRAIL_START_PNL - TRAIL_STEP_PNL).toFixed(0)}, then +$${TRAIL_STEP_PNL.toFixed(0)}/step (1s scan from entry)`,
           ],
           indicators: state.lastIndicators,
@@ -795,7 +796,7 @@ app.post('/auth/google', async (req, res) => {
 });
 app.post('/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 
-app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-kama-v2' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-kama-rsi-v3' }));
 app.get('/api/strategies', (_, res) =>
   res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s })))
 );
@@ -910,5 +911,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT Algo3 (RF+KAMA v2) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+  console.log(`CBT Algo33 (RF+KAMA + RSI(${RSI_LEN}) cross) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
 );

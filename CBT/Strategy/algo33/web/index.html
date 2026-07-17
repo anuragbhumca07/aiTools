@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CBT Algo3 — RF + KAMA Cloud v2</title>
+<title>CBT Algo33 — RF+KAMA + RSI(2) cross</title>
 <style>
   :root {
     --bg: #0d1117; --card: #161b22; --border: #21262d;
@@ -246,16 +246,16 @@
 <div id="auth-wall">
   <div class="auth-card">
     <div class="logo">🎯</div>
-    <h2>CBT Algo3 — RF + KAMA Cloud v2</h2>
-    <p>Sign in to run your own isolated Range Filter + KAMA Cloud strategy session</p>
+    <h2>CBT Algo33 — RF+KAMA + RSI(2) cross</h2>
+    <p>Sign in to run your own isolated RF+KAMA + RSI(2) cross strategy session</p>
     <div id="google-signin-btn"></div>
   </div>
 </div>
 
 <header>
   <div>
-    <div class="title">CBT Algo3 — RF + KAMA Cloud v2</div>
-    <div class="subtitle">Range Filter (100, 3.0×) · KAMA Cloud gate · Flag-candle trigger · ATR-sized qty (150/ATR) · 3R target · 2R lock · +$100 PnL trail · Reverses on opposite trigger</div>
+    <div class="title">CBT Algo33 — RF+KAMA + RSI(2) cross</div>
+    <div class="subtitle">Range Filter (100, 3.0×) · KAMA Cloud gate · RSI(2) cross entry (&gt;90 buy / &lt;10 sell) · 3-bar swing SL · ATR-sized qty (150/ATR) · 3R target · 2R lock · +$100 PnL trail · Reverses on opposite trigger</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -392,19 +392,18 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — Range Filter + KAMA Cloud v2 · Flag-candle trigger · PnL-based trailing</div>
+    <div class="card-title">Algo Logic — RF+KAMA zone · RSI(2) cross entry · 3-bar swing SL · PnL-based trailing</div>
     <div class="logic-gate zone-gate">🌐 Zone Gate: BUY zone = BAR is GREEN (downward=0) AND p2/p3/hband/lband all ABOVE p1. SELL zone = BAR is RED (downward&gt;0) AND all BELOW p1.</div>
-    <div class="logic-gate" style="margin-top:4px">🚩 Flag Rule: while zone is active, first bar whose LOW touches KAMA cloud (low ≤ cloudTop for long / high ≥ cloudBot for short) is the FLAG. Flag CLEARS immediately if zone drops. Flag low/high is a TRIGGER REFERENCE only — the actual SL is ATR-derived.</div>
-    <div class="logic-gate risk-gate" style="margin-top:4px">🎯 Entry Trigger: zone STILL green + close &gt; p2 AND close &gt; p3 (long, mirror for short). Fills at NEXT candle OPEN. Initial SL = entry ± 1.5 × ATR14. Qty = min(balance×1.5%, $150) / (1.5 × ATR14) — so SL hit = exactly $150 loss. Opposite trigger while in trade → close &amp; reverse.</div>
+    <div class="logic-gate risk-gate" style="margin-top:4px">🎯 Entry Trigger: BUY when zone GREEN AND RSI(2) crosses ABOVE 90 (prev ≤ 90, curr &gt; 90). SELL when zone RED AND RSI(2) crosses BELOW 10. Fills at NEXT candle OPEN. Initial SL = entry ± 1.5 × ATR14. Qty = min(balance×1.5%, $150) / (1.5 × ATR14) — so SL hit = exactly $150 loss. Opposite trigger while in trade → close &amp; reverse.</div>
+    <div class="logic-gate" style="margin-top:4px">🛡️ SL Rule: initial SL = entry ± 1.5 × ATR14 (fixed $150 max loss). Swing high/low from 3 bars is a trigger reference only, not the SL.</div>
     <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trail Rule: at +$300 unrealised PnL, SL jumps to lock $200. Every additional +$100 PnL → SL locks +$100 more (+$400→$300, +$500→$400, …). SL never retreats.</div>
     <div class="logic-gate" style="margin-top:4px;background:#1a2438;border-color:var(--teal);color:var(--teal)">⏱️ Timing: signal / new entry checked ONLY at candle close (:01s after boundary). Position SL &amp; trailing scanned every 1s from entry.</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
         <div class="lh" style="color:var(--teal)">▲ LONG entry</div>
         <div class="logic-rule">1. <span>BUY zone active</span> (GREEN bar + p2/p3/hband/lband &gt; p1)</div>
-        <div class="logic-rule">2. <span>Flag candle</span> — close ≤ cloudTop (touches P2/P3) while zone is on</div>
-        <div class="logic-rule">3. <span class="new">Trigger</span> — close &gt; p2 AND close &gt; p3 (outside KAMA cloud)</div>
-        <div class="logic-rule">4. Fill @ next candle OPEN</div>
+        <div class="logic-rule">2. <span class="new">RSI(2) crosses ABOVE 90</span> on the bar (prev ≤ 90, curr &gt; 90)</div>
+        <div class="logic-rule">3. Fill @ next candle OPEN</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
           SL = entry − 1.5 × ATR14 · qty = min(balance×1.5%, $150) / (1.5 × ATR14) · SL hit = $150 loss exactly
         </div>
@@ -412,9 +411,8 @@
       <div class="logic-box">
         <div class="lh" style="color:var(--red)">▼ SHORT entry</div>
         <div class="logic-rule">1. <span>SELL zone active</span> (RED bar + p2/p3/hband/lband &lt; p1)</div>
-        <div class="logic-rule">2. <span>Flag candle</span> — high ≥ cloudBot (touches P2/P3) while zone is on</div>
-        <div class="logic-rule">3. <span class="new">Trigger</span> — zone STILL red + close &lt; p2 AND close &lt; p3</div>
-        <div class="logic-rule">4. Fill @ next candle OPEN</div>
+        <div class="logic-rule">2. <span class="new">RSI(2) crosses BELOW 10</span> on the bar (prev ≥ 10, curr &lt; 10)</div>
+        <div class="logic-rule">3. Fill @ next candle OPEN</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
           SL = entry + 1.5 × ATR14 · qty = min(balance×1.5%, $150) / (1.5 × ATR14) · SL hit = $150 loss exactly
         </div>
@@ -471,9 +469,11 @@
         <div class="ic-val" id="ic-zone">—</div>
       </div>
       <div class="ind-chip" style="border-color:rgba(188,140,255,.4)">
-        <div class="ic-lbl" style="color:var(--purple)">Flag</div>
-        <div class="ic-val" id="ic-flag">—</div>
+        <div class="ic-lbl" style="color:var(--purple)">RSI(2)</div>
+        <div class="ic-val" id="ic-rsi">—</div>
       </div>
+      <div class="ind-chip"><div class="ic-lbl">Swing Low(3)</div><div class="ic-val" id="ic-swlow">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Swing High(3)</div><div class="ic-val" id="ic-swhigh">—</div></div>
     </div>
     <div class="signal-row">
       <div><span style="color:var(--muted);font-size:.72rem">Last signal:</span> <span id="last-signal-txt" style="font-weight:700;color:var(--accent)">—</span></div>
@@ -512,7 +512,7 @@
             <th>Date/Time</th><th>Type</th><th>Signal</th>
             <th>Price</th><th>Filt</th><th>H-band</th><th>L-band</th>
             <th>P1</th><th>P2</th><th>P3</th>
-            <th>Zone</th><th>Bar</th><th>Flag</th><th>Notes</th>
+            <th>Zone</th><th>Bar</th><th>RSI(2)</th><th>Notes</th>
           </tr>
         </thead>
         <tbody id="log-body">
@@ -703,10 +703,18 @@ function applyState(s) {
       atrEl.textContent = `${atr.toFixed(2)} → ${q}`;
       atrEl.style.color = 'var(--orange)';
     } else { atrEl.textContent = '—'; atrEl.style.color = 'var(--muted)'; }
+    const rsi = ind.rsi;
+    const rsiEl = $('ic-rsi');
+    if (rsi != null) {
+      rsiEl.textContent = rsi.toFixed(1);
+      rsiEl.style.color = rsi > 90 ? 'var(--green)' : rsi < 10 ? 'var(--red)' : 'var(--purple)';
+    } else { rsiEl.textContent = '—'; }
+    $('ic-swlow').textContent  = fmt(ind.swingLow);
+    $('ic-swhigh').textContent = fmt(ind.swingHigh);
     $('ic-barcol').innerHTML = barColorHtml(ind);
     $('ic-zone').innerHTML   = zoneBadgeHtml(ind);
   }
-  $('ic-flag').innerHTML = flagBadgeHtml(s.flagState);
+  // (algo33 has no flag chip — RSI drives the entry)
 
   const ls = s.lastSignal;
   if (ls) {
@@ -799,10 +807,8 @@ function prependLog(entry) {
   const bar    = filterBlue ? 'RED' : 'GREEN';
   const barCls = filterBlue ? 'clr-r' : 'clr-g';
 
-  const flagTxt = sig === 'TRIGGER-BUY' ? '🚩 LONG'
-    : sig === 'TRIGGER-SELL' ? '🚩 SHORT'
-    : (notes && notes.includes('Long FLAG') ? 'LONG'
-        : notes && notes.includes('Short FLAG') ? 'SHORT' : '—');
+  const rsiVal = ind.rsi != null ? ind.rsi.toFixed(1) : '—';
+  const rsiCls = ind.rsi > 90 ? 'clr-g' : ind.rsi < 10 ? 'clr-r' : '';
 
   tr.innerHTML = `
     <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
@@ -817,7 +823,7 @@ function prependLog(entry) {
     <td>${fmt(ind.p3)}</td>
     <td class="${zoneCls}">${zone}</td>
     <td class="${barCls}">${bar}</td>
-    <td>${flagTxt}</td>
+    <td class="${rsiCls}">${rsiVal}</td>
     <td class="reason-cell" title="${esc(notes)}">${notesHtml}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);
   logCount++;
