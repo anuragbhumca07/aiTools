@@ -940,13 +940,22 @@ app.post('/api/backtest', requireAuth, async (req, res) => {
 app.get('/events', (req, res) => {
   const sess = getSession('guest');
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  // `no-transform` stops Cloudflare from gzip'ing the stream (which buffers the
+  // whole body); `no-cache` + X-Accel-Buffering disable other proxy buffering.
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'identity');
   res.flushHeaders();
+  // Reverse proxies (Cloudflare tunnel, nginx) buffer the streamed body until a
+  // threshold is hit, so the first events never reach a remote browser. A ~2KB
+  // comment preamble forces the proxy to flush immediately, and a periodic
+  // heartbeat keeps the stream flowing (and the connection alive).
+  res.write(`:${' '.repeat(2048)}\n\n`);
   res.write(`data: ${JSON.stringify({ type: 'connected', state: publicState(sess.state), logs: sess.logs })}\n\n`);
   sess.sseClients.add(res);
-  req.on('close', () => sess.sseClients.delete(res));
+  const heartbeat = setInterval(() => { try { res.write(`: ping ${Date.now()}\n\n`); } catch {} }, 15000);
+  req.on('close', () => { clearInterval(heartbeat); sess.sseClients.delete(res); });
 });
 
 // Warm the broker status once on boot so /api/broker isn't cold on first hit.

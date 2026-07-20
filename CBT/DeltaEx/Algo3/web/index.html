@@ -525,9 +525,11 @@ function barColorHtml(ind){ if(!ind) return '—'; return (ind.downward||0)>0 ? 
 function applyState(s){
   if(!s) return;
   appState = s;
-  if (s.mode && s.mode!==currentMode) setMode(s.mode);
-  if (s.account && $('ctrl-account').value!==s.account && s.running) $('ctrl-account').value = s.account;
-  if (typeof s.sizeFactor==='number') $('ctrl-size-factor').value = s.sizeFactor;
+  // Only let the server dictate mode/account/sizeFactor while a session is RUNNING,
+  // so 2s polling doesn't stomp the controls the user is setting up when idle.
+  if (s.running && s.mode && s.mode!==currentMode) setMode(s.mode);
+  if (s.running && s.account && $('ctrl-account').value!==s.account) $('ctrl-account').value = s.account;
+  if (s.running && typeof s.sizeFactor==='number') $('ctrl-size-factor').value = s.sizeFactor;
 
   const badge=$('status-badge');
   const lockable = ['ctrl-account','ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-size-factor'];
@@ -785,16 +787,44 @@ async function pollLiveMark(){
   }catch{}
 }
 
+// ── Polling data flow ─────────────────────────────────────────────
+// SSE (/events) is instant on localhost but the Cloudflare quick-tunnel buffers
+// it, so remote browsers get nothing. Polling works through any proxy. State is
+// cheap; logs/trades only re-render when their newest row changes (no flicker).
+let _logSig = '', _tradeSig = '';
+async function pollAll(){
+  try { const s = await api('/api/state'); if (s) applyState(s); } catch {}
+  try {
+    const logs = await api('/api/logs');
+    const sig = logs.length + ':' + (logs[0] ? logs[0].id : '');
+    if (sig !== _logSig) {
+      _logSig = sig;
+      const tbody = $('log-body'); tbody.innerHTML=''; logCount=0;
+      if (!logs.length) tbody.innerHTML='<tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr>';
+      else [...logs].reverse().forEach(prependLog);   // newest ends on top
+      updateLogCount();
+    }
+  } catch {}
+  try {
+    const rows = await api('/api/trades');
+    const sig = rows.length + ':' + (rows[0] ? rows[0].id : '');
+    if (sig !== _tradeSig) {
+      _tradeSig = sig;
+      const tbody = $('trades-body'); tbody.innerHTML=''; tradeCount=0; shownTradeKeys.clear();
+      if (!rows.length) tbody.innerHTML='<tr><td colspan="12" class="empty-msg">No trades yet</td></tr>';
+      else [...rows].reverse().forEach(prependTrade);
+    }
+  } catch {}
+}
+
 (async function boot(){
   setMode('paper');
   updateChartLink();
   await refreshBroker();
-  const s = await api('/api/state').catch(()=>null);
-  if(s) applyState(s);
-  await loadTrades();
-  connectSSE();
+  await pollAll();
+  setInterval(pollAll, 2000);            // state + logs + trades (works through the tunnel)
   pollLiveMark();
-  setInterval(pollLiveMark, 3000);       // ~chart-like live refresh
+  setInterval(pollLiveMark, 3000);       // live mark price
   $('ctrl-symbol').addEventListener('change', ()=>{ pollLiveMark(); updateChartLink(); });
 })();
 </script>
