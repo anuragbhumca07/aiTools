@@ -380,8 +380,10 @@ async function runTick(sess) {
         const pos        = initPosition(pe.side, entryPx, slPrice, qty, lastBar.time, pe.atr, sizeFactor);
         pos.contracts    = contracts;
 
-        // Place Delta order (only in LIVE mode with active-account creds)
-        let orderResult;
+        // Place Delta order (only in LIVE mode with active-account creds). If the
+        // real order is rejected (e.g. insufficient margin), ABORT the entry —
+        // never open a phantom paper position or log a fake trade in live mode.
+        let orderResult, liveOrderFailed = false;
         if (liveOrdersOn(state)) {
           try {
             const r = await delta.placeMarketOrder(...creds(), {
@@ -389,12 +391,16 @@ async function runTick(sess) {
             });
             orderResult = { orderId: r?.result?.id ? String(r.result.id) : null, live: true, raw: r };
           } catch (e) {
-            orderResult = { paper: true, orderId: `paper_${Date.now()}`, error: e.message };
-            pushLog(sess, { ts, type: 'ERROR', message: `Delta placeOrder failed: ${e.message}` });
+            liveOrderFailed = true;
+            pushLog(sess, { ts, type: 'ERROR', message: `Delta order rejected — entry aborted, no position opened: ${e.message}` });
           }
         } else {
           orderResult = { paper: true, orderId: `paper_${Date.now()}` };
         }
+
+        if (liveOrderFailed) {
+          state.pendingEntry = null;               // drop the signal; re-arm on next trigger
+        } else {
         pos.brokerOrderId = orderResult.orderId;
         state.position    = pos;
 
@@ -427,6 +433,7 @@ async function runTick(sess) {
           broker: orderResult,
         });
         broadcast(sess, { type: 'trade', trade, state: publicState(state) });
+        }
       } else {
         pushLog(sess, { ts, type: 'TICK', signal: 'ENTRY-SKIP', price: entryPx,
           reason: [`Pending ${pe.side} skipped — ATR ${(pe.atr||0).toFixed(2)} must be > 0`],
