@@ -113,9 +113,26 @@ function httpsRequest({ method, path: reqPath, body }, apiKey, apiSecret, _retry
   });
 }
 
+// GET with retry on TRANSIENT upstream failures (5xx / network hiccups) — Delta's
+// testnet especially returns occasional 503s. Never retries 4xx (real errors).
+// GET-only, so it's always safe (no risk of double-placing an order).
+async function getPublic(path, tries = 3) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try { return await httpsRequest({ method: 'GET', path }); }
+    catch (e) {
+      lastErr = e;
+      const transient = !e.status || (e.status >= 500 && e.status < 600);
+      if (!transient || i === tries - 1) break;
+      await new Promise(r => setTimeout(r, 400 * (i + 1)));   // 0.4s, 0.8s backoff
+    }
+  }
+  throw lastErr;
+}
+
 // ── Public: current tick (mark price) ─────────────────────────────
 async function getTicker(symbol) {
-  const r = await httpsRequest({ method: 'GET', path: `/v2/tickers/${symbol}` });
+  const r = await getPublic(`/v2/tickers/${symbol}`);
   return r?.result || null;
 }
 
@@ -125,7 +142,7 @@ async function getTicker(symbol) {
 async function getCandles(symbol, timeframe, startSec, endSec) {
   const res = RESOLUTION[timeframe] || '1m';
   const path = `/v2/history/candles?symbol=${symbol}&resolution=${res}&start=${startSec}&end=${endSec}`;
-  const r = await httpsRequest({ method: 'GET', path });
+  const r = await getPublic(path);
   const rows = (r?.result || []).map(c => ({
     time:   c.time * 1000,
     open:   +c.open,
