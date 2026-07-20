@@ -38,8 +38,15 @@ CBT/TickMill/TickAlgo1/data/
 CBT/TickMill/TickAlgo1/logs/
 CBT/MT5/MT5Algo1/data/
 CBT/MT5/MT5Algo1/logs/
+CBT/MetaApi/Algo3/data/
+CBT/MetaApi/Algo3/logs/
+CBT/DeltaEx/Algo3/data/
+CBT/DeltaEx/Algo3/logs/
 Robinhood/RobAlgo6/data/
 Robinhood/RobAlgo6/logs/
+
+# Claude Code local runtime state
+.claude/scheduled_tasks.lock
 
 # Local server output captures
 CBT/**/server_stdout.txt

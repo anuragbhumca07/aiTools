@@ -66,7 +66,9 @@ function rngFilt(x, r) {
 }
 
 // ── KAMA (Kaufman Adaptive Moving Average) ───────────────────────
-// Seeds nAMA at 0 (matches Pine nz(nAMA[1])); converges over warmup.
+// Pine-canonical seed: nAMA[0] = src[0] (matches `na(nAMA[1]) ? src : ...`).
+// Seeding at 0 leaves an ~$27 residual on BTCUSD after 720 warmup bars;
+// seeding at src[0] converges to Pine's plot within pennies.
 function kama(s, len) {
   const n = s.length;
   const out = new Array(n).fill(0);
@@ -76,7 +78,7 @@ function kama(s, len) {
   for (let i = 1; i < n; i++) xvnoise[i] = Math.abs(s[i] - s[i - 1]);
 
   let noiseSum = 0;
-  let ama      = 0;
+  let ama      = s[0] || 0;
   for (let i = 0; i < n; i++) {
     if (i >= len) noiseSum -= xvnoise[i - len];
     noiseSum += xvnoise[i];

@@ -5,11 +5,11 @@ const https = require('https');
 // ── Pine Script defaults (Range Filter + KAMA Cloud Strategy V2) ──
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
-const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($) — algo1-style sizing
-const RISK_FRAC          = 0.015; // Risk fraction: 1.5% of balance, capped at MAX_LOSS
+const MAX_LOSS           = 150.0; // Fixed intended max loss per trade at sizeFactor=1
 const SL_ATR_MULT        = 1.5;   // Sizing distance = SL_ATR_MULT × ATR (algo1 uses 1.5)
-const TRAIL_START_PNL    = 300.0; // Unrealised PnL that first activates trailing
-const TRAIL_STEP_PNL     = 100.0; // PnL bucket size: lock = floor((pnl-100)/100)*100
+const TRAIL_START_PNL    = 300.0; // Unrealised PnL @ sizeFactor=1 that first activates trailing
+const TRAIL_STEP_PNL     = 100.0; // PnL bucket @ sizeFactor=1; scaled per-position at fill time
+const MIN_ATR            = 15.0;  // Below this, SL breathing room is too tight — skip the entry
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
@@ -268,8 +268,8 @@ function snapshotIndicators(series, i) {
 //
 // Triggers fire regardless of current position; callers decide whether to
 // (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
-// Quantity is sized in the server at fill time (algo1-style:
-// size = min(balance×0.015, $150) / actual SL distance).
+// Quantity is sized in the server at fill time:
+//   qty = ($150 / (1.5 × ATR)) × sizeFactor   → SL hit loss ≈ $150 × sizeFactor
 function generateSignal(candles, flagState = {}, posSide = null) {
   const series = computeSeries(candles);
   const i = candles.length - 1;
@@ -322,7 +322,10 @@ function generateSignal(candles, flagState = {}, posSide = null) {
 
   if (longTrigger) {
     const riskEst = close - longFlagLow;
-    if (riskEst > 0) {
+    if (atr < MIN_ATR) {
+      reason.push(`Long trigger SKIPPED — ATR ${atr.toFixed(2)} < MIN_ATR ${MIN_ATR} (SL breathing room too tight)`);
+      longFlag = false; longFlagLow = null;
+    } else if (riskEst > 0) {
       signal = 'BUY';
       reason.push(`Long trigger — close ${close.toFixed(2)} > p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
       reason.push(`Flag low ${longFlagLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
@@ -331,7 +334,10 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     }
   } else if (shortTrigger) {
     const riskEst = shortFlagHigh - close;
-    if (riskEst > 0) {
+    if (atr < MIN_ATR) {
+      reason.push(`Short trigger SKIPPED — ATR ${atr.toFixed(2)} < MIN_ATR ${MIN_ATR} (SL breathing room too tight)`);
+      shortFlag = false; shortFlagHigh = null;
+    } else if (riskEst > 0) {
       signal = 'SELL';
       reason.push(`Short trigger — close ${close.toFixed(2)} < p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
       reason.push(`Flag high ${shortFlagHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
@@ -364,7 +370,9 @@ function generateSignal(candles, flagState = {}, posSide = null) {
 }
 
 // ── Initialise a position after a fill at entryPrice ─────────────
-function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
+// sizeFactor scales the trailing thresholds so a 0.01× position doesn't need
+// to reach +$300 unrealised PnL to activate trailing (which it never would).
+function initPosition(side, entryPrice, slPrice, qty, entryTime, atr, sizeFactor = 1) {
   const riskPerUnit = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
   return {
     side,
@@ -377,6 +385,10 @@ function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
     trailing:        false,
     trailStop:       null,
     trailLockProfit: 0,
+    // Per-position trail thresholds, scaled by sizeFactor.
+    sizeFactor,
+    trailStart:      TRAIL_START_PNL * sizeFactor,
+    trailStep:       TRAIL_STEP_PNL  * sizeFactor,
     // UI-compat aliases
     stopLoss:        slPrice,
     unrealizedPnl:   0,
@@ -396,6 +408,9 @@ function stepPosition(pos, candle) {
   const { side, entryPrice, size, slPrice } = pos;
   let   { trailing, trailStop, trailLockProfit = 0 } = pos;
   const { high, low, close } = candle;
+  // Per-position thresholds; fall back to module defaults for backward compat.
+  const trailStart = pos.trailStart != null ? pos.trailStart : TRAIL_START_PNL;
+  const trailStep  = pos.trailStep  != null ? pos.trailStep  : TRAIL_STEP_PNL;
 
   // Best-case intra-bar PnL — drives trail activation / advance.
   const bestPx  = side === 'long' ? high : low;
@@ -403,8 +418,8 @@ function stepPosition(pos, candle) {
     ? (bestPx - entryPrice) * size
     : (entryPrice - bestPx) * size;
 
-  if (bestPnl >= TRAIL_START_PNL) {
-    const lockProfit = Math.floor((bestPnl - TRAIL_STEP_PNL) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
+  if (bestPnl >= trailStart) {
+    const lockProfit = Math.floor((bestPnl - trailStep) / trailStep) * trailStep;
     const proposedSl = side === 'long'
       ? entryPrice + lockProfit / size
       : entryPrice - lockProfit / size;
@@ -564,8 +579,8 @@ async function fetchCurrentPrice(symbol) {
 }
 
 module.exports = {
-  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN, USE_BAR_COLOR,
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, SL_ATR_MULT,
+  TRAIL_START_PNL, TRAIL_STEP_PNL, MIN_ATR, ATR_LEN, USE_BAR_COLOR,
   WARMUP_BARS,
   computeSeries, computeATR, snapshotIndicators, generateSignal,
   initPosition, stepPosition,

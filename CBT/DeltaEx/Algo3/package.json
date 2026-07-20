@@ -1,0 +1,14 @@
+{
+  "name": "cbt-deltaex-algo3",
+  "version": "1.0.0",
+  "description": "CBT Algo3 — RF+KAMA Cloud Strategy V2 on Delta Exchange India (BTCUSD perp)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "express": "^4.18.2",
+    "express-session": "^1.18.0"
+  }
+}

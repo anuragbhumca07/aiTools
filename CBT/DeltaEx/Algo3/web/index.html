@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CBT DeltaEx Algo3 — RF+KAMA V2</title>
+<style>
+:root {
+  --bg: #0d1117; --panel: #161b22; --border: #30363d;
+  --text: #c9d1d9; --muted: #8b949e; --accent: #f6c548;
+  --teal: #58a6ff; --red: #f85149; --green: #3fb950;
+  --blue: #79c0ff; --yellow: #f2cc60; --orange: #f0883e; --purple: #d2a8ff;
+  --font: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; margin: 0; }
+header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 20px; background: var(--panel);
+}
+header .title    { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+header .subtitle { font-size: .72rem; color: var(--muted); }
+.status-pill {
+  padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700;
+  border: 1px solid var(--border); margin-left: 4px;
+}
+.pill-on  { background: rgba(63,185,80,0.13); color: var(--green); border-color: var(--green); }
+.pill-off { background: rgba(248,81,73,0.13); color: var(--red);   border-color: var(--red); }
+.pill-warn{ background: rgba(246,197,72,0.13); color: var(--accent); border-color: var(--accent); }
+main {
+  max-width: 1400px; margin: 0 auto; padding: 20px;
+  display: grid; gap: 16px;
+  grid-template-columns: 320px 1fr;
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; overflow: hidden;
+}
+.panel h3 {
+  margin: 0 0 8px 0; font-size: .74rem; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--muted); font-weight: 700;
+}
+.ctrl-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ctrl-group label { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.ctrl-group input, .ctrl-group select {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 5px; padding: 6px 10px; color: var(--text);
+  font-family: var(--font); font-size: 13px;
+}
+button {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  padding: 7px 14px; border-radius: 5px; cursor: pointer;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  transition: all .15s;
+}
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+button.danger  { background: var(--red); color: #000; border-color: var(--red); }
+button.info    { border-color: var(--teal); color: var(--teal); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+.stat-box {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  padding: 8px; text-align: center;
+}
+.stat-box .lbl { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+.stat-box .val { font-size: .95rem; font-weight: 700; }
+.pnl-big { font-size: 1.75rem; font-weight: 700; }
+.pnl-pct { font-size: .8rem; color: var(--muted); margin-left: 6px; }
+.pos-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.pos-item { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 8px; }
+.pos-item .lbl { font-size: .62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.pos-item .val { font-size: .88rem; font-weight: 700; margin-top: 2px; }
+.clr-r { color: var(--red); }
+.clr-t { color: var(--teal); }
+.clr-a { color: var(--accent); }
+.clr-b { color: var(--blue); }
+.clr-o { color: var(--orange); }
+.tbl-wrap { max-height: 380px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .74rem; }
+th {
+  background: rgba(139,148,158,0.08); color: var(--muted); text-transform: uppercase;
+  letter-spacing: .8px; font-size: .62rem; padding: 6px 8px;
+  border-bottom: 1px solid var(--border); text-align: left;
+  position: sticky; top: 0; z-index: 1;
+}
+td { padding: 5px 8px; border-bottom: 1px solid rgba(48,54,61,0.4); }
+.type-entry { color: var(--teal); font-weight: 700; }
+.type-exit  { color: var(--red);  font-weight: 700; }
+.type-tick  { color: var(--muted); }
+.type-trail { color: var(--blue); font-weight: 700; }
+.type-trigger { color: var(--purple); font-weight: 700; }
+.type-error { color: var(--red); font-weight: 700; }
+.empty-msg { padding: 20px; text-align: center; color: var(--muted); font-style: italic; }
+.err-banner {
+  background: rgba(248,81,73,0.13); color: var(--red); padding: 10px;
+  border: 1px solid var(--red); border-radius: 5px; margin-bottom: 12px;
+}
+#toast {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 16px; border-radius: 6px; display: none; z-index: 999;
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="title">CBT DeltaEx Algo3 — RF+KAMA V2</div>
+    <div class="subtitle">Range Filter + KAMA cloud · Fixed $150 sizing · PnL trailing · Delta Exchange India (BTCUSD perp, 1 contract = 0.001 BTC)</div>
+  </div>
+  <span id="broker-pill" class="status-pill pill-warn">Delta: checking…</span>
+  <span id="run-pill"    class="status-pill pill-off">Idle</span>
+  <span id="mode-pill"   class="status-pill pill-warn">Mode: —</span>
+</header>
+
+<main>
+  <section class="panel">
+    <h3>Controls</h3>
+    <div class="ctrl-group">
+      <label>Symbol</label>
+      <select id="ctrl-symbol">
+        <option value="BTCUSD">BTCUSD perp</option>
+        <option value="ETHUSD">ETHUSD perp</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>Timeframe</label>
+      <select id="ctrl-tf">
+        <option value="1m">1 minute</option>
+        <option value="5m">5 minutes</option>
+        <option value="15m">15 minutes</option>
+        <option value="1h">1 hour</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>Balance (paper, USD)</label>
+      <input id="ctrl-balance" type="number" value="10000" min="100" step="100" />
+    </div>
+    <div class="ctrl-group">
+      <label>Size Factor <span style="color:var(--muted);font-weight:normal">(× qty)</span></label>
+      <input id="ctrl-size-factor" type="number" value="0.01" min="0.01" max="10" step="0.01"
+        title="0.01 = 1/100th of $150 baseline sizing · 1 = full · SL hit ≈ $150 × sizeFactor" />
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="btn-start" class="primary">▶ Start</button>
+      <button id="btn-stop"  class="danger" disabled>■ Stop</button>
+      <button id="btn-reset">↻ Reset</button>
+    </div>
+
+    <h3 style="margin-top:20px">Backtest</h3>
+    <div class="ctrl-group">
+      <label>Period (months)</label>
+      <input id="ctrl-bt-months" type="number" value="0.5" min="0.1" max="3" step="0.1" />
+    </div>
+    <div class="row">
+      <button id="btn-backtest" class="info">🧪 Run Backtest</button>
+    </div>
+    <div id="bt-result" style="margin-top:10px;font-size:.78rem"></div>
+
+    <h3 style="margin-top:20px">Broker</h3>
+    <div id="broker-info" style="font-size:.75rem;color:var(--muted)">—</div>
+    <div class="row" style="margin-top:10px">
+      <button id="btn-broker-refresh" class="info">🔄 Refresh</button>
+      <button id="btn-test-order" class="info" title="Places 1 contract, then immediately closes it. Costs a small fee.">🧪 Test 1-Contract Order</button>
+    </div>
+    <div id="test-order-result" style="margin-top:8px;font-size:.72rem"></div>
+  </section>
+
+  <section>
+    <div id="err-panel" class="err-banner" style="display:none"></div>
+
+    <div class="panel">
+      <h3>Live PnL</h3>
+      <div>
+        <span id="pnl-big" class="pnl-big">$0.00</span>
+        <span id="pnl-pct" class="pnl-pct">0.00%</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="lbl">Balance</div><div class="val" id="stat-balance">$10,000</div></div>
+        <div class="stat-box"><div class="lbl">Trades</div><div class="val" id="stat-trades">0</div></div>
+        <div class="stat-box"><div class="lbl">Win Rate</div><div class="val" id="stat-wr">0.0%</div></div>
+        <div class="stat-box"><div class="lbl">Max DD</div><div class="val clr-r" id="stat-dd">$0.00</div></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h3>Position</h3>
+      <div id="pos-body"><div class="empty-msg">No open position.</div></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h3>Live Indicators</h3>
+      <div id="ind-body" style="font-size:.78rem;color:var(--muted)">Waiting for first tick…</div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h3>Recent Trades</h3>
+      <div class="tbl-wrap">
+        <table id="trades-tbl">
+          <thead><tr>
+            <th>Time</th><th>Type</th><th>Side</th><th>Price</th><th>Size (BTC)</th>
+            <th>Contracts</th><th>SL</th><th>PnL</th><th>Balance</th><th>Order ID</th>
+          </tr></thead>
+          <tbody id="trades-body"><tr><td colspan="10" class="empty-msg">No trades yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h3>Tick Log</h3>
+      <div class="tbl-wrap">
+        <table id="log-tbl">
+          <thead><tr>
+            <th>Time</th><th>Type</th><th>Signal</th>
+            <th>Price</th><th>Filt</th><th>H-band</th><th>L-band</th>
+            <th>P1</th><th>P2</th><th>P3</th>
+            <th>Zone</th><th>Bar</th><th>Notes</th>
+          </tr></thead>
+          <tbody id="log-body"><tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $  = id => document.getElementById(id);
+const fmt = n => n == null ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+
+function toast(msg, isErr = false) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.borderColor = isErr ? 'var(--red)' : 'var(--border)';
+  el.style.color       = isErr ? 'var(--red)' : 'var(--text)';
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.display = 'none', 4000);
+}
+
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function renderState(s) {
+  if (!s) return;
+  const running = s.running;
+  $('run-pill').textContent = running ? 'RUNNING' : 'Idle';
+  $('run-pill').className = 'status-pill ' + (running ? 'pill-on' : 'pill-off');
+  $('mode-pill').textContent = 'Mode: ' + (s.brokerMode || s.mode || '—');
+  $('mode-pill').className = 'status-pill pill-warn';
+
+  $('btn-start').disabled = running;
+  $('btn-stop').disabled  = !running;
+
+  const pnl = s.pnl || 0;
+  const pnlEl = $('pnl-big');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '−') + '$' + fmt(Math.abs(pnl));
+  pnlEl.style.color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text)';
+  $('pnl-pct').textContent = (s.pnlPct || '0.00') + '%';
+  $('stat-balance').textContent = '$' + fmt(s.balance);
+  $('stat-trades').textContent  = s.totalTrades || 0;
+  $('stat-wr').textContent      = (s.winRate || '0.0') + '%';
+  $('stat-dd').textContent      = '$' + fmt(s.maxDrawdownDollar || 0);
+
+  if (s.error) {
+    $('err-panel').style.display = 'block';
+    $('err-panel').textContent   = 'ERROR: ' + s.error;
+  } else {
+    $('err-panel').style.display = 'none';
+  }
+
+  renderPosition(s.position, s.lastIndicators);
+  renderIndicators(s.lastIndicators);
+}
+
+function renderPosition(pos, ind) {
+  const el = $('pos-body');
+  if (!pos) { el.innerHTML = '<div class="empty-msg">No open position.</div>'; return; }
+  const activeStop = pos.trailing ? pos.trailStop : pos.slPrice;
+  const urColor = (pos.unrealizedPnl || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+  const sizeFactor = pos.sizeFactor || 1;
+  el.innerHTML = `
+    <div class="pos-row">
+      <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--teal)':'var(--red)'}">${pos.side.toUpperCase()}</div></div>
+      <div class="pos-item"><div class="lbl">Entry</div><div class="val">${fmt(pos.entryPrice)}</div></div>
+      <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Size (BTC)</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
+      <div class="pos-item"><div class="lbl">Contracts</div><div class="val">${pos.contracts || '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Max Loss $ (SL hit)</div><div class="val clr-r">$${(150 * sizeFactor).toFixed(2)}</div></div>
+      <div class="pos-item"><div class="lbl">Initial SL px</div><div class="val clr-r">${fmt(pos.slPrice)}</div></div>
+      <div class="pos-item"><div class="lbl">Active Stop</div><div class="val ${pos.trailing?'clr-b':'clr-r'}">${fmt(activeStop)}</div></div>
+      <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${(pos.unrealizedPnl >= 0 ? '+' : '−')}$${fmt(Math.abs(pos.unrealizedPnl || 0))}</div></div>
+      <div class="pos-item"><div class="lbl">MAE $</div><div class="val clr-r">${(pos.mae || 0) < 0 ? '−$' + fmt(Math.abs(pos.mae)) : '$0.00'}</div></div>
+      <div class="pos-item"><div class="lbl">Trail Locked</div><div class="val clr-a">${pos.trailing ? '$' + (pos.trailLockProfit || 0).toFixed(0) : '—'}</div></div>
+      ${pos.brokerOrderId ? `<div class="pos-item"><div class="lbl">Delta Order</div><div class="val clr-o" style="font-size:.72rem">${esc(pos.brokerOrderId)}</div></div>` : ''}
+    </div>
+  `;
+}
+
+function renderIndicators(ind) {
+  const el = $('ind-body');
+  if (!ind) { el.textContent = 'Waiting for first tick…'; return; }
+  const zone = ind.buyZone ? '▲ BUY' : ind.sellZone ? '▼ SELL' : '—';
+  const bar  = ind.isGreenBar ? 'GREEN' : ind.isBlueBar ? 'RED' : '—';
+  el.innerHTML = `
+    Price ${fmt(ind.price)} · Filt ${fmt(ind.filt)} · H-band ${fmt(ind.hband)} · L-band ${fmt(ind.lband)}
+    · P1 ${fmt(ind.p1)} · P2 ${fmt(ind.p2)} · P3 ${fmt(ind.p3)}
+    · ATR ${fmt(ind.atr)} · Zone <b>${zone}</b> · Bar ${bar}
+  `;
+}
+
+function prependLog(entry) {
+  const tbody = $('log-body');
+  const emp = tbody.querySelector('.empty-msg');
+  if (emp) emp.parentElement.remove();
+  const ind = entry.indicators || {};
+  const sig = entry.signal || entry.type || '—';
+  const isTrail   = sig === 'TRAIL-UPDATE' || sig === 'TRAIL-START';
+  const isTrigger = sig === 'TRIGGER-BUY' || sig === 'TRIGGER-SELL';
+  let typeCls = 'type-tick';
+  if (entry.type === 'ENTRY')      typeCls = 'type-entry';
+  else if (entry.type === 'EXIT')  typeCls = 'type-exit';
+  else if (entry.type === 'ERROR') typeCls = 'type-error';
+  else if (isTrail)                typeCls = 'type-trail';
+  else if (isTrigger)              typeCls = 'type-trigger';
+
+  const zone = ind.buyZone ? '▲ BUY' : ind.sellZone ? '▼ SELL' : '—';
+  const bar  = ind.isGreenBar ? 'GREEN' : ind.isBlueBar ? 'RED' : '—';
+  const notes = Array.isArray(entry.reason) ? entry.reason.join(' | ') : (entry.message || '');
+  const short = notes.length > 90 ? notes.slice(0, 88) + '…' : notes;
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${(entry.ts || '').replace('T',' ').slice(0,19)}</td>
+    <td class="${typeCls}">${esc(entry.type || '')}</td>
+    <td>${esc(sig)}</td>
+    <td>${ind.price != null ? fmt(ind.price) : '—'}</td>
+    <td>${ind.filt != null ? fmt(ind.filt) : '—'}</td>
+    <td>${ind.hband != null ? fmt(ind.hband) : '—'}</td>
+    <td>${ind.lband != null ? fmt(ind.lband) : '—'}</td>
+    <td>${ind.p1 != null ? fmt(ind.p1) : '—'}</td>
+    <td>${ind.p2 != null ? fmt(ind.p2) : '—'}</td>
+    <td>${ind.p3 != null ? fmt(ind.p3) : '—'}</td>
+    <td>${zone}</td>
+    <td>${bar}</td>
+    <td title="${esc(notes)}">${esc(short)}</td>
+  `;
+  tbody.insertBefore(tr, tbody.firstChild);
+  while (tbody.children.length > 300) tbody.removeChild(tbody.lastChild);
+}
+
+async function loadTrades() {
+  const rows = await api('/api/trades');
+  const tbody = $('trades-body');
+  tbody.innerHTML = '';
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty-msg">No trades yet.</td></tr>'; return; }
+  for (const t of rows.slice(0, 30)) {
+    const pnlStr = t.pnl == null || t.pnl === 0 ? '—' : (t.pnl >= 0 ? '+$' + fmt(t.pnl) : '−$' + fmt(Math.abs(t.pnl)));
+    const pnlColor = (t.pnl || 0) > 0 ? 'var(--green)' : (t.pnl || 0) < 0 ? 'var(--red)' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${(t.timestamp || '').replace('T',' ').slice(0,19)}</td>
+      <td class="type-${t.type}">${esc(t.type)}</td>
+      <td>${esc(t.side || '')}</td>
+      <td>${fmt(t.price)}</td>
+      <td>${parseFloat(t.size || 0).toFixed(6)}</td>
+      <td>${t.contracts || '—'}</td>
+      <td>${fmt(t.stop_loss)}</td>
+      <td style="color:${pnlColor}">${pnlStr}</td>
+      <td>$${fmt(t.balance_after)}</td>
+      <td class="clr-o" style="font-size:.7rem">${t.broker_order ? esc(String(t.broker_order).slice(0,16)) : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function refreshBroker() {
+  const r = await api('/api/broker');
+  const pill = $('broker-pill');
+  if (r.connected) {
+    pill.textContent = 'Delta: connected';
+    pill.className = 'status-pill pill-on';
+  } else {
+    pill.textContent = 'Delta: ' + (r.error || 'disconnected');
+    pill.className = 'status-pill pill-off';
+  }
+  const walletHtml = (r.wallet || []).length
+    ? r.wallet.map(w => `${esc(w.asset)}: <b>${w.balance.toFixed(6)}</b> (avail ${w.availableBalance.toFixed(6)})`).join('<br/>')
+    : '(no wallet balances)';
+  $('broker-info').innerHTML = `
+    <div>Host: <code>${esc(r.host || '')}</code></div>
+    <div>Mode: <b>${esc(r.mode || '')}</b> · Key: ${r.apiKeySet ? '✓' : '✗'} · Secret: ${r.secretSet ? '✓' : '✗'}</div>
+    <div style="margin-top:6px">${walletHtml}</div>
+    ${r.error ? `<div style="color:var(--red);margin-top:4px">${esc(r.error)}</div>` : ''}
+  `;
+}
+
+$('btn-broker-refresh').onclick = refreshBroker;
+
+$('btn-test-order').onclick = async () => {
+  if (!confirm('Place 1-contract MARKET buy on BTCUSD, then immediately close?\nCosts real trading fees.')) return;
+  $('btn-test-order').disabled = true;
+  $('test-order-result').innerHTML = '<span style="color:var(--muted)">Placing…</span>';
+  try {
+    const r = await api('/api/delta/test-order', 'POST', { symbol: 'BTCUSD', side: 'long' });
+    if (r.ok) {
+      $('test-order-result').innerHTML = `
+        <div style="color:var(--green)">✓ Open OK: order_id=${esc(r.open?.id || '?')}</div>
+        <div style="color:var(--green)">✓ Close OK: order_id=${esc(r.close?.id || '?')}</div>
+      `;
+    } else {
+      $('test-order-result').innerHTML = `<div style="color:var(--red)">✗ ${esc(r.error || 'failed')}</div>`;
+    }
+  } catch (e) {
+    $('test-order-result').innerHTML = `<div style="color:var(--red)">✗ ${esc(e.message)}</div>`;
+  }
+  $('btn-test-order').disabled = false;
+};
+
+$('btn-start').onclick = async () => {
+  $('btn-start').disabled = true;
+  const symbol     = $('ctrl-symbol').value;
+  const timeframe  = $('ctrl-tf').value;
+  const balance    = parseFloat($('ctrl-balance').value);
+  const sizeFactor = parseFloat($('ctrl-size-factor').value);
+  const r = await api('/api/start', 'POST', { symbol, timeframe, balance, sizeFactor });
+  if (!r.ok) { toast(r.msg || 'Failed to start', true); $('btn-start').disabled = false; return; }
+  renderState(r.state);
+  toast('Started');
+};
+$('btn-stop').onclick = async () => {
+  const r = await api('/api/stop', 'POST');
+  if (r.state) renderState(r.state);
+  toast('Stopped');
+};
+$('btn-reset').onclick = async () => {
+  if (!confirm('Clear trades and reset session? Wipes local trade history for this user.')) return;
+  const r = await api('/api/reset', 'POST');
+  if (r.state) renderState(r.state);
+  $('trades-body').innerHTML = '<tr><td colspan="10" class="empty-msg">No trades yet.</td></tr>';
+  $('log-body').innerHTML    = '<tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr>';
+  toast('Reset · trades cleared: ' + (r.tradesCleared || 0));
+};
+
+$('btn-backtest').onclick = async () => {
+  $('btn-backtest').disabled = true;
+  const symbol    = $('ctrl-symbol').value;
+  const timeframe = $('ctrl-tf').value;
+  const months    = parseFloat($('ctrl-bt-months').value);
+  $('bt-result').innerHTML = '<span style="color:var(--muted)">Running backtest…</span>';
+  try {
+    const r = await api('/api/backtest', 'POST', { symbol, timeframe, months, sizeFactor: parseFloat($('ctrl-size-factor').value) });
+    if (!r.ok) { $('bt-result').innerHTML = `<span style="color:var(--red)">${esc(r.error || 'failed')}</span>`; }
+    else {
+      const s = r.summary;
+      $('bt-result').innerHTML = `
+        <div>Period: <b>${s.period}</b> · Bars: ${s.candlesAnalyzed}</div>
+        <div>Trades: <b>${s.totalTrades}</b> · WR: <b>${s.winRate}%</b></div>
+        <div>Net PnL: <b style="color:${s.totalPnl>=0?'var(--green)':'var(--red)'}">${s.totalPnl>=0?'+':''}$${s.totalPnl.toFixed(2)}</b> (${s.pnlPct}%)</div>
+        <div>Max DD: <span class="clr-r">$${s.maxDrawdown.toFixed(2)}</span></div>
+      `;
+    }
+  } catch (e) {
+    $('bt-result').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`;
+  }
+  $('btn-backtest').disabled = false;
+};
+
+function connectSSE() {
+  const es = new EventSource('/events');
+  es.onmessage = (m) => {
+    let data;
+    try { data = JSON.parse(m.data); } catch { return; }
+    if (data.state) renderState(data.state);
+    if (data.type === 'log' && data.entry) prependLog(data.entry);
+    if (data.type === 'connected' && data.logs) {
+      for (const e of [...data.logs].reverse()) prependLog(e);
+    }
+    if (data.type === 'trade') loadTrades();
+    if (data.type === 'stopped' || data.type === 'started' || data.type === 'reset') loadTrades();
+  };
+  es.onerror = () => { es.close(); setTimeout(connectSSE, 3000); };
+}
+
+(async function boot() {
+  await refreshBroker();
+  const s = await api('/api/state');
+  renderState(s);
+  await loadTrades();
+  connectSSE();
+})();
+</script>
+</body>
+</html>
