@@ -9,14 +9,26 @@
 const https  = require('https');
 const crypto = require('crypto');
 
-const HOST = 'api.india.delta.exchange';
+// Host is env-configurable so the same code drives production and the demo/testnet
+// account. Demo API keys ONLY work against the testnet host, and vice-versa.
+//   prod    : api.india.delta.exchange      (default)
+//   testnet : cdn-ind.testnet.deltaex.org   (set DELTA_HOST)
+const HOST = (process.env.DELTA_HOST || 'api.india.delta.exchange')
+  .replace(/^https?:\/\//, '').replace(/\/+$/, '');
+const IS_TESTNET = /testnet/i.test(HOST);
 const UA   = 'cbt-algo3-delta/1.0';
 
-// BTCUSD perpetual on Delta India
-const PRODUCT = {
+// BTCUSD/ETHUSD perpetuals on Delta India. Product IDs differ between the two
+// environments, so orders must use the id matching the active host.
+const PRODUCT_PROD = {
   BTCUSD: { product_id: 27,   contract_value: 0.001, tick: 0.5   },
   ETHUSD: { product_id: 3136, contract_value: 0.01,  tick: 0.05  },
 };
+const PRODUCT_TESTNET = {
+  BTCUSD: { product_id: 84,   contract_value: 0.001, tick: 0.1   },
+  ETHUSD: { product_id: 1699, contract_value: 0.01,  tick: 0.05  },
+};
+const PRODUCT = IS_TESTNET ? PRODUCT_TESTNET : PRODUCT_PROD;
 
 // resolution string used by Delta candles endpoint
 const RESOLUTION = {
@@ -63,6 +75,10 @@ function httpsRequest({ method, path: reqPath, body }, apiKey, apiSecret, _retry
     }
     const req = https.request({
       hostname: HOST, path: reqPath, method, headers,
+      // Force IPv4 egress. Delta's API-key IP whitelist matches the source IP it
+      // observes; a dual-stack host may otherwise leave over IPv6 and present a
+      // different address than the (IPv4) one whitelisted → ip_not_whitelisted_for_api_key.
+      family: 4,
     }, res => {
       let raw = '';
       res.on('data', d => raw += d);
@@ -188,7 +204,7 @@ async function getOrder(apiKey, apiSecret, orderId) {
 }
 
 module.exports = {
-  HOST, PRODUCT, CANDLE_MS,
+  HOST, IS_TESTNET, PRODUCT, CANDLE_MS,
   getTicker, getCandles, getRecentCandles,
   getWallet, getPositions, getPositionForProduct,
   placeMarketOrder, closePosition, cancelOrder, getOrder,

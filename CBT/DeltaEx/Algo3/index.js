@@ -709,6 +709,8 @@ app.get('/api/broker', async (_req, res) => {
     apiKeySet:  !!DELTA_API_KEY,
     secretSet:  !!DELTA_API_SECRET,
     host:       delta.HOST,
+    testnet:    delta.IS_TESTNET,
+    env:        delta.IS_TESTNET ? 'testnet (demo)' : 'production (real)',
     product:    delta.PRODUCT[DEFAULT_SYMBOL] || null,
     lastCheck:  brokerStatus.lastCheck,
   });

@@ -42,6 +42,9 @@ CBT/MetaApi/Algo3/data/
 CBT/MetaApi/Algo3/logs/
 CBT/DeltaEx/Algo3/data/
 CBT/DeltaEx/Algo3/logs/
+# Delta API secrets — keep local only (.env.example IS committed)
+CBT/DeltaEx/Algo3/.env.demo
+CBT/DeltaEx/Algo3/.env.prod
 Robinhood/RobAlgo6/data/
 Robinhood/RobAlgo6/logs/
 
