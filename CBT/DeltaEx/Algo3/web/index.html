@@ -272,6 +272,7 @@
         </div>
       </div>
       <div id="account-note">Demo = fake money on testnet (safe). Live = real orders on production — needs the account's keys + your IP whitelisted.</div>
+      <div id="chart-link" style="margin-top:6px;font-size:.74rem;color:var(--muted)"></div>
 
       <div id="backtest-panel">
         <div style="height:10px"></div>
@@ -479,10 +480,20 @@ function updateAccountNote(){
   }
 }
 
+function updateChartLink(){
+  const acct = $('ctrl-account').value, sym = $('ctrl-symbol').value;
+  const coin = sym.replace('USD','');   // BTCUSD -> BTC
+  const base = acct==='demo' ? 'https://demo.delta.exchange' : 'https://delta.exchange';
+  const market = acct==='demo' ? 'demo.delta.exchange (testnet)' : 'delta.exchange (production)';
+  const url = `${base}/app/futures/trade/${coin}/${sym}`;
+  $('chart-link').innerHTML = `📈 Prices here match the <b>${acct.toUpperCase()}</b> market only — compare on <a href="${url}" target="_blank" rel="noopener" style="color:var(--blue)">${market} ↗</a>. Demo &amp; Live are <b>separate markets</b> ($ differs).`;
+}
+
 function onAccountChange(){
   const acct = $('ctrl-account').value;
   $('broker-acct-title').textContent = acct==='demo' ? 'Demo' : 'Live';
   updateAccountNote();
+  updateChartLink();
   refreshBroker(); // preview wallet for the newly selected account (only switches server-side when idle)
 }
 
@@ -776,6 +787,7 @@ async function pollLiveMark(){
 
 (async function boot(){
   setMode('paper');
+  updateChartLink();
   await refreshBroker();
   const s = await api('/api/state').catch(()=>null);
   if(s) applyState(s);
@@ -783,7 +795,7 @@ async function pollLiveMark(){
   connectSSE();
   pollLiveMark();
   setInterval(pollLiveMark, 3000);       // ~chart-like live refresh
-  $('ctrl-symbol').addEventListener('change', pollLiveMark);
+  $('ctrl-symbol').addEventListener('change', ()=>{ pollLiveMark(); updateChartLink(); });
 })();
 </script>
 </body>
