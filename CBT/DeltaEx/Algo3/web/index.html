@@ -209,6 +209,10 @@
     <div class="dx-dot off" id="dx-dot"></div>
     <span id="dx-label" style="font-size:.7rem;color:var(--muted)">Delta: checking…</span>
   </div>
+  <div id="dx-status" title="Live mark price for the selected account — compare to the Delta chart tab">
+    <span style="color:var(--muted)">Mark:</span>
+    <span id="hdr-livemark" style="font-weight:700;color:var(--teal)">—</span>
+  </div>
   <div class="spacer"></div>
   <span id="last-update">—</span>
 </header>
@@ -365,7 +369,8 @@
     <div class="card-title">Live Indicators — Range Filter + KAMA Cloud</div>
     <div class="ind-chips">
       <div class="ind-chip" style="border-color:rgba(88,166,255,.4)"><div class="ic-lbl" style="color:var(--blue)">Bar close (TF)</div><div class="ic-val" id="ic-candle-time">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ic-price">—</div></div>
+      <div class="ind-chip" style="border-color:rgba(57,211,83,.55)"><div class="ic-lbl" style="color:var(--teal)">Live Mark (now) — matches chart</div><div class="ic-val" id="ic-livemark">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Price (bar close)</div><div class="ic-val" id="ic-price">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">Filt (RF)</div><div class="ic-val" id="ic-filt">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">H-band</div><div class="ic-val" id="ic-hband">—</div></div>
       <div class="ind-chip"><div class="ic-lbl">L-band</div><div class="ic-val" id="ic-lband">—</div></div>
@@ -735,6 +740,28 @@ function renderBacktest(d){
 
 $('ctrl-size-factor').addEventListener('input', ()=>{ if(appState && appState.lastIndicators) applyState(appState); });
 
+// ── Live mark poll — the last TRADED/mark price (what the Delta chart shows),
+// separate from the algo's last-closed-candle "Price (bar close)". Polls the
+// active account's ticker so it matches whichever chart (demo/live) is selected.
+let lastMark = null;
+async function pollLiveMark(){
+  try{
+    const sym = $('ctrl-symbol').value;
+    const r = await api('/api/delta/ticker?symbol='+encodeURIComponent(sym));
+    const mark = r && r.ok && r.ticker ? parseFloat(r.ticker.mark_price) : null;
+    const el = $('ic-livemark'), hdr = $('hdr-livemark');
+    if(mark && isFinite(mark)){
+      const txt = mark.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+      // colour by tick direction
+      const up = lastMark!=null && mark>lastMark, dn = lastMark!=null && mark<lastMark;
+      const col = up?'var(--green)':dn?'var(--red)':'var(--teal)';
+      el.textContent = txt; el.style.color = col;
+      hdr.textContent = (up?'▲ ':dn?'▼ ':'') + txt; hdr.style.color = col;
+      lastMark = mark;
+    }
+  }catch{}
+}
+
 (async function boot(){
   setMode('paper');
   await refreshBroker();
@@ -742,6 +769,9 @@ $('ctrl-size-factor').addEventListener('input', ()=>{ if(appState && appState.la
   if(s) applyState(s);
   await loadTrades();
   connectSSE();
+  pollLiveMark();
+  setInterval(pollLiveMark, 3000);       // ~chart-like live refresh
+  $('ctrl-symbol').addEventListener('change', pollLiveMark);
 })();
 </script>
 </body>
