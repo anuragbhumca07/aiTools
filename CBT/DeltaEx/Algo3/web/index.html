@@ -409,12 +409,12 @@
   <!-- Tick Log -->
   <div class="card">
     <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span>
-      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRIGGER-BUY/SELL = fill next open · TRAIL-START/UPDATE = trailStop advanced</span>
+      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">Bar Time = candle OPEN time (matches Delta chart label) · Price = that bar's CLOSE · hover for scan time · TRIGGER = fill next open</span>
     </div>
     <div class="tbl-wrap log-wrap">
       <table id="log-tbl">
         <thead><tr>
-          <th>Date/Time</th><th>Type</th><th>Signal</th><th>Price</th>
+          <th>Bar Time (open)</th><th>Type</th><th>Signal</th><th>Price (close)</th>
           <th>Filt</th><th>H-band</th><th>L-band</th><th>P1</th><th>P2</th><th>P3</th>
           <th>Zone</th><th>Bar</th><th>Notes</th>
         </tr></thead>
@@ -622,9 +622,21 @@ function prependLog(entry){
   else notesHtml=esc(notes.substring(0,70))+(notes.length>70?'…':'');
   const zone=ind.buyZone?'▲ BUY':ind.sellZone?'▼ SELL':'—'; const zoneCls=ind.buyZone?'clr-g':ind.sellZone?'clr-r':'';
   const barRed=(ind.downward||0)>0; const bar=barRed?'RED':'GREEN'; const barCls=barRed?'clr-r':'clr-g';
+  // Label the row by the CANDLE's own bar-open time (how Delta/TradingView labels
+  // candles) instead of the tick fetch time (:01s). Makes Price = that bar's close
+  // line up 1:1 with the Delta chart. Non-candle events keep their event time.
+  const candleOpen = ind.candleOpenTime || ind.candleTime;
+  let timeShown, timeTitle;
+  if (entry.type === 'TICK' && candleOpen) {
+    timeShown = fmtTime(candleOpen);
+    timeTitle = `Candle bar ${fmtTime(candleOpen)} → ${ind.candleCloseTime?fmtTime(ind.candleCloseTime):''} (close) · scanned ${entry.ts?fmtTime(entry.ts):''}`;
+  } else {
+    timeShown = entry.ts ? fmtTime(entry.ts) : '—';
+    timeTitle = entry.ts || '';
+  }
   const tr=document.createElement('tr');
   tr.innerHTML=`
-    <td class="main">${entry.ts?fmtTime(entry.ts):'—'}</td>
+    <td class="main" title="${esc(timeTitle)}">${timeShown}</td>
     <td class="${typeCls}">${esc(entry.type||'')}</td>
     <td class="${typeCls}">${esc(sig)}</td>
     <td class="main">${fmt(ind.price!=null?ind.price:entry.price)}</td>
