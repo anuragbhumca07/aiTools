@@ -9,17 +9,24 @@
 const https  = require('https');
 const crypto = require('crypto');
 
-// Host is env-configurable so the same code drives production and the demo/testnet
-// account. Demo API keys ONLY work against the testnet host, and vice-versa.
-//   prod    : api.india.delta.exchange      (default)
-//   testnet : cdn-ind.testnet.deltaex.org   (set DELTA_HOST)
-const HOST = (process.env.DELTA_HOST || 'api.india.delta.exchange')
-  .replace(/^https?:\/\//, '').replace(/\/+$/, '');
-const IS_TESTNET = /testnet/i.test(HOST);
-const UA   = 'cbt-algo3-delta/1.0';
+// Two Delta India environments. The active host is switchable at runtime so a
+// single server can serve BOTH the demo (testnet) and live (production) account
+// — the UI picks which one per session. Demo API keys ONLY work against the
+// testnet host, real keys ONLY against production.
+const PROD_HOST    = 'api.india.delta.exchange';
+const TESTNET_HOST = 'cdn-ind.testnet.deltaex.org';
+const UA           = 'cbt-algo3-delta/1.0';
+
+// `let` so setHost() can switch environments live. Seeded from DELTA_HOST (else
+// production) for backwards compatibility with the single-account start scripts.
+let HOST = (process.env.DELTA_HOST || PROD_HOST).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+function isTestnet() { return /testnet/i.test(HOST); }
+function getHost()   { return HOST; }
+function setHost(h)  { if (h) HOST = String(h).replace(/^https?:\/\//, '').replace(/\/+$/, ''); return HOST; }
+function hostFor(account) { return account === 'demo' ? TESTNET_HOST : PROD_HOST; }
 
 // BTCUSD/ETHUSD perpetuals on Delta India. Product IDs differ between the two
-// environments, so orders must use the id matching the active host.
+// environments, so orders must use the id matching the ACTIVE host.
 const PRODUCT_PROD = {
   BTCUSD: { product_id: 27,   contract_value: 0.001, tick: 0.5   },
   ETHUSD: { product_id: 3136, contract_value: 0.01,  tick: 0.05  },
@@ -28,7 +35,7 @@ const PRODUCT_TESTNET = {
   BTCUSD: { product_id: 84,   contract_value: 0.001, tick: 0.1   },
   ETHUSD: { product_id: 1699, contract_value: 0.01,  tick: 0.05  },
 };
-const PRODUCT = IS_TESTNET ? PRODUCT_TESTNET : PRODUCT_PROD;
+function getProduct(symbol) { return (isTestnet() ? PRODUCT_TESTNET : PRODUCT_PROD)[symbol]; }
 
 // resolution string used by Delta candles endpoint
 const RESOLUTION = {
@@ -167,7 +174,7 @@ async function getPositionForProduct(apiKey, apiSecret, productId) {
   return httpsRequest({ method: 'GET', path: `/v2/positions?product_id=${productId}` }, apiKey, apiSecret);
 }
 async function placeMarketOrder(apiKey, apiSecret, { symbol, side, contracts, clientOrderId }) {
-  const p = PRODUCT[symbol];
+  const p = getProduct(symbol);
   if (!p) throw new Error(`Unknown symbol ${symbol}`);
   const body = {
     product_id:    p.product_id,
@@ -182,7 +189,7 @@ async function placeMarketOrder(apiKey, apiSecret, { symbol, side, contracts, cl
 }
 // Close position at market. Delta accepts `close_position: true` or a plain opposite-side market order.
 async function closePosition(apiKey, apiSecret, { symbol, side, contracts }) {
-  const p = PRODUCT[symbol];
+  const p = getProduct(symbol);
   if (!p) throw new Error(`Unknown symbol ${symbol}`);
   const body = {
     product_id:    p.product_id,
@@ -204,7 +211,8 @@ async function getOrder(apiKey, apiSecret, orderId) {
 }
 
 module.exports = {
-  HOST, IS_TESTNET, PRODUCT, CANDLE_MS,
+  PROD_HOST, TESTNET_HOST, CANDLE_MS,
+  getHost, setHost, hostFor, isTestnet, getProduct,
   getTicker, getCandles, getRecentCandles,
   getWallet, getPositions, getPositionForProduct,
   placeMarketOrder, closePosition, cancelOrder, getOrder,

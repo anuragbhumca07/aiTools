@@ -19,8 +19,6 @@ const delta = require('./delta');
 // ── Config ────────────────────────────────────────────────────────
 const PORT             = parseInt(process.env.PORT || '3011', 10);
 const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-delta-algo3-dev-secret';
-const DELTA_API_KEY    = process.env.DELTA_API_KEY    || '';
-const DELTA_API_SECRET = process.env.DELTA_API_SECRET || '';
 const DEFAULT_SYMBOL   = process.env.DEFAULT_SYMBOL   || 'BTCUSD';
 
 const WA_INSTANCE = process.env.WA_INSTANCE || '';
@@ -123,21 +121,61 @@ const STRATEGIES = {
 // ── Delta adapter wrapper ────────────────────────────────────────
 // Keeps API key/secret at module scope. `getCredentials()` returns the
 // pair (falling back to env). Order helpers throw when creds are missing.
-function creds() {
-  if (!DELTA_API_KEY || !DELTA_API_SECRET) throw new Error('DELTA_API_KEY/DELTA_API_SECRET not set');
-  return [DELTA_API_KEY, DELTA_API_SECRET];
+// ── Accounts: demo (testnet) + live (production) ─────────────────
+// Keys come from account-specific env vars so ONE server can trade either
+// account, chosen from the UI. For backwards-compat with the single-account
+// start scripts, the legacy DELTA_API_KEY/SECRET (+ DELTA_HOST) seed whichever
+// account matches that host.
+function seedAccounts() {
+  const A = {
+    demo: { host: delta.TESTNET_HOST, key: process.env.DELTA_DEMO_API_KEY || '', secret: process.env.DELTA_DEMO_API_SECRET || '' },
+    live: { host: delta.PROD_HOST,    key: process.env.DELTA_LIVE_API_KEY || '', secret: process.env.DELTA_LIVE_API_SECRET || '' },
+  };
+  const lKey = process.env.DELTA_API_KEY || '', lSec = process.env.DELTA_API_SECRET || '';
+  if (lKey && lSec) {
+    const slot = /testnet/i.test(process.env.DELTA_HOST || '') ? 'demo' : 'live';
+    if (!A[slot].key)    A[slot].key    = lKey;
+    if (!A[slot].secret) A[slot].secret = lSec;
+  }
+  return A;
 }
+const ACCOUNTS = seedAccounts();
 
-const brokerStatus = { connected: false, lastCheck: 0, error: null, wallet: null, mode: (DELTA_API_KEY && DELTA_API_SECRET) ? 'live' : 'paper' };
+// Active account for the single guest session. Prefer demo (safe) when configured.
+let activeAccount = ACCOUNTS.demo.key ? 'demo' : (ACCOUNTS.live.key ? 'live' : 'demo');
+function acct() { return ACCOUNTS[activeAccount]; }
+function accountConfigured(name) { const a = ACCOUNTS[name]; return !!(a && a.key && a.secret); }
+function applyAccount(name) {
+  if (name === 'demo' || name === 'live') activeAccount = name;
+  delta.setHost(acct().host);          // switch data + order host to match
+  return activeAccount;
+}
+applyAccount(activeAccount);           // sync delta host on boot
+
+function creds() {
+  const a = acct();
+  if (!a.key || !a.secret) throw new Error(`Delta ${activeAccount} account keys not set`);
+  return [a.key, a.secret];
+}
+// Real orders fire only in LIVE mode with the active account's keys present.
+function liveOrdersOn(state) { const a = acct(); return !!(state && state.mode === 'live' && a.key && a.secret); }
+
+const brokerStatus = { connected: false, lastCheck: 0, error: null, wallet: null, account: activeAccount, host: acct().host, testnet: activeAccount === 'demo', mode: accountConfigured(activeAccount) ? 'live' : 'paper' };
 async function refreshBrokerStatus() {
-  if (!DELTA_API_KEY || !DELTA_API_SECRET) {
+  const a = acct();
+  delta.setHost(a.host);
+  brokerStatus.account = activeAccount;
+  brokerStatus.host    = a.host;
+  brokerStatus.testnet = activeAccount === 'demo';
+  brokerStatus.mode    = (a.key && a.secret) ? 'live' : 'paper';
+  if (!a.key || !a.secret) {
     brokerStatus.connected = false;
-    brokerStatus.error = 'DELTA_API_KEY/SECRET not set';
+    brokerStatus.error = `Delta ${activeAccount} account keys not set`;
     brokerStatus.wallet = null;
     return brokerStatus;
   }
   try {
-    const r = await delta.getWallet(...creds());
+    const r = await delta.getWallet(a.key, a.secret);
     brokerStatus.connected = true;
     brokerStatus.error = null;
     // Delta wallet balances is an array of { asset_symbol, balance, available_balance, ... }
@@ -166,7 +204,7 @@ function defaultFlagState() {
 function defaultState() {
   return {
     running: false, symbol: DEFAULT_SYMBOL, timeframe: '1m',
-    strategyId: 'rf-kama-v2', mode: 'live',
+    strategyId: 'rf-kama-v2', mode: 'paper', account: activeAccount,
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -207,14 +245,17 @@ function pushLog(sess, entry) {
 }
 function publicState(state) {
   const {
-    running, symbol, timeframe, strategyId, mode,
+    running, symbol, timeframe, strategyId, mode, account,
     balance, initialBalance, sessionId, sessionStart,
     pnl, totalTrades, wins, lastIndicators, lastSignal, error,
     peakBalance, maxDrawdownDollar, maxDrawdownPct,
     flagState, pendingEntry, sizeFactor,
   } = state;
+  const acctName = account || activeAccount;
   return {
     running, symbol, timeframe, strategyId, mode,
+    account:           acctName,
+    accountEnv:        acctName === 'demo' ? 'testnet (demo)' : 'production (real)',
     balance, initialBalance, sessionId, sessionStart,
     pnl, totalTrades, wins, error, lastIndicators, lastSignal,
     position:          state.position ? { ...state.position } : null,
@@ -225,6 +266,7 @@ function publicState(state) {
     maxDrawdownPct:    parseFloat((maxDrawdownPct||0).toFixed(2)),
     brokerConnected:   brokerStatus.connected,
     brokerMode:        brokerStatus.mode,
+    brokerAccount:     brokerStatus.account,
     sizeFactor:        typeof sizeFactor === 'number' ? sizeFactor : 1,
     flagState,
     pendingEntry,
@@ -257,7 +299,7 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
 
   // Place a real closing market order on Delta if we have creds and a real broker order.
   let closeResult = { paper: true };
-  if (DELTA_API_KEY && DELTA_API_SECRET && brokerOrderId && !String(brokerOrderId).startsWith('paper_')) {
+  if (liveOrdersOn(state) && brokerOrderId && !String(brokerOrderId).startsWith('paper_')) {
     try {
       const r = await delta.closePosition(...creds(), { symbol: state.symbol, side, contracts });
       closeResult = { closed: true, closeOrderId: r?.result?.id || null, raw: r };
@@ -331,9 +373,9 @@ async function runTick(sess) {
         const pos        = initPosition(pe.side, entryPx, slPrice, qty, lastBar.time, pe.atr, sizeFactor);
         pos.contracts    = contracts;
 
-        // Place Delta order (only when creds present)
+        // Place Delta order (only in LIVE mode with active-account creds)
         let orderResult;
-        if (DELTA_API_KEY && DELTA_API_SECRET) {
+        if (liveOrdersOn(state)) {
           try {
             const r = await delta.placeMarketOrder(...creds(), {
               symbol, side: pe.side, contracts, clientOrderId: `algo3_${Date.now()}`,
@@ -698,20 +740,30 @@ app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-kama-v2', 
 app.get('/api/config', (req, res) => res.json({ authRequired: false, googleClientId: '', user: null }));
 app.get('/api/strategies', (_, res) => res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s }))));
 
-// Broker status / connection
-app.get('/api/broker', async (_req, res) => {
+// Broker status / connection. `?account=demo|live` previews that account's
+// wallet (ignored while a session is running so the live host can't be swapped
+// out from under an open position).
+app.get('/api/broker', async (req, res) => {
+  const want = req.query.account;
+  const running = getSession('guest').state.running;
+  if ((want === 'demo' || want === 'live') && !running) applyAccount(want);
   await refreshBrokerStatus();
   res.json({
     connected:  brokerStatus.connected,
     mode:       brokerStatus.mode,
+    account:    brokerStatus.account,
     error:      brokerStatus.error,
     wallet:     brokerStatus.wallet,
-    apiKeySet:  !!DELTA_API_KEY,
-    secretSet:  !!DELTA_API_SECRET,
-    host:       delta.HOST,
-    testnet:    delta.IS_TESTNET,
-    env:        delta.IS_TESTNET ? 'testnet (demo)' : 'production (real)',
-    product:    delta.PRODUCT[DEFAULT_SYMBOL] || null,
+    apiKeySet:  !!acct().key,
+    secretSet:  !!acct().secret,
+    host:       brokerStatus.host,
+    testnet:    brokerStatus.testnet,
+    env:        brokerStatus.testnet ? 'testnet (demo)' : 'production (real)',
+    product:    delta.getProduct(DEFAULT_SYMBOL) || null,
+    accounts: {
+      demo: { configured: accountConfigured('demo'), host: delta.TESTNET_HOST },
+      live: { configured: accountConfigured('live'), host: delta.PROD_HOST },
+    },
     lastCheck:  brokerStatus.lastCheck,
   });
 });
@@ -741,7 +793,7 @@ app.get('/api/delta/candles', async (req, res) => {
 
 // Auth: open positions (Delta)
 app.get('/api/delta/positions', async (_req, res) => {
-  if (!DELTA_API_KEY || !DELTA_API_SECRET) return res.json({ ok: false, error: 'creds missing' });
+  if (!accountConfigured(activeAccount)) return res.json({ ok: false, error: 'creds missing' });
   try { res.json({ ok: true, positions: await delta.getPositions(...creds()) }); }
   catch (e) { res.json({ ok: false, error: e.message }); }
 });
@@ -749,7 +801,7 @@ app.get('/api/delta/positions', async (_req, res) => {
 // One-shot test: place a 1-contract market order and immediately close it.
 // Used by Playwright + smoke tests. Guarded — only 1 contract, always reduce-only close.
 app.post('/api/delta/test-order', async (req, res) => {
-  if (!DELTA_API_KEY || !DELTA_API_SECRET) return res.json({ ok: false, error: 'creds missing' });
+  if (!accountConfigured(activeAccount)) return res.json({ ok: false, error: 'creds missing' });
   const symbol = (req.body && req.body.symbol) || DEFAULT_SYMBOL;
   const side   = ((req.body && req.body.side) || 'long').toLowerCase();
   try {
@@ -787,16 +839,22 @@ app.post('/api/start', requireAuth, async (req, res) => {
   const {
     symbol = DEFAULT_SYMBOL, timeframe = '1m',
     balance = 10000,
-    strategyId = 'rf-kama-v2', mode = 'live',
-    sizeFactor,
+    strategyId = 'rf-kama-v2', mode = 'paper',
+    account, sizeFactor,
   } = req.body || {};
+  const acctName = (account === 'demo' || account === 'live') ? account : activeAccount;
+  // Live trading needs the selected account's keys; paper never places orders.
+  if (mode === 'live' && !accountConfigured(acctName)) {
+    return res.json({ ok: false, msg: `Live trade needs Delta ${acctName} account keys — none configured.` });
+  }
+  applyAccount(acctName);
   const ms  = CANDLE_MS[timeframe] || 60000;
   const bal = parseFloat(balance);
   const sf  = Math.max(0.01, Math.min(10, parseFloat(sizeFactor) || 1));
   await refreshBrokerStatus();
 
   Object.assign(sess.state, {
-    running: true, symbol, timeframe, strategyId, mode,
+    running: true, symbol, timeframe, strategyId, mode, account: acctName,
     balance: bal, initialBalance: bal,
     sessionId:    `s_${Date.now()}_${req.userId}`,
     sessionStart: new Date().toISOString(),
@@ -860,8 +918,11 @@ app.get('/events', (req, res) => {
 });
 
 // Warm the broker status once on boot so /api/broker isn't cold on first hit.
-if (DELTA_API_KEY && DELTA_API_SECRET) refreshBrokerStatus().catch(() => {});
+if (accountConfigured(activeAccount)) refreshBrokerStatus().catch(() => {});
 
 app.listen(PORT, () =>
-  console.log(`CBT DeltaEx Algo3 (RF+KAMA v2) listening on :${PORT} | Delta: ${brokerStatus.mode} | key ${DELTA_API_KEY ? 'set' : 'missing'}`)
+  console.log(
+    `CBT DeltaEx Algo3 (RF+KAMA v2) listening on :${PORT} | ` +
+    `demo:${accountConfigured('demo') ? 'set' : 'missing'} live:${accountConfigured('live') ? 'set' : 'missing'} | active:${activeAccount}`
+  )
 );
