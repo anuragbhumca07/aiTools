@@ -4,6 +4,7 @@ const express  = require('express');
 const path     = require('path');
 const fs       = require('fs');
 const https    = require('https');
+const crypto   = require('crypto');
 const Database = require('better-sqlite3');
 const session  = require('express-session');
 
@@ -20,6 +21,12 @@ const delta = require('./delta');
 const PORT             = parseInt(process.env.PORT || '3011', 10);
 const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-delta-algo3-dev-secret';
 const DEFAULT_SYMBOL   = process.env.DEFAULT_SYMBOL   || 'BTCUSD';
+
+// Optional HTTP Basic Auth gate — set ACCESS_PASSWORD to require a login before
+// anything (UI, API, orders) is reachable. Meant for exposing the app publicly
+// (e.g. via a Cloudflare tunnel). Unset = open (local use).
+const ACCESS_USER     = process.env.ACCESS_USER     || 'admin';
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
 
 const WA_INSTANCE = process.env.WA_INSTANCE || '';
 const WA_TOKEN    = process.env.WA_TOKEN    || '';
@@ -731,6 +738,31 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
+
+// ── HTTP Basic Auth gate (active only when ACCESS_PASSWORD is set) ─────────
+// Protects everything except /health (kept open for tunnel/Railway healthchecks).
+// The browser caches the credentials and resends them for XHR + SSE automatically,
+// so no frontend changes are needed. Runs over HTTPS via the tunnel, so creds
+// are encrypted in transit.
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+app.use((req, res, next) => {
+  if (!ACCESS_PASSWORD) return next();           // no password configured → open
+  if (req.path === '/health') return next();     // keep healthcheck reachable
+  const hdr = req.headers.authorization || '';
+  const [scheme, encoded] = hdr.split(' ');
+  if (scheme === 'Basic' && encoded) {
+    const [user, ...rest] = Buffer.from(encoded, 'base64').toString().split(':');
+    const pass = rest.join(':');
+    if (safeEqual(user, ACCESS_USER) && safeEqual(pass, ACCESS_PASSWORD)) return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="CBT DeltaEx Algo3", charset="UTF-8"');
+  return res.status(401).send('Authentication required');
+});
+
 app.use(express.static(path.join(__dirname, 'web')));
 
 // No Google auth on Delta service — single guest user. Keeps parity with the API surface.
@@ -923,6 +955,7 @@ if (accountConfigured(activeAccount)) refreshBrokerStatus().catch(() => {});
 app.listen(PORT, () =>
   console.log(
     `CBT DeltaEx Algo3 (RF+KAMA v2) listening on :${PORT} | ` +
-    `demo:${accountConfigured('demo') ? 'set' : 'missing'} live:${accountConfigured('live') ? 'set' : 'missing'} | active:${activeAccount}`
+    `demo:${accountConfigured('demo') ? 'set' : 'missing'} live:${accountConfigured('live') ? 'set' : 'missing'} | active:${activeAccount} | ` +
+    `auth:${ACCESS_PASSWORD ? `ON (user ${ACCESS_USER})` : 'OFF'}`
   )
 );
