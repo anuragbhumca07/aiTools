@@ -264,6 +264,9 @@ function snapshotIndicators(series, i) {
 //   • Flag is cleared the moment buyZone drops (strict zone gate) so a
 //     stale flag cannot fire a BUY on a non-green bar.
 //   • LONG trigger: buyZone still true AND close > p2 AND close > p3.
+//     ⚠ Trigger CAN fire on the flag candle itself — if the same bar that
+//     wicks into the cloud also closes above p2/p3, we set flag AND fire
+//     BUY on the same bar, and the server fills at the NEXT candle's open.
 //   • Short is the mirror image.
 //
 // Triggers fire regardless of current position; callers decide whether to
@@ -289,30 +292,43 @@ function generateSignal(candles, flagState = {}, posSide = null) {
   const atr = series.atr[i];
 
   // ── LONG flag ────────────────────────────────────────────────────
+  // Two updates on the SAME bar: (a) create flag if this is the first bar
+  // whose low touches the cloud, then (b) always fold the current bar's low
+  // into the running min. This guarantees a same-bar flag+trigger candle
+  // uses its own low as the risk reference.
+  let longFlagFormedThisBar = false;
   if (buyZone) {
     if (!longFlag && low <= cloudTop) {
       longFlag = true;
-      longFlagLow = low;                          // flag candle low = seed SL
-    } else if (longFlag) {
-      longFlagLow = Math.min(longFlagLow, low);   // track lowest low up to trigger
+      longFlagLow = low;
+      longFlagFormedThisBar = true;
+    }
+    if (longFlag) {
+      longFlagLow = longFlagLow == null ? low : Math.min(longFlagLow, low);
     }
   } else {
     longFlag = false; longFlagLow = null;         // zone dropped → invalidate
   }
 
   // ── SHORT flag ───────────────────────────────────────────────────
+  let shortFlagFormedThisBar = false;
   if (sellZone) {
     if (!shortFlag && high >= cloudBot) {
       shortFlag = true;
       shortFlagHigh = high;
-    } else if (shortFlag) {
-      shortFlagHigh = Math.max(shortFlagHigh, high);
+      shortFlagFormedThisBar = true;
+    }
+    if (shortFlag) {
+      shortFlagHigh = shortFlagHigh == null ? high : Math.max(shortFlagHigh, high);
     }
   } else {
     shortFlag = false; shortFlagHigh = null;
   }
 
   // Strict: zone must STILL be true at trigger bar.
+  // NOTE: this fires on the flag candle itself if that same bar closes outside
+  // the cloud (above p2/p3 for long, below for short). Entry then fills at the
+  // NEXT candle's open — the server queues via `pendingEntry`.
   const longTrigger  = longFlag  && buyZone  && close > p2 && close > p3;
   const shortTrigger = shortFlag && sellZone && close < p2 && close < p3;
 
@@ -324,18 +340,20 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     const riskEst = close - longFlagLow;
     if (riskEst > 0) {
       signal = 'BUY';
-      reason.push(`Long trigger — close ${close.toFixed(2)} > p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
+      const sameBarTag = longFlagFormedThisBar ? ' (flag+trigger SAME bar)' : '';
+      reason.push(`Long trigger${sameBarTag} — close ${close.toFixed(2)} > p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
       reason.push(`Flag low ${longFlagLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
-      entryHint = { side: 'long', slPrice: longFlagLow, atr, riskEstimate: riskEst };
+      entryHint = { side: 'long', slPrice: longFlagLow, atr, riskEstimate: riskEst, sameBarFlag: longFlagFormedThisBar };
       longFlag = false; longFlagLow = null;
     }
   } else if (shortTrigger) {
     const riskEst = shortFlagHigh - close;
     if (riskEst > 0) {
       signal = 'SELL';
-      reason.push(`Short trigger — close ${close.toFixed(2)} < p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
+      const sameBarTag = shortFlagFormedThisBar ? ' (flag+trigger SAME bar)' : '';
+      reason.push(`Short trigger${sameBarTag} — close ${close.toFixed(2)} < p2 ${p2.toFixed(2)} & p3 ${p3.toFixed(2)}`);
       reason.push(`Flag high ${shortFlagHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
-      entryHint = { side: 'short', slPrice: shortFlagHigh, atr, riskEstimate: riskEst };
+      entryHint = { side: 'short', slPrice: shortFlagHigh, atr, riskEstimate: riskEst, sameBarFlag: shortFlagFormedThisBar };
       shortFlag = false; shortFlagHigh = null;
     }
   } else if (longFlag) {

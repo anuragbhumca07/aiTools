@@ -531,20 +531,38 @@ async function tick(sess) {
   } finally { sess.tickBusy = false; }
 }
 
-// Align main tick to fire at :01 after each candle close (was :02).
+// Align main tick to fire at :01 after each candle close.
+// Uses recursive setTimeout that re-computes the delay to the NEXT boundary
+// from fresh Date.now() each iteration. This self-corrects any scheduler
+// drift or tick-latency jitter, so after years of runtime we still fire at
+// exactly :01 past each candle boundary (setInterval would accumulate drift).
 function startAlignedTicks(sess, intervalMs) {
   stopTicker(sess);
-  const now   = Date.now();
-  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 1000;
-  sess.alignTimeout = setTimeout(() => {
-    tick(sess);
-    sess.ticker = setInterval(() => tick(sess), intervalMs);
+  sess.tickIntervalMs = intervalMs;
+  scheduleNextAlignedTick(sess);
+}
+
+function scheduleNextAlignedTick(sess) {
+  const intervalMs = sess.tickIntervalMs;
+  if (!intervalMs || !sess.state.running) return;
+  const now          = Date.now();
+  const nextBoundary = Math.ceil(now / intervalMs) * intervalMs;
+  let fireAt         = nextBoundary + 1000;         // +1000 ms so the just-closed bar is available
+  // If we're already within the "fire window" of the current boundary (e.g. woke up
+  // slightly late), skip to the NEXT boundary — never fire mid-bar.
+  if (fireAt - now < 50) fireAt += intervalMs;
+  const delay = fireAt - now;
+  sess.alignTimeout = setTimeout(async () => {
+    sess.alignTimeout = null;
+    try { await tick(sess); }
+    finally { scheduleNextAlignedTick(sess); }
   }, delay);
 }
 
 function stopTicker(sess) {
   if (sess.alignTimeout) { clearTimeout(sess.alignTimeout);  sess.alignTimeout = null; }
   if (sess.ticker)       { clearInterval(sess.ticker);       sess.ticker       = null; }
+  sess.tickIntervalMs = null;
   stopTrailTicker(sess);
 }
 
