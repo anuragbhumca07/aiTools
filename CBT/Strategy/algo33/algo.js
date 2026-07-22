@@ -2,7 +2,13 @@
 
 const https = require('https');
 
-// ── Pine Script defaults (Range Filter + KAMA Cloud Strategy V2) ──
+// ── Algo33 v4 — Range Filter bar color + RSI(2) crossover entry ──
+// KAMA cloud (p1/p2/p3/hband/lband gating) removed. Zone gate is now:
+//   • BUY  zone = Range Filter mid-line trending UP   (downward == 0)
+//   • SELL zone = Range Filter mid-line trending DOWN (downward >  0)
+// Entry trigger (same as v3):
+//   • LONG  when zone == BUY  AND RSI(2) crosses ABOVE RSI_BUY_LEVEL
+//   • SHORT when zone == SELL AND RSI(2) crosses BELOW RSI_SELL_LEVEL
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
 const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($) — algo1-style sizing
@@ -14,10 +20,12 @@ const ATR_LEN            = 14;    // ATR period (drives sizing + reported in ind
 const RSI_LEN            = 2;     // RSI period for entry trigger
 const RSI_BUY_LEVEL      = 90;    // BUY when RSI(2) crosses ABOVE this while buyZone
 const RSI_SELL_LEVEL     = 10;    // SELL when RSI(2) crosses BELOW this while sellZone
-const SWING_BARS         = 3;     // SL = min low / max high of last N bars
+const SWING_BARS         = 3;     // SL reference = min low / max high of last N bars
 const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
-const WARMUP_BARS = 500;          // KAMA(100) + Range Filter need long warmup
+// KAMA is gone → only RF needs warmup. 220 bars gives Range Filter (period 100,
+// 2×period-1 EMA smoothing) time to settle to ~4-decimal stability.
+const WARMUP_BARS = 220;
 
 // ── Pine-style EMA (seeded with first value) ─────────────────────
 function pineEma(values, period) {
@@ -61,34 +69,6 @@ function rngFilt(x, r) {
     }
     out[i] = rf;
     prev = rf;
-  }
-  return out;
-}
-
-// ── KAMA (Kaufman Adaptive Moving Average) ───────────────────────
-// Pine-canonical seed: nAMA[0] = src[0] (matches `na(nAMA[1]) ? src : ...`).
-// Seeding at 0 leaves an ~$27 residual on BTCUSD after 720 warmup bars;
-// seeding at src[0] converges to Pine's plot within pennies.
-function kama(s, len) {
-  const n = s.length;
-  const out = new Array(n).fill(0);
-  const fastend = 0.666;
-  const slowend = 0.0645;
-  const xvnoise = new Array(n).fill(0);
-  for (let i = 1; i < n; i++) xvnoise[i] = Math.abs(s[i] - s[i - 1]);
-
-  let noiseSum = 0;
-  let ama      = s[0] || 0;
-  for (let i = 0; i < n; i++) {
-    if (i >= len) noiseSum -= xvnoise[i - len];
-    noiseSum += xvnoise[i];
-    let ratio = 0;
-    if (i >= len && noiseSum > 0) {
-      ratio = Math.abs(s[i] - s[i - len]) / noiseSum;
-    }
-    const smooth = Math.pow(ratio * (fastend - slowend) + slowend, 2);
-    ama = ama + smooth * (s[i] - ama);
-    out[i] = ama;
   }
   return out;
 }
@@ -147,7 +127,6 @@ function computeRSI(closes, len) {
 function computeSeries(candles) {
   const n     = candles.length;
   const src   = candles.map(c => c.close);
-  const ohlc4 = candles.map(c => (c.open + c.high + c.low + c.close) / 4);
   const highs = candles.map(c => c.high);
   const lows  = candles.map(c => c.low);
 
@@ -157,6 +136,7 @@ function computeSeries(candles) {
   const hband = filt.map((f, i) => f + smrng[i]);
   const lband = filt.map((f, i) => f - smrng[i]);
 
+  // Direction counters — count consecutive up/down bars of the filter.
   const upward   = new Array(n).fill(0);
   const downward = new Array(n).fill(0);
   for (let i = 1; i < n; i++) {
@@ -168,83 +148,17 @@ function computeSeries(candles) {
     else                          downward[i] = downward[i-1];
   }
 
-  const isGreenBar = new Array(n);
-  const isBlueBar  = new Array(n);
-  for (let i = 0; i < n; i++) {
-    isGreenBar[i] = src[i] > filt[i] && upward[i]   > 0;
-    isBlueBar[i]  = src[i] < filt[i] && downward[i] > 0;
-  }
-
-  // KAMA cloud
-  const ma05  = kama(ohlc4,  5);
-  const ma10  = kama(ohlc4, 10);
-  const ma15  = kama(ohlc4, 15);
-  const ma20  = kama(ohlc4, 20);
-  const ma25  = kama(ohlc4, 25);
-  const ma30  = kama(ohlc4, 30);
-  const ma35  = kama(ohlc4, 35);
-  const ma40  = kama(ohlc4, 40);
-  const ma45  = kama(ohlc4, 45);
-  const ma50  = kama(ohlc4, 50);
-  const ma55  = kama(ohlc4, 55);
-  const ma60  = kama(ohlc4, 60);
-  const ma65  = kama(ohlc4, 65);
-  const ma70  = kama(ohlc4, 70);
-  const ma75  = kama(ohlc4, 75);
-  const ma80  = kama(ohlc4, 80);
-  const ma85  = kama(ohlc4, 85);
-  const ma90  = kama(ohlc4, 90);
-  const ma100 = kama(ohlc4, 100);
-
-  const totalDistance = new Array(n);
-  for (let i = 0; i < n; i++) {
-    totalDistance[i] = (
-      (ma05[i] - ma10[i])  / ma10[i]  +
-      (ma10[i] - ma15[i])  / ma15[i]  +
-      (ma15[i] - ma20[i])  / ma20[i]  +
-      (ma20[i] - ma25[i])  / ma25[i]  +
-      (ma25[i] - ma30[i])  / ma30[i]  +
-      (ma30[i] - ma35[i])  / ma35[i]  +
-      (ma35[i] - ma40[i])  / ma40[i]  +
-      (ma40[i] - ma45[i])  / ma45[i]  +
-      (ma45[i] - ma50[i])  / ma50[i]  +
-      (ma50[i] - ma55[i])  / ma55[i]  +
-      (ma55[i] - ma60[i])  / ma60[i]  +
-      (ma60[i] - ma65[i])  / ma65[i]  +
-      (ma65[i] - ma70[i])  / ma70[i]  +
-      (ma70[i] - ma75[i])  / ma75[i]  +
-      (ma75[i] - ma80[i])  / ma80[i]  +
-      (ma80[i] - ma85[i])  / ma85[i]  +
-      (ma85[i] - ma90[i])  / ma90[i]  +
-      (ma90[i] - ma100[i]) / ma100[i]
-    ) / 18;
-  }
-
-  const p1 = kama(src, 100);
-  const p2 = new Array(n);
-  for (let i = 0; i < n; i++) p2[i] = p1[i] * (1 + totalDistance[i] * 10);
-  const p3 = kama(p2, 10);
-
-  const cloudTop = new Array(n);
-  const cloudBot = new Array(n);
-  for (let i = 0; i < n; i++) {
-    cloudTop[i] = Math.max(p2[i], p3[i]);
-    cloudBot[i] = Math.min(p2[i], p3[i]);
-  }
-
-  // Zones — bar color (matches UI: red when downward>0, green otherwise)
-  // AND hband/lband AND p2/p3 all on the same side of p1.
+  // Bar color reflects filter direction (matches the reference RF indicator):
+  //   downward > 0  → RED bar
+  //   downward == 0 → GREEN bar
+  // Zones now depend on bar color ALONE — no KAMA cloud gate.
   const buyZone  = new Array(n);
   const sellZone = new Array(n);
   for (let i = 0; i < n; i++) {
     const barRed   = downward[i] > 0;
     const barGreen = !barRed;
-    buyZone[i]  = barGreen &&
-      p2[i]    > p1[i] && p3[i]    > p1[i] &&
-      hband[i] > p1[i] && lband[i] > p1[i];
-    sellZone[i] = barRed &&
-      p2[i]    < p1[i] && p3[i]    < p1[i] &&
-      hband[i] < p1[i] && lband[i] < p1[i];
+    buyZone[i]  = barGreen;
+    sellZone[i] = barRed;
   }
 
   const atr = computeATR(candles, ATR_LEN);
@@ -253,8 +167,6 @@ function computeSeries(candles) {
   return {
     src, highs, lows,
     smrng, filt, hband, lband, upward, downward,
-    isGreenBar, isBlueBar,
-    p1, p2, p3, cloudTop, cloudBot, totalDistance,
     buyZone, sellZone, atr, rsi,
   };
 }
@@ -262,44 +174,36 @@ function computeSeries(candles) {
 // ── Snapshot last bar's indicators (for UI/logging) ──────────────
 function snapshotIndicators(series, i) {
   return {
-    price:         series.src[i],
-    filt:          series.filt[i],
-    hband:         series.hband[i],
-    lband:         series.lband[i],
-    smrng:         series.smrng[i],
-    upward:        series.upward[i],
-    downward:      series.downward[i],
-    isGreenBar:    series.isGreenBar[i],
-    isBlueBar:     series.isBlueBar[i],
-    p1:            series.p1[i],
-    p2:            series.p2[i],
-    p3:            series.p3[i],
-    cloudTop:      series.cloudTop[i],
-    cloudBot:      series.cloudBot[i],
-    totalDistance: series.totalDistance[i],
-    buyZone:       series.buyZone[i],
-    sellZone:      series.sellZone[i],
-    atr:           series.atr[i],
-    rsi:           series.rsi[i],
-    rsiPrev:       i > 0 ? series.rsi[i - 1] : series.rsi[i],
-    high:          series.highs[i],
-    low:           series.lows[i],
+    price:      series.src[i],
+    filt:       series.filt[i],
+    hband:      series.hband[i],
+    lband:      series.lband[i],
+    smrng:      series.smrng[i],
+    upward:     series.upward[i],
+    downward:   series.downward[i],
+    buyZone:    series.buyZone[i],
+    sellZone:   series.sellZone[i],
+    atr:        series.atr[i],
+    rsi:        series.rsi[i],
+    rsiPrev:    i > 0 ? series.rsi[i - 1] : series.rsi[i],
+    high:       series.highs[i],
+    low:        series.lows[i],
   };
 }
 
 // ── Stateful signal generation ────────────────────────────────────
-// Entry rules (algo33 — RSI-cross variant):
-//   • LONG: buyZone still true AND RSI(2) crosses ABOVE 90 on the bar
+// Algo33 v4 entry rules:
+//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE 90
 //     (prev bar RSI ≤ 90, current bar RSI > 90).
-//   • SHORT: sellZone true AND RSI(2) crosses BELOW 10 (prev ≥ 10, curr < 10).
-//   • SL long  = MIN low of last SWING_BARS closed bars.
-//   • SL short = MAX high of last SWING_BARS closed bars.
+//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW 10
+//     (prev bar RSI ≥ 10, current bar RSI < 10).
+//   • SL reference: min low / max high of last SWING_BARS closed bars.
 //   • Qty sized in server at fill time (algo1-style: risk/SL distance).
 //   • Trailing identical to algo3.
 //
 // Triggers fire regardless of current position; callers decide whether to
 // (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
-// flagState is not used but is echoed for API compatibility with server.js.
+// flagState is unused but echoed for API compatibility with algo3's server.
 function generateSignal(candles, flagState = {}, posSide = null) {
   const series = computeSeries(candles);
   const i = candles.length - 1;
@@ -334,7 +238,7 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     const riskEst = close - swingLow;
     if (riskEst > 0) {
       signal = 'BUY';
-      reason.push(`Long trigger — RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`Long trigger — RF bar GREEN + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
       reason.push(`SwingLow(${SWING_BARS}) ${swingLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'long', slPrice: swingLow, atr, riskEstimate: riskEst };
     }
@@ -342,16 +246,16 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     const riskEst = swingHigh - close;
     if (riskEst > 0) {
       signal = 'SELL';
-      reason.push(`Short trigger — RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`Short trigger — RF bar RED + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
       reason.push(`SwingHigh(${SWING_BARS}) ${swingHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'short', slPrice: swingHigh, atr, riskEstimate: riskEst };
     }
   } else if (buyZone) {
-    reason.push(`BUY zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
+    reason.push(`BUY zone (RF bar GREEN) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
   } else if (sellZone) {
-    reason.push(`SELL zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
+    reason.push(`SELL zone (RF bar RED) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
   } else {
-    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · Range Filter or KAMA cloud not aligned`);
+    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
   }
 
   const indicators = snapshotIndicators(series, i);

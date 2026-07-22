@@ -138,9 +138,9 @@ const stmtInsert = db.prepare(`
 
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
-  'rf-kama-v2': {
-    name: 'rf-kama-rsi-v3: RF+KAMA zone + RSI(2) cross entry',
-    description: `Zone gate: Range Filter (${RF_SAMPLING_PERIOD}, ${RF_MULT}×) + KAMA cloud. BUY when zone green & RSI(${RSI_LEN}) crosses above ${RSI_BUY_LEVEL}; SELL when zone red & RSI(${RSI_LEN}) crosses below ${RSI_SELL_LEVEL}. Algo1-style fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. ${SWING_BARS}-bar swing low/high is a trigger reference only. Trailing starts at +$${TRAIL_START_PNL} PnL (locks $${TRAIL_START_PNL - TRAIL_STEP_PNL}), then locks +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL step. SL & trailing scanned every 1s from entry. Exits on opposite trigger.`,
+  'rf-rsi-v4': {
+    name: 'rf-rsi-v4: RF bar-color + RSI(2) cross entry',
+    description: `Zone = Range Filter bar color ONLY (no KAMA cloud). BUY when RF bar is GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}; SELL when RF bar is RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Algo1-style fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. ${SWING_BARS}-bar swing low/high is a trigger reference only. Trailing starts at +$${TRAIL_START_PNL} PnL (locks $${TRAIL_START_PNL - TRAIL_STEP_PNL}), then locks +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL step. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Main tick fires at :01 past every candle boundary via a self-correcting timer.`,
   },
 };
 
@@ -251,7 +251,7 @@ function defaultFlagState() {
 function defaultState() {
   return {
     running: false, symbol: 'BTCUSDT', timeframe: '1m',
-    strategyId: 'rf-kama-rsi-v3', mode: 'paper',
+    strategyId: 'rf-rsi-v4', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -532,20 +532,36 @@ async function tick(sess) {
   } finally { sess.tickBusy = false; }
 }
 
-// Align main tick to fire at :01 after each candle close (was :02).
+// Align main tick to fire at :01 after each candle close.
+// Recursive setTimeout that re-computes the delay to the NEXT boundary
+// from fresh Date.now() each iteration — self-corrects any scheduler drift
+// so we always fire at exactly :01 past every candle boundary, even after
+// months/years of runtime (setInterval accumulates drift over long runs).
 function startAlignedTicks(sess, intervalMs) {
   stopTicker(sess);
-  const now   = Date.now();
-  const delay = (Math.ceil(now / intervalMs) * intervalMs) - now + 1000;
-  sess.alignTimeout = setTimeout(() => {
-    tick(sess);
-    sess.ticker = setInterval(() => tick(sess), intervalMs);
+  sess.tickIntervalMs = intervalMs;
+  scheduleNextAlignedTick(sess);
+}
+
+function scheduleNextAlignedTick(sess) {
+  const intervalMs = sess.tickIntervalMs;
+  if (!intervalMs || !sess.state.running) return;
+  const now          = Date.now();
+  const nextBoundary = Math.ceil(now / intervalMs) * intervalMs;
+  let fireAt         = nextBoundary + 1000;         // +1000 ms so the just-closed bar is available on Kraken
+  if (fireAt - now < 50) fireAt += intervalMs;      // never fire mid-bar if we woke up late
+  const delay = fireAt - now;
+  sess.alignTimeout = setTimeout(async () => {
+    sess.alignTimeout = null;
+    try { await tick(sess); }
+    finally { scheduleNextAlignedTick(sess); }
   }, delay);
 }
 
 function stopTicker(sess) {
   if (sess.alignTimeout) { clearTimeout(sess.alignTimeout);  sess.alignTimeout = null; }
   if (sess.ticker)       { clearInterval(sess.ticker);       sess.ticker       = null; }
+  sess.tickIntervalMs = null;
   stopTrailTicker(sess);
 }
 
@@ -796,7 +812,7 @@ app.post('/auth/google', async (req, res) => {
 });
 app.post('/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 
-app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-kama-rsi-v3' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-rsi-v4' }));
 app.get('/api/strategies', (_, res) =>
   res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s })))
 );
@@ -832,7 +848,7 @@ app.post('/api/start', requireAuth, (req, res) => {
   const {
     symbol = 'BTCUSDT', timeframe = '1m',
     balance = 10000,
-    strategyId = 'rf-kama-v2', mode = 'paper',
+    strategyId = 'rf-rsi-v4', mode = 'paper',
   } = req.body || {};
   // Main tick must fire ONCE per closed candle (at :01s past the candle boundary),
   // regardless of any user-supplied interval. Otherwise signals fire mid-bar.
@@ -911,5 +927,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT Algo33 (RF+KAMA + RSI(${RSI_LEN}) cross) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+  console.log(`CBT Algo33 (RF bar-color + RSI(${RSI_LEN}) cross) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
 );
