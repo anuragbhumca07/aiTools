@@ -18,8 +18,13 @@ const TRAIL_START_PNL    = 300.0; // Unrealised PnL that first activates trailin
 const TRAIL_STEP_PNL     = 100.0; // PnL bucket size: lock = floor((pnl-100)/100)*100
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const RSI_LEN            = 2;     // RSI period for entry trigger
-const RSI_BUY_LEVEL      = 90;    // BUY when RSI(2) crosses ABOVE this while buyZone
-const RSI_SELL_LEVEL     = 10;    // SELL when RSI(2) crosses BELOW this while sellZone
+// Classic RSI(2) mean-reversion trigger:
+//   BUY  fires when zone is green AND RSI(2) recovers from oversold —
+//        i.e. the bar's RSI crosses ABOVE  RSI_BUY_LEVEL (10).
+//   SELL fires when zone is red   AND RSI(2) drops from overbought —
+//        i.e. the bar's RSI crosses BELOW RSI_SELL_LEVEL (90).
+const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while buyZone
+const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while sellZone
 const SWING_BARS         = 3;     // SL reference = min low / max high of last N bars
 const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
@@ -192,11 +197,12 @@ function snapshotIndicators(series, i) {
 }
 
 // ── Stateful signal generation ────────────────────────────────────
-// Algo33 v4 entry rules:
-//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE 90
-//     (prev bar RSI ≤ 90, current bar RSI > 90).
-//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW 10
-//     (prev bar RSI ≥ 10, current bar RSI < 10).
+// Algo33 v5 entry rules (classic RSI(2) mean-reversion):
+//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE RSI_BUY_LEVEL (10)
+//     (prev bar RSI ≤ 10, current bar RSI > 10). RSI(2) has been sitting in
+//     oversold territory and is just breaking back out.
+//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW RSI_SELL_LEVEL (90)
+//     (prev bar RSI ≥ 90, current bar RSI < 90). Overbought regime falling off.
 //   • SL reference: min low / max high of last SWING_BARS closed bars.
 //   • Qty sized in server at fill time (algo1-style: risk/SL distance).
 //   • Trailing identical to algo3.

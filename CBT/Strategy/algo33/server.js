@@ -373,18 +373,79 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
   broadcast(sess, { type: 'trade', trade, state: publicState(state) });
 }
 
-// ── Main candle-aligned tick ──────────────────────────────────────
-async function runTick(sess) {
+// ── Fill an entry NOW (no bar-lag deferral) ───────────────────────
+// Signal fired at :01 past a candle boundary — the next candle has just started
+// so its "open" is the current Kraken ticker price. We fill immediately at that
+// price. Falls back to lastBar.close if the ticker call fails.
+async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts) {
   const { state } = sess;
   const { symbol, timeframe, sessionId } = state;
   const userId = sess.userId;
+
+  const entryPx  = (isFinite(tickerPrice) && tickerPrice > 0) ? tickerPrice : fallbackPrice;
+  const stopDist = SL_ATR_MULT * (entryHint.atr || 0);
+  if (!(stopDist > 0)) {
+    pushLog(sess, {
+      ts, type: 'TICK', signal: 'ENTRY-SKIP', price: entryPx,
+      reason: [`${entryHint.side} entry skipped — ATR ${(entryHint.atr||0).toFixed(2)} must be > 0`],
+      indicators: state.lastIndicators,
+    });
+    return;
+  }
+  // Algo1-style: SL = entry ± 1.5×ATR so qty × stopDist = riskAmt exactly.
+  const slPrice = entryHint.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
+  const riskAmt = Math.min(state.balance * RISK_FRAC, MAX_LOSS);
+  const qty     = parseFloat((riskAmt / stopDist).toFixed(8));
+  const pos = initPosition(entryHint.side, entryPx, slPrice, qty, Date.now(), entryHint.atr);
+  const lots = parseFloat((riskAmt / (entryPx * 100)).toFixed(2));
+  const orderResult = await tickmill.placeOrder(entryHint.side, symbol, lots, pos.slPrice, null, 'CBT Algo33 RSI-cross');
+  pos.tickmillOrderId = orderResult.orderId;
+  state.position = pos;
+
+  const trade = {
+    session_id: sessionId, user_id: userId,
+    type: 'entry', side: entryHint.side, symbol, timeframe,
+    price: entryPx, size: pos.size, pnl: 0,
+    stop_loss: pos.slPrice, take_profit: null,
+    reason: entryHint.reason || `RSI(${RSI_LEN}) cross — swing ref ${entryHint.side === 'long' ? 'low' : 'high'} ${entryHint.slPrice.toFixed(2)} · risk $${riskAmt.toFixed(2)}`,
+    balance_after: parseFloat(state.balance.toFixed(4)),
+    timestamp: ts, mae: 0,
+    tickmill_order: orderResult.orderId,
+  };
+  stmtInsert.run(trade);
+  waEntry(entryHint.side, symbol, timeframe, entryPx, pos.size, pos.slPrice, pos.riskPerUnit, riskAmt, state.balance);
+  const fillNote = (isFinite(tickerPrice) && tickerPrice > 0)
+    ? `Filled @ current market ${entryPx.toFixed(2)} (open of just-started candle)`
+    : `Filled @ prev-close ${entryPx.toFixed(2)} (ticker unavailable, using bar close)`;
+  pushLog(sess, {
+    ts, type: 'ENTRY', side: entryHint.side, signal: entryHint.side === 'long' ? 'BUY' : 'SELL',
+    price: entryPx, size: pos.size,
+    stopLoss: pos.slPrice, takeProfit: null,
+    balance: state.balance.toFixed(4),
+    reason: [
+      fillNote + (tag ? ` — ${tag}` : ''),
+      `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
+      `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
+      `Swing ${entryHint.side === 'long' ? 'low' : 'high'} ref: $${entryHint.slPrice.toFixed(2)} (trigger only, not SL)`,
+      `Trail starts @ +$${TRAIL_START_PNL.toFixed(0)} PnL → locks $${(TRAIL_START_PNL - TRAIL_STEP_PNL).toFixed(0)}, then +$${TRAIL_STEP_PNL.toFixed(0)}/step (1s scan from entry)`,
+    ],
+    indicators: state.lastIndicators,
+    tickmill: orderResult,
+  });
+  broadcast(sess, { type: 'trade', trade, state: publicState(state) });
+}
+
+// ── Main candle-aligned tick ──────────────────────────────────────
+async function runTick(sess) {
+  const { state } = sess;
+  const { symbol, timeframe } = state;
   const ts     = new Date().toISOString();
 
   try {
     state.error = null;
     const candles          = await fetchCandles(symbol, timeframe, WARMUP_BARS + 220);
     if (candles.length < WARMUP_BARS + 20) {
-      throw new Error(`Need ${WARMUP_BARS + 20}+ candles for KAMA warmup, got ${candles.length}`);
+      throw new Error(`Need ${WARMUP_BARS + 20}+ candles for warmup, got ${candles.length}`);
     }
     const lastBar          = candles[candles.length - 1];
     const latestCandleTime = lastBar.time;
@@ -392,60 +453,7 @@ async function runTick(sess) {
 
     const isNewCandle = latestCandleTime !== sess.lastCandleTime;
 
-    // ── Fill pending entry at THIS new bar's open ─────────────────
-    if (isNewCandle && state.pendingEntry && !state.position) {
-      const pe       = state.pendingEntry;
-      const entryPx  = lastBar.open;
-      const stopDist = SL_ATR_MULT * (pe.atr || 0);   // Fixed SL distance = 1.5 × ATR (algo1-style)
-      if (stopDist > 0) {
-        // Algo1-style: SL sits at entry ± 1.5×ATR so that qty × stopDist = riskAmt exactly.
-        // Swing low/high from the signal is retained as a trigger reference only.
-        const slPrice = pe.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
-        const riskAmt = Math.min(state.balance * RISK_FRAC, MAX_LOSS);
-        const qty     = parseFloat((riskAmt / stopDist).toFixed(8));
-        const pos = initPosition(pe.side, entryPx, slPrice, qty, lastBar.time, pe.atr);
-        const lots = parseFloat((riskAmt / (entryPx * 100)).toFixed(2));
-        const orderResult = await tickmill.placeOrder(pe.side, symbol, lots, pos.slPrice, null, 'CBT Algo33 RSI-cross');
-        pos.tickmillOrderId = orderResult.orderId;
-        state.position      = pos;
-
-        const trade = {
-          session_id: sessionId, user_id: userId,
-          type: 'entry', side: pe.side, symbol, timeframe,
-          price: entryPx, size: pos.size, pnl: 0,
-          stop_loss: pos.slPrice, take_profit: null,
-          reason: pe.reason || `RSI(${RSI_LEN}) cross — swing ref ${pe.side === 'long' ? 'low' : 'high'} ${pe.slPrice.toFixed(2)} · risk $${riskAmt.toFixed(2)}`,
-          balance_after: parseFloat(state.balance.toFixed(4)),
-          timestamp: ts, mae: 0,
-          tickmill_order: orderResult.orderId,
-        };
-        stmtInsert.run(trade);
-        waEntry(pe.side, symbol, timeframe, entryPx, pos.size, pos.slPrice, pos.riskPerUnit, riskAmt, state.balance);
-        pushLog(sess, {
-          ts, type: 'ENTRY', side: pe.side, signal: pe.side === 'long' ? 'BUY' : 'SELL',
-          price: entryPx, size: pos.size,
-          stopLoss: pos.slPrice, takeProfit: null,
-          balance: state.balance.toFixed(4),
-          reason: [
-            `Filled @ open ${entryPx.toFixed(2)}`,
-            `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
-            `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
-            `Swing ${pe.side === 'long' ? 'low' : 'high'} ref: $${pe.slPrice.toFixed(2)} (trigger only, not SL)`,
-            `Trail starts @ +$${TRAIL_START_PNL.toFixed(0)} PnL → locks $${(TRAIL_START_PNL - TRAIL_STEP_PNL).toFixed(0)}, then +$${TRAIL_STEP_PNL.toFixed(0)}/step (1s scan from entry)`,
-          ],
-          indicators: state.lastIndicators,
-          tickmill: orderResult,
-        });
-        broadcast(sess, { type: 'trade', trade, state: publicState(state) });
-      } else {
-        pushLog(sess, { ts, type: 'TICK', signal: 'ENTRY-SKIP', price: entryPx,
-          reason: [`Pending ${pe.side} skipped — ATR ${(pe.atr||0).toFixed(2)} must be > 0`],
-          indicators: state.lastIndicators });
-      }
-      state.pendingEntry = null;
-    }
-
-    // ── Step position with the new bar's OHLC ─────────────────────
+    // ── Step existing position with the new bar's OHLC ────────────
     if (isNewCandle && state.position) {
       const wasTrailing  = state.position.trailing;
       const prevTrailStop = state.position.trailStop;
@@ -478,41 +486,53 @@ async function runTick(sess) {
       sess.lastCandleTime = latestCandleTime;
       const posSide = state.position ? state.position.side : null;
       const sig = generateSignal(candles, state.flagState, posSide);
-      // Enrich with candle close time (candleTime is the OPEN of the bar; close = open + interval)
       const ivMs = CANDLE_MS[timeframe] || 60000;
       sig.indicators.candleOpenTime  = sig.indicators.candleTime;
       sig.indicators.candleCloseTime = sig.indicators.candleTime + ivMs;
       state.flagState      = sig.flagState;
       state.lastIndicators = sig.indicators;
-      state.lastSignal     = { signal: sig.signal, longFlag: sig.flagState.longFlag, shortFlag: sig.flagState.shortFlag };
+      state.lastSignal     = { signal: sig.signal };
 
-      // Opposite-trigger exit: close current position at this bar's close,
-      // then queue the new entry to fill at the next open.
-      if (state.position && sig.entryHint && sig.entryHint.side !== state.position.side) {
+      const hint = sig.entryHint;
+
+      // Case 1 — opposite-side reversal: close current, then IMMEDIATELY open the reverse.
+      if (state.position && hint && hint.side !== state.position.side) {
         await handleExit(
           sess, state.position, lastBar.close,
-          `Opposite ${sig.entryHint.side.toUpperCase()} trigger — reversing`,
-          sig.indicators, ts
+          `Opposite ${hint.side.toUpperCase()} trigger — reversing`,
+          sig.indicators, ts,
         );
-        state.pendingEntry = { ...sig.entryHint, reason: sig.reason.join(' | ') + ' | (reversed)' };
         pushLog(sess, {
           ts, type: 'TICK', signal: `REVERSE-${sig.signal}`,
           price, indicators: sig.indicators, reason: sig.reason,
         });
-      } else if (!state.position && sig.entryHint) {
-        state.pendingEntry = { ...sig.entryHint, reason: sig.reason.join(' | ') };
+        // Fetch current market price and enter now (no 1-bar lag).
+        let tickerPx;
+        try { tickerPx = await fetchCurrentPrice(symbol); } catch { tickerPx = null; }
+        const hintWithReason = { ...hint, reason: sig.reason.join(' | ') + ' | (reversed)' };
+        await fillEntryNow(sess, hintWithReason, tickerPx, lastBar.close, 'reversed', ts);
+
+      // Case 2 — flat + fresh trigger: open immediately at current market.
+      } else if (!state.position && hint) {
         pushLog(sess, {
           ts, type: 'TICK', signal: `TRIGGER-${sig.signal}`,
           price, indicators: sig.indicators, reason: sig.reason,
         });
+        let tickerPx;
+        try { tickerPx = await fetchCurrentPrice(symbol); } catch { tickerPx = null; }
+        const hintWithReason = { ...hint, reason: sig.reason.join(' | ') };
+        await fillEntryNow(sess, hintWithReason, tickerPx, lastBar.close, null, ts);
+
       } else if (!(state.position && state.position.trailing)) {
-        // Suppress normal candle-close TICK log while trailing —
-        // only TRAIL-UPDATE (above) and EXIT are logged during trail phase.
+        // Suppress normal TICK log while trailing — only TRAIL-UPDATE / EXIT are logged.
         pushLog(sess, {
           ts, type: 'TICK', signal: sig.signal, price,
           indicators: sig.indicators, reason: sig.reason,
         });
       }
+
+      // Legacy field kept null — pendingEntry is no longer used.
+      state.pendingEntry = null;
     }
 
     broadcast(sess, { type: 'tick', state: publicState(state) });

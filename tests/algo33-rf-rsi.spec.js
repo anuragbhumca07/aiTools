@@ -34,13 +34,19 @@ test.describe('Algo33 rf-rsi-v4 — fixes', () => {
     await expect(sub).toContainText(/self-correcting/i);
   });
 
-  test('logic card lists RSI cross rules and drops p1/p2/p3 gating', async ({ page }) => {
+  test('logic card lists RSI mean-reversion cross rules (10 up, 90 down) and drops p1/p2/p3 gating', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     const logic = page.locator('.card').filter({ hasText: 'Algo Logic' });
     await expect(logic).toContainText(/KAMA cloud removed/i);
-    await expect(logic).toContainText(/RSI\(2\) crosses ABOVE 90/i);
-    await expect(logic).toContainText(/RSI\(2\) crosses BELOW 10/i);
-    // The old "GREEN bar + p2/p3/hband/lband > p1" clause must be gone.
+    // New RSI(2) mean-reversion thresholds.
+    await expect(logic).toContainText(/RSI\(2\) crosses ABOVE 10/i);
+    await expect(logic).toContainText(/RSI\(2\) crosses BELOW 90/i);
+    // Old thresholds must be gone.
+    await expect(logic).not.toContainText(/RSI\(2\) crosses ABOVE 90/i);
+    await expect(logic).not.toContainText(/RSI\(2\) crosses BELOW 10/i);
+    // Immediate fill (no 1-bar deferral) must be stated.
+    await expect(logic).toContainText(/Fill IMMEDIATELY|IMMEDIATELY at current market|same tick/i);
+    // The old KAMA "GREEN bar + p2/p3/hband/lband > p1" clause must be gone.
     await expect(logic).not.toContainText(/p2\/p3\/hband\/lband > p1/i);
   });
 
