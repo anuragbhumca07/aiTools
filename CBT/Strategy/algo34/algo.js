@@ -1,0 +1,516 @@
+'use strict';
+
+const https = require('https');
+
+// ── Algo34 — RF bar color + RSI(2) mean-reversion + ATR-based trail ──
+// Copy of algo33 with a different SL / trailing schedule (see stepPosition).
+//   Initial SL       : entry ± 2 × ATR14
+//   Breakeven trigger: PnL ≥ 3 × ATR × qty  → SL moves to entry (locks $0)
+//   Lock trigger     : PnL ≥ 5 × ATR × qty  → SL locks 3 × ATR × qty profit
+//   After lock       : every additional +$100 PnL locks +$100 more
+// Entry / zone / RSI(2) / swing SL reference are unchanged from algo33.
+const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
+const RF_MULT            = 3.0;   // Range Filter multiplier
+const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($)
+const RISK_FRAC          = 0.015; // Risk fraction: 1.5% of balance, capped at MAX_LOSS
+const SL_ATR_MULT        = 2.0;   // Initial SL distance = 2 × ATR (was 1.5 in algo33)
+const BE_ATR_MULT        = 3.0;   // Breakeven trigger  = BE_ATR_MULT   × ATR × qty
+const LOCK_ATR_MULT      = 5.0;   // Lock trigger       = LOCK_ATR_MULT × ATR × qty
+const LOCK_PROFIT_MULT   = 3.0;   // Locked profit at lock trigger = LOCK_PROFIT_MULT × ATR × qty
+const TRAIL_STEP_PNL     = 100.0; // After lock, step +$100 lock per +$100 PnL
+const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
+const RSI_LEN            = 2;     // RSI period for entry trigger
+// Classic RSI(2) mean-reversion trigger:
+//   BUY  fires when zone is green AND RSI(2) recovers from oversold —
+//        i.e. the bar's RSI crosses ABOVE  RSI_BUY_LEVEL (10).
+//   SELL fires when zone is red   AND RSI(2) drops from overbought —
+//        i.e. the bar's RSI crosses BELOW RSI_SELL_LEVEL (90).
+const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while buyZone
+const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while sellZone
+const SWING_BARS         = 3;     // SL reference = min low / max high of last N bars
+const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
+
+// KAMA is gone → only RF needs warmup. 220 bars gives Range Filter (period 100,
+// 2×period-1 EMA smoothing) time to settle to ~4-decimal stability.
+const WARMUP_BARS = 220;
+
+// ── Pine-style EMA (seeded with first value) ─────────────────────
+function pineEma(values, period) {
+  const n = values.length;
+  const out = new Array(n).fill(0);
+  if (n === 0) return out;
+  const k = 2 / (period + 1);
+  let val = values[0];
+  out[0] = val;
+  for (let i = 1; i < n; i++) {
+    val = values[i] * k + val * (1 - k);
+    out[i] = val;
+  }
+  return out;
+}
+
+// ── Range Filter (smoothrng + rngfilt) ───────────────────────────
+function smoothRng(src, t, m) {
+  const n = src.length;
+  const absDiff = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) absDiff[i] = Math.abs(src[i] - src[i - 1]);
+  const avrng = pineEma(absDiff, t);
+  const wper  = t * 2 - 1;
+  const smrng = pineEma(avrng, wper);
+  return smrng.map(v => v * m);
+}
+
+function rngFilt(x, r) {
+  const n = x.length;
+  const out = new Array(n).fill(0);
+  let prev = 0;
+  for (let i = 0; i < n; i++) {
+    const ri = r[i];
+    let rf;
+    if (x[i] > prev) {
+      const cand = x[i] - ri;
+      rf = cand < prev ? prev : cand;
+    } else {
+      const cand = x[i] + ri;
+      rf = cand > prev ? prev : cand;
+    }
+    out[i] = rf;
+    prev = rf;
+  }
+  return out;
+}
+
+// ── ATR (Wilder) ─────────────────────────────────────────────────
+function computeATR(candles, len) {
+  const n = candles.length;
+  const atr = new Array(n).fill(0);
+  if (n === 0) return atr;
+  const tr = new Array(n).fill(0);
+  tr[0] = candles[0].high - candles[0].low;
+  for (let i = 1; i < n; i++) {
+    const h = candles[i].high, l = candles[i].low, pc = candles[i - 1].close;
+    tr[i] = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+  }
+  // Running SMA until we reach `len`, then Wilder smoothing.
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    sum += tr[i];
+    if (i < len) {
+      atr[i] = sum / (i + 1);
+    } else if (i === len) {
+      atr[i] = sum / (len + 1);       // seed with SMA(len+1)
+    } else {
+      atr[i] = (atr[i - 1] * (len - 1) + tr[i]) / len;
+    }
+  }
+  return atr;
+}
+
+// ── RSI (Wilder smoothing, Pine-style) ───────────────────────────
+function computeRSI(closes, len) {
+  const n = closes.length;
+  const out = new Array(n).fill(50);   // neutral 50 while warming
+  if (n < 2) return out;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i < n; i++) {
+    const change = closes[i] - closes[i - 1];
+    const gain = change > 0 ? change :  0;
+    const loss = change < 0 ? -change : 0;
+    if (i <= len) {
+      avgGain = (avgGain * (i - 1) + gain) / i;
+      avgLoss = (avgLoss * (i - 1) + loss) / i;
+    } else {
+      avgGain = (avgGain * (len - 1) + gain) / len;
+      avgLoss = (avgLoss * (len - 1) + loss) / len;
+    }
+    if (avgLoss === 0) { out[i] = 100; continue; }
+    const rs = avgGain / avgLoss;
+    out[i] = 100 - 100 / (1 + rs);
+  }
+  return out;
+}
+
+// ── Full-series indicator computation ────────────────────────────
+function computeSeries(candles) {
+  const n     = candles.length;
+  const src   = candles.map(c => c.close);
+  const highs = candles.map(c => c.high);
+  const lows  = candles.map(c => c.low);
+
+  // Range Filter
+  const smrng = smoothRng(src, RF_SAMPLING_PERIOD, RF_MULT);
+  const filt  = rngFilt(src, smrng);
+  const hband = filt.map((f, i) => f + smrng[i]);
+  const lband = filt.map((f, i) => f - smrng[i]);
+
+  // Direction counters — count consecutive up/down bars of the filter.
+  const upward   = new Array(n).fill(0);
+  const downward = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) {
+    if      (filt[i] > filt[i-1]) upward[i]   = upward[i-1] + 1;
+    else if (filt[i] < filt[i-1]) upward[i]   = 0;
+    else                          upward[i]   = upward[i-1];
+    if      (filt[i] < filt[i-1]) downward[i] = downward[i-1] + 1;
+    else if (filt[i] > filt[i-1]) downward[i] = 0;
+    else                          downward[i] = downward[i-1];
+  }
+
+  // Bar color reflects filter direction (matches the reference RF indicator):
+  //   downward > 0  → RED bar
+  //   downward == 0 → GREEN bar
+  // Zones now depend on bar color ALONE — no KAMA cloud gate.
+  const buyZone  = new Array(n);
+  const sellZone = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const barRed   = downward[i] > 0;
+    const barGreen = !barRed;
+    buyZone[i]  = barGreen;
+    sellZone[i] = barRed;
+  }
+
+  const atr = computeATR(candles, ATR_LEN);
+  const rsi = computeRSI(src, RSI_LEN);
+
+  return {
+    src, highs, lows,
+    smrng, filt, hband, lband, upward, downward,
+    buyZone, sellZone, atr, rsi,
+  };
+}
+
+// ── Snapshot last bar's indicators (for UI/logging) ──────────────
+function snapshotIndicators(series, i) {
+  return {
+    price:      series.src[i],
+    filt:       series.filt[i],
+    hband:      series.hband[i],
+    lband:      series.lband[i],
+    smrng:      series.smrng[i],
+    upward:     series.upward[i],
+    downward:   series.downward[i],
+    buyZone:    series.buyZone[i],
+    sellZone:   series.sellZone[i],
+    atr:        series.atr[i],
+    rsi:        series.rsi[i],
+    rsiPrev:    i > 0 ? series.rsi[i - 1] : series.rsi[i],
+    high:       series.highs[i],
+    low:        series.lows[i],
+  };
+}
+
+// ── Stateful signal generation ────────────────────────────────────
+// Algo33 v5 entry rules (classic RSI(2) mean-reversion):
+//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE RSI_BUY_LEVEL (10)
+//     (prev bar RSI ≤ 10, current bar RSI > 10). RSI(2) has been sitting in
+//     oversold territory and is just breaking back out.
+//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW RSI_SELL_LEVEL (90)
+//     (prev bar RSI ≥ 90, current bar RSI < 90). Overbought regime falling off.
+//   • SL reference: min low / max high of last SWING_BARS closed bars.
+//   • Qty sized in server at fill time (algo1-style: risk/SL distance).
+//   • Trailing identical to algo3.
+//
+// Triggers fire regardless of current position; callers decide whether to
+// (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
+// flagState is unused but echoed for API compatibility with algo3's server.
+function generateSignal(candles, flagState = {}, posSide = null) {
+  const series = computeSeries(candles);
+  const i = candles.length - 1;
+
+  const buyZone  = series.buyZone[i];
+  const sellZone = series.sellZone[i];
+  const close    = series.src[i];
+  const atr      = series.atr[i];
+  const rsi      = series.rsi[i];
+  const rsiPrev  = i > 0 ? series.rsi[i - 1] : rsi;
+
+  // Swing-based SL window: last SWING_BARS closed bars (inclusive of current)
+  const w0 = Math.max(0, i - (SWING_BARS - 1));
+  let swingLow  = series.lows[w0];
+  let swingHigh = series.highs[w0];
+  for (let k = w0 + 1; k <= i; k++) {
+    if (series.lows[k]  < swingLow)  swingLow  = series.lows[k];
+    if (series.highs[k] > swingHigh) swingHigh = series.highs[k];
+  }
+
+  const rsiCrossUp   = rsiPrev <= RSI_BUY_LEVEL  && rsi > RSI_BUY_LEVEL;
+  const rsiCrossDown = rsiPrev >= RSI_SELL_LEVEL && rsi < RSI_SELL_LEVEL;
+
+  const longTrigger  = buyZone  && rsiCrossUp;
+  const shortTrigger = sellZone && rsiCrossDown;
+
+  let signal = 'HOLD';
+  const reason = [];
+  let entryHint = null;
+
+  if (longTrigger) {
+    const riskEst = close - swingLow;
+    if (riskEst > 0) {
+      signal = 'BUY';
+      reason.push(`Long trigger — RF bar GREEN + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`SwingLow(${SWING_BARS}) ${swingLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
+      entryHint = { side: 'long', slPrice: swingLow, atr, riskEstimate: riskEst };
+    }
+  } else if (shortTrigger) {
+    const riskEst = swingHigh - close;
+    if (riskEst > 0) {
+      signal = 'SELL';
+      reason.push(`Short trigger — RF bar RED + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`SwingHigh(${SWING_BARS}) ${swingHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
+      entryHint = { side: 'short', slPrice: swingHigh, atr, riskEstimate: riskEst };
+    }
+  } else if (buyZone) {
+    reason.push(`BUY zone (RF bar GREEN) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
+  } else if (sellZone) {
+    reason.push(`SELL zone (RF bar RED) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
+  } else {
+    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
+  }
+
+  const indicators = snapshotIndicators(series, i);
+  indicators.candleTime = candles[i].time;
+  indicators.swingLow   = swingLow;
+  indicators.swingHigh  = swingHigh;
+
+  return {
+    signal,
+    reason,
+    indicators,
+    flagState: {},                // stub for API parity with algo3
+    entryHint,
+    posSide,
+  };
+}
+
+// ── Initialise a position after a fill at entryPrice ─────────────
+// ATR captured at entry time drives the trailing thresholds so they are fixed
+// per trade (won't drift with a moving ATR). With SL_ATR_MULT=2 and qty sized
+// so 2×ATR×qty = riskAmt, the ATR-in-$ multiples collapse to fractions of the
+// risk amount:  BE = 1.5R,  Lock trigger = 2.5R,  Lock profit = 1.5R
+// (R = risk = MAX_LOSS or balance×RISK_FRAC).
+function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
+  const riskPerUnit  = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
+  const atrDollar    = (atr || 0) * qty;   // $ value of a 1×ATR price move
+  return {
+    side,
+    entryPrice,
+    entryTime,
+    size:             qty,
+    slPrice,
+    riskPerUnit,
+    atr:              atr || null,
+    // ATR-based trailing schedule captured at entry (fixed per trade).
+    beThreshold:      BE_ATR_MULT      * atrDollar,   // PnL that flips to breakeven
+    lockThreshold:    LOCK_ATR_MULT    * atrDollar,   // PnL that locks 3×ATR profit
+    lockProfit:       LOCK_PROFIT_MULT * atrDollar,   // $ locked at lockThreshold
+    trailing:         false,
+    trailStop:        null,
+    trailLockProfit:  0,
+    // UI-compat aliases
+    stopLoss:         slPrice,
+    unrealizedPnl:    0,
+    mae:              0,
+  };
+}
+
+// ── Advance a position one bar (used by backtest AND 1s live tick) ──
+// Three-phase trailing schedule (ATR-based thresholds captured at entry):
+//   Phase 1 — bestPnl < beThreshold        → initial SL (entry ± 2×ATR)
+//   Phase 2 — beThreshold ≤ bestPnl < lockThreshold
+//             → trail stop = entry (breakeven, locks $0)
+//   Phase 3 — bestPnl ≥ lockThreshold      → trail locks LOCK_PROFIT_MULT×ATR
+//             + floor((bestPnl − lockThreshold) / $100) × $100
+//   Trail stop never retreats.
+// Stop hit intra-bar (initial SL if not trailing, trailStop if trailing)
+// → exit at stopNow.
+function stepPosition(pos, candle) {
+  const { side, entryPrice, size, slPrice,
+          beThreshold = 0, lockThreshold = 0, lockProfit = 0 } = pos;
+  let   { trailing, trailStop, trailLockProfit = 0 } = pos;
+  const { high, low, close } = candle;
+
+  // Best-case intra-bar PnL — drives trail activation / advance.
+  const bestPx  = side === 'long' ? high : low;
+  const bestPnl = side === 'long'
+    ? (bestPx - entryPrice) * size
+    : (entryPrice - bestPx) * size;
+
+  // Decide the proposed locked profit for this phase.
+  //   Phase 1: null (leave initial SL alone)
+  //   Phase 2: 0 (breakeven)
+  //   Phase 3: lockProfit + step-in-$100s of surplus PnL above lockThreshold
+  let proposedLock = null;
+  if (bestPnl >= lockThreshold && lockThreshold > 0) {
+    const extra = Math.floor((bestPnl - lockThreshold) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
+    proposedLock = lockProfit + Math.max(0, extra);
+  } else if (bestPnl >= beThreshold && beThreshold > 0) {
+    proposedLock = 0;
+  }
+
+  if (proposedLock !== null) {
+    const proposedSl = side === 'long'
+      ? entryPrice + proposedLock / size
+      : entryPrice - proposedLock / size;
+    const improved = !trailing
+      || (side === 'long' ? proposedSl > trailStop : proposedSl < trailStop);
+    if (improved) {
+      trailing        = true;
+      trailStop       = proposedSl;
+      trailLockProfit = proposedLock;
+    }
+  }
+
+  const stopNow = trailing ? trailStop : slPrice;
+  const stopHit = side === 'long' ? low <= stopNow : high >= stopNow;
+
+  const unrealPnl = side === 'long'
+    ? (close - entryPrice) * size
+    : (entryPrice - close) * size;
+
+  const worstPx  = side === 'long' ? low : high;
+  const worstPnl = side === 'long'
+    ? (worstPx - entryPrice) * size
+    : (entryPrice - worstPx) * size;
+
+  if (stopHit) {
+    const exitPrice = stopNow;
+    const exitPnl   = side === 'long'
+      ? (exitPrice - entryPrice) * size
+      : (entryPrice - exitPrice) * size;
+    return {
+      exit: true,
+      exitPrice,
+      exitPnl,
+      trailing,
+      trailStop,
+      trailLockProfit,
+      stopNow,
+      unrealPnl,
+      worstPnl,
+      reason: trailing
+        ? `Trailing stop hit @ ${stopNow.toFixed(2)} (locked $${trailLockProfit.toFixed(0)} PnL)`
+        : `Initial SL hit @ ${stopNow.toFixed(2)}`,
+    };
+  }
+
+  return {
+    exit: false,
+    trailing,
+    trailStop,
+    trailLockProfit,
+    stopNow,
+    unrealPnl,
+    worstPnl,
+  };
+}
+
+// ── Kraken data fetchers ──────────────────────────────────────────
+const KRAKEN_PAIR = {
+  BTCUSDT:  'XBTUSD', ETHUSDT:  'ETHUSD',
+  SOLUSDT:  'SOLUSD', XRPUSDT:  'XRPUSD',
+  ADAUSDT:  'ADAUSD', LTCUSDT:  'LTCUSD',
+  DOGEUSDT: 'XDGUSD',
+};
+const KRAKEN_INTERVAL = {
+  '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440,
+};
+
+function fetchCandlesRaw(pair, ivMin, since) {
+  return new Promise((resolve, reject) => {
+    const qs = `pair=${pair}&interval=${ivMin}${since ? `&since=${since}` : ''}`;
+    const opts = { hostname: 'api.kraken.com', path: `/0/public/OHLC?${qs}`, method: 'GET' };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result).find(k => k !== 'last');
+          if (!key) return reject(new Error('No OHLC key in Kraken response'));
+          const candles = json.result[key].map(c => ({
+            time: c[0] * 1000, open: +c[1], high: +c[2], low: +c[3],
+            close: +c[4], volume: +c[6],
+          }));
+          resolve({ candles, last: json.result.last });
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+// Kraken OHLC returns the still-forming candle as the last row. TradingView
+// draws indicators on CLOSED bars only, so drop any candle whose close time
+// (open + intervalMs) hasn't passed wall-clock yet.
+function dropUnfinished(candles, ivMs) {
+  const now = Date.now();
+  return candles.filter(c => (c.time + ivMs) <= now);
+}
+
+async function fetchCandles(symbol, interval, limit = 720) {
+  const pair  = KRAKEN_PAIR[symbol] || symbol;
+  const ivMin = KRAKEN_INTERVAL[interval] || 60;
+  const ivMs  = ivMin * 60 * 1000;
+  const { candles } = await fetchCandlesRaw(pair, ivMin, null);
+  return dropUnfinished(candles, ivMs).slice(-limit);
+}
+
+async function fetchCandlesHistorical(symbol, interval, months) {
+  const pair  = KRAKEN_PAIR[symbol] || symbol;
+  const ivMin = KRAKEN_INTERVAL[interval] || 60;
+  const ivSec = ivMin * 60;
+  const ivMs  = ivSec * 1000;
+  const now   = Math.floor(Date.now() / 1000);
+  const fetchFrom     = now - Math.ceil(months * 30.44 * 24 * 3600) - WARMUP_BARS * ivSec;
+  const candlesNeeded = Math.ceil((now - fetchFrom) / ivSec);
+  const maxCalls      = Math.min(50, Math.ceil(candlesNeeded / 700) + 2);
+  const allCandles    = [];
+  let since = fetchFrom;
+  for (let i = 0; i < maxCalls; i++) {
+    const { candles, last } = await fetchCandlesRaw(pair, ivMin, since);
+    if (!candles.length) break;
+    const seen = new Set(allCandles.map(c => c.time));
+    allCandles.push(...candles.filter(c => !seen.has(c.time)));
+    const lastMs = allCandles[allCandles.length - 1].time;
+    if (lastMs / 1000 >= now - ivSec * 3) break;
+    since = last || Math.floor(lastMs / 1000) + 1;
+    if (i < maxCalls - 1) await new Promise(r => setTimeout(r, 350));
+  }
+  return dropUnfinished(allCandles, ivMs);
+}
+
+async function fetchCurrentPrice(symbol) {
+  const pair = KRAKEN_PAIR[symbol] || symbol;
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.kraken.com',
+      path: `/0/public/Ticker?pair=${pair}`,
+      method: 'GET',
+    };
+    const req = https.request(opts, res => {
+      let raw = '';
+      res.on('data', d => raw += d);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw);
+          if (json.error && json.error.length) return reject(new Error(json.error[0]));
+          const key = Object.keys(json.result)[0];
+          resolve(parseFloat(json.result[key].c[0]));
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+module.exports = {
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
+  BE_ATR_MULT, LOCK_ATR_MULT, LOCK_PROFIT_MULT, TRAIL_STEP_PNL, ATR_LEN,
+  RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
+  USE_BAR_COLOR, WARMUP_BARS,
+  computeSeries, computeATR, computeRSI, snapshotIndicators, generateSignal,
+  initPosition, stepPosition,
+  fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,
+};
