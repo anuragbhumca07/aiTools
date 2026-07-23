@@ -255,7 +255,7 @@
 <header>
   <div>
     <div class="title">CBT Algo34 — RF bar-color + RSI(2) + ATR-based trail</div>
-    <div class="subtitle">Range Filter (100, 3.0×) bar color ONLY · RSI(2) mean-reversion entry (cross &gt;10 = BUY, &lt;90 = SELL) · Immediate fill · Initial SL = 2×ATR14 · Trail: BE @ 3×ATR·qty PnL → LOCK 3×ATR·qty @ 5×ATR·qty PnL → +$100/step · 1s SL scan · self-correcting :01 fetch</div>
+    <div class="subtitle">Range Filter (100, 3.0×) bar color ONLY · RSI(2) mean-reversion entry (cross &gt;10 = BUY, &lt;90 = SELL) · Immediate fill · Initial SL = 2×ATR14 · Trail: BE @ 3×ATR PnL → LOCK 3×ATR @ 5×ATR PnL → +$100/step · 1s SL scan · self-correcting :01 fetch</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
   <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
@@ -396,7 +396,7 @@
     <div class="logic-gate zone-gate">🌐 Zone Gate (KAMA cloud removed): BUY zone = RF bar GREEN (downward=0). SELL zone = RF bar RED (downward&gt;0). Nothing else — no p1/p2/p3 checks.</div>
     <div class="logic-gate risk-gate" style="margin-top:4px">🎯 Entry Trigger (RSI(2) mean-reversion): BUY when RF bar is GREEN AND RSI(2) crosses ABOVE 10 (prev ≤ 10, curr &gt; 10 — recovery from oversold). SELL when RF bar is RED AND RSI(2) crosses BELOW 90 (prev ≥ 90, curr &lt; 90 — drop from overbought). Fills IMMEDIATELY at the current market price (open of the just-started candle) — no 1-bar deferral. Initial SL = entry ± 2 × ATR14. Qty = min(balance×1.5%, $150) / (2 × ATR14) — so SL hit = exactly $150 loss. Opposite trigger while in trade → close &amp; reverse (also immediate).</div>
     <div class="logic-gate" style="margin-top:4px">🛡️ SL Rule: initial SL = entry ± 2 × ATR14 (fixed $150 max loss). Swing high/low from 3 bars is a trigger reference only, not the SL.</div>
-    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trail Rule (3-phase, ATR-based; thresholds captured at entry): Phase 1 — hold initial SL until PnL ≥ 3×ATR·qty. Phase 2 — SL to BREAKEVEN (locks $0). Phase 3 — at PnL ≥ 5×ATR·qty, LOCK 3×ATR·qty profit; then every +$100 PnL locks +$100 more. SL never retreats.</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trail Rule (3-phase, ATR-based; thresholds captured at entry): Phase 1 — hold initial SL until PnL ≥ 3×ATR. Phase 2 — SL to BREAKEVEN (locks $0). Phase 3 — at PnL ≥ 5×ATR, LOCK 3×ATR profit; then every +$100 PnL locks +$100 more. SL never retreats.</div>
     <div class="logic-gate" style="margin-top:4px;background:#1a2438;border-color:var(--teal);color:var(--teal)">⏱️ Timing: signal checked at :01s past every candle boundary (self-correcting timer, no drift over long runs). Entry fires in the SAME tick — no 1-bar deferral. Position SL &amp; trailing scanned every 1s from entry.</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
@@ -419,10 +419,10 @@
       </div>
       <div class="logic-box">
         <div class="lh" style="color:var(--yellow)">📈 TRAILING — 3 phases (ATR-based, 1s scan)</div>
-        <div class="logic-rule">• <span>Phase 1</span> — bestPnL &lt; 3×ATR·qty → keep initial SL (entry ± 2×ATR).</div>
-        <div class="logic-rule">• <span>Phase 2 — Breakeven</span> — at bestPnL ≥ 3×ATR·qty, SL jumps to ENTRY price (locks $0).</div>
-        <div class="logic-rule">• <span>Phase 3 — Lock &amp; Trail</span> — at bestPnL ≥ 5×ATR·qty, LOCK 3×ATR·qty profit. Then every +$100 PnL beyond that → lock +$100 more.</div>
-        <div class="logic-rule">• Lock formula (phase 3): <span>lock = 3×ATR·qty + ⌊(bestPnL − 5×ATR·qty) / $100⌋ × $100</span></div>
+        <div class="logic-rule">• <span>Phase 1</span> — bestPnL &lt; 3×ATR → keep initial SL (entry ± 2×ATR).</div>
+        <div class="logic-rule">• <span>Phase 2 — Breakeven</span> — at bestPnL ≥ 3×ATR, SL jumps to ENTRY price (locks $0).</div>
+        <div class="logic-rule">• <span>Phase 3 — Lock &amp; Trail</span> — at bestPnL ≥ 5×ATR, LOCK 3×ATR profit. Then every +$100 PnL beyond that → lock +$100 more.</div>
+        <div class="logic-rule">• Lock formula (phase 3): <span>lock = 3×ATR + ⌊(bestPnL − 5×ATR) / $100⌋ × $100</span></div>
         <div class="logic-rule">• SL price = entry ± lock / size; SL never retreats.</div>
         <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
           While trailing, tick log records only TRAIL-UPDATE and EXIT — normal per-candle ticks resume after exit.
@@ -504,11 +504,11 @@
           <tr>
             <th>Date/Time</th><th>Type</th><th>Signal</th>
             <th>Price</th><th>Filt</th><th>H-band</th><th>L-band</th>
-            <th>Zone</th><th>Bar</th><th>RSI(2)</th><th>Sw Lo</th><th>Sw Hi</th><th>Notes</th>
+            <th>Zone</th><th>Bar</th><th>RSI(2)</th><th>ATR14</th><th>Sw Lo</th><th>Sw Hi</th><th>Notes</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr>
+          <tr><td colspan="14" class="empty-msg">Waiting for first tick…</td></tr>
         </tbody>
       </table>
     </div>
@@ -745,7 +745,7 @@ function renderPosition(pos, ind) {
       <div class="pos-item"><div class="lbl">Size</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
       <div class="pos-item"><div class="lbl">Initial SL (2×ATR)</div><div class="val clr-r">${fmt(pos.slPrice)}</div></div>
       <div class="pos-item"><div class="lbl">Active Stop</div><div class="val ${pos.trailing?'clr-b':'clr-r'}">${fmt(activeStop)}</div></div>
-      <div class="pos-item"><div class="lbl">BE @ PnL</div><div class="val clr-a">$${(pos.beThreshold||0).toFixed(0)} (3×ATR·qty)</div></div>
+      <div class="pos-item"><div class="lbl">BE @ PnL</div><div class="val clr-a">$${(pos.beThreshold||0).toFixed(0)} (3×ATR)</div></div>
       <div class="pos-item"><div class="lbl">Lock @ PnL</div><div class="val clr-a">$${(pos.lockThreshold||0).toFixed(0)} → locks $${(pos.lockProfit||0).toFixed(0)}</div></div>
       <div class="pos-item"><div class="lbl">Locked PnL</div><div class="val clr-a">${pos.trailing ? '$' + (pos.trailLockProfit||0).toFixed(0) : '—'}</div></div>
       <div class="pos-item"><div class="lbl">Risk/unit</div><div class="val">${fmt(pos.riskPerUnit)}</div></div>
@@ -806,6 +806,7 @@ function prependLog(entry) {
     <td class="${zoneCls}">${zone}</td>
     <td class="${barCls}">${bar}</td>
     <td class="${rsiCls}">${rsiVal}</td>
+    <td class="clr-o">${fmt(ind.atr)}</td>
     <td>${fmt(ind.swingLow)}</td>
     <td>${fmt(ind.swingHigh)}</td>
     <td class="reason-cell" title="${esc(notes)}">${notesHtml}</td>`;

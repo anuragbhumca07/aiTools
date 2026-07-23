@@ -28,15 +28,18 @@ test.describe('Algo34 rf-rsi-atrtrail-v1 — fixes', () => {
     await expect(page.locator('.title').first()).toContainText(/ATR-based trail/i);
   });
 
-  test('subtitle mentions 2×ATR SL and 3-phase trail', async ({ page }) => {
+  test('subtitle mentions 2×ATR SL and 3-phase trail (raw ATR, no ·qty)', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     const sub = page.locator('header .subtitle');
     await expect(sub).toContainText(/Initial SL = 2×ATR14/i);
-    await expect(sub).toContainText(/BE @ 3×ATR·qty/i);
-    await expect(sub).toContainText(/LOCK 3×ATR·qty @ 5×ATR·qty/i);
+    // New wording — raw ATR ($) thresholds, no `·qty`.
+    await expect(sub).toContainText(/BE @ 3×ATR PnL/i);
+    await expect(sub).toContainText(/LOCK 3×ATR @ 5×ATR PnL/i);
+    // Old wording must not appear.
+    await expect(sub).not.toContainText(/×ATR·qty/i);
   });
 
-  test('logic card describes all 3 trail phases', async ({ page }) => {
+  test('logic card describes all 3 trail phases (raw ATR)', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     const logic = page.locator('.card').filter({ hasText: 'Algo Logic' });
     // Initial SL is now 2×ATR, not 1.5×ATR.
@@ -46,14 +49,23 @@ test.describe('Algo34 rf-rsi-atrtrail-v1 — fixes', () => {
     await expect(logic).toContainText(/Phase 1/i);
     await expect(logic).toContainText(/Breakeven/i);
     await expect(logic).toContainText(/Phase 3/i);
-    // ATR-based lock formula.
-    await expect(logic).toContainText(/3×ATR·qty/i);
-    await expect(logic).toContainText(/5×ATR·qty/i);
+    // ATR-based lock formula — RAW ATR, no ·qty.
+    await expect(logic).toContainText(/3×ATR/i);
+    await expect(logic).toContainText(/5×ATR/i);
+    await expect(logic).not.toContainText(/×ATR·qty/i);
     // Entry side unchanged: RSI cross above 10 / below 90.
     await expect(logic).toContainText(/RSI\(2\) crosses ABOVE 10/i);
     await expect(logic).toContainText(/RSI\(2\) crosses BELOW 90/i);
     // Immediate fill preserved from algo33.
     await expect(logic).toContainText(/Fill IMMEDIATELY|IMMEDIATELY at current market/i);
+  });
+
+  test('tick-log table has ATR14 column', async ({ page }) => {
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    const headers = page.locator('#log-tbl thead th');
+    // Must include an ATR14 header cell.
+    const headerTexts = await headers.evaluateAll(els => els.map(e => e.textContent.trim()));
+    expect(headerTexts, `tick-log headers: ${headerTexts.join(' | ')}`).toContain('ATR14');
   });
 
   test('/health returns rf-rsi-atrtrail-v1', async ({ request }) => {

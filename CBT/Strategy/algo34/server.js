@@ -74,7 +74,7 @@ function waEntry(side, symbol, timeframe, price, size, sl, riskPerUnit, riskAmt,
     `Size       : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
     `Initial SL : $${f(sl)}  (${SL_ATR_MULT}×ATR, risk/unit $${f(riskPerUnit)})\n` +
     `Risk       : $${f(riskAmt)}  (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${f(MAX_LOSS)})\n` +
-    `Trail sched: BE @ ${BE_ATR_MULT}×ATR·qty → lock ${LOCK_PROFIT_MULT}×ATR·qty @ ${LOCK_ATR_MULT}×ATR·qty → +$${f(TRAIL_STEP_PNL, 0)}/step\n` +
+    `Trail sched: BE @ ${BE_ATR_MULT}×ATR → lock ${LOCK_PROFIT_MULT}×ATR @ ${LOCK_ATR_MULT}×ATR → +$${f(TRAIL_STEP_PNL, 0)}/step\n` +
     `Balance    : $${f(balance)}`
   );
 }
@@ -140,7 +140,7 @@ const stmtInsert = db.prepare(`
 const STRATEGIES = {
   'rf-rsi-atrtrail-v1': {
     name: 'rf-rsi-atrtrail-v1: RF bar-color + RSI(2) + ATR-based trail',
-    description: `Same entry as algo33 — Zone = Range Filter bar color (no KAMA cloud); BUY when zone GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}, SELL when zone RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. Three-phase ATR-based trailing (captured at entry): (1) initial SL until PnL ≥ ${BE_ATR_MULT}×ATR·qty → move to BREAKEVEN, (2) until PnL ≥ ${LOCK_ATR_MULT}×ATR·qty → LOCK ${LOCK_PROFIT_MULT}×ATR·qty profit, then (3) every +$${TRAIL_STEP_PNL} PnL locks +$${TRAIL_STEP_PNL} more. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Immediate fill at signal tick, main tick fires at :01 past every candle boundary via a self-correcting timer.`,
+    description: `Same entry as algo33 — Zone = Range Filter bar color (no KAMA cloud); BUY when zone GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}, SELL when zone RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. Three-phase ATR-based trailing (captured at entry): (1) initial SL until PnL ≥ ${BE_ATR_MULT}×ATR → move to BREAKEVEN, (2) until PnL ≥ ${LOCK_ATR_MULT}×ATR → LOCK ${LOCK_PROFIT_MULT}×ATR profit, then (3) every +$${TRAIL_STEP_PNL} PnL locks +$${TRAIL_STEP_PNL} more. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Immediate fill at signal tick, main tick fires at :01 past every candle boundary via a self-correcting timer.`,
   },
 };
 
@@ -427,7 +427,7 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
       `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
       `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
       `Swing ${entryHint.side === 'long' ? 'low' : 'high'} ref: $${entryHint.slPrice.toFixed(2)} (trigger only, not SL)`,
-      `Trail sched (1s scan): BE @ $${pos.beThreshold.toFixed(0)} PnL (${BE_ATR_MULT}×ATR·qty) → lock $${pos.lockProfit.toFixed(0)} @ $${pos.lockThreshold.toFixed(0)} PnL (${LOCK_ATR_MULT}×ATR·qty) → +$${TRAIL_STEP_PNL.toFixed(0)}/step`,
+      `Trail sched (1s scan): BE @ $${pos.beThreshold.toFixed(0)} PnL (${BE_ATR_MULT}×ATR) → lock $${pos.lockProfit.toFixed(0)} @ $${pos.lockThreshold.toFixed(0)} PnL (${LOCK_ATR_MULT}×ATR) → +$${TRAIL_STEP_PNL.toFixed(0)}/step`,
     ],
     indicators: state.lastIndicators,
     tickmill: orderResult,

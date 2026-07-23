@@ -282,14 +282,15 @@ function generateSignal(candles, flagState = {}, posSide = null) {
 }
 
 // ── Initialise a position after a fill at entryPrice ─────────────
-// ATR captured at entry time drives the trailing thresholds so they are fixed
-// per trade (won't drift with a moving ATR). With SL_ATR_MULT=2 and qty sized
-// so 2×ATR×qty = riskAmt, the ATR-in-$ multiples collapse to fractions of the
-// risk amount:  BE = 1.5R,  Lock trigger = 2.5R,  Lock profit = 1.5R
-// (R = risk = MAX_LOSS or balance×RISK_FRAC).
+// Trailing thresholds are raw ATR-in-$ (NOT multiplied by qty), captured at
+// entry time so they don't drift with a moving ATR.
+//   BE trigger        : bestPnL ≥ 3 × ATR     (dollars)
+//   Lock trigger      : bestPnL ≥ 5 × ATR     (dollars)
+//   Locked $ at lock  : 3 × ATR              (dollars)
+// After the lock, every additional +$100 PnL locks +$100 more.
 function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
   const riskPerUnit  = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
-  const atrDollar    = (atr || 0) * qty;   // $ value of a 1×ATR price move
+  const atrDollar    = atr || 0;   // $-valued ATR (no qty multiplication)
   return {
     side,
     entryPrice,
@@ -298,9 +299,8 @@ function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
     slPrice,
     riskPerUnit,
     atr:              atr || null,
-    // ATR-based trailing schedule captured at entry (fixed per trade).
-    beThreshold:      BE_ATR_MULT      * atrDollar,   // PnL that flips to breakeven
-    lockThreshold:    LOCK_ATR_MULT    * atrDollar,   // PnL that locks 3×ATR profit
+    beThreshold:      BE_ATR_MULT      * atrDollar,   // PnL $ that flips to breakeven
+    lockThreshold:    LOCK_ATR_MULT    * atrDollar,   // PnL $ that triggers the lock
     lockProfit:       LOCK_PROFIT_MULT * atrDollar,   // $ locked at lockThreshold
     trailing:         false,
     trailStop:        null,
@@ -313,11 +313,11 @@ function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
 }
 
 // ── Advance a position one bar (used by backtest AND 1s live tick) ──
-// Three-phase trailing schedule (ATR-based thresholds captured at entry):
+// Three-phase trailing schedule (ATR-in-$ thresholds captured at entry):
 //   Phase 1 — bestPnl < beThreshold        → initial SL (entry ± 2×ATR)
 //   Phase 2 — beThreshold ≤ bestPnl < lockThreshold
 //             → trail stop = entry (breakeven, locks $0)
-//   Phase 3 — bestPnl ≥ lockThreshold      → trail locks LOCK_PROFIT_MULT×ATR
+//   Phase 3 — bestPnl ≥ lockThreshold      → trail locks LOCK_PROFIT_MULT×ATR ($)
 //             + floor((bestPnl − lockThreshold) / $100) × $100
 //   Trail stop never retreats.
 // Stop hit intra-bar (initial SL if not trailing, trailStop if trailing)
