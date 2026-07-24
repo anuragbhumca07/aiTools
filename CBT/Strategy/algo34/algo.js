@@ -2,22 +2,18 @@
 
 const https = require('https');
 
-// ── Algo34 — RF bar color + RSI(2) mean-reversion + ATR-based trail ──
+// ── Algo34 — RF bar color + RSI(2) mean-reversion + $100-step trail ──
 // Copy of algo33 with a different SL / trailing schedule (see stepPosition).
 //   Initial SL       : entry ± 2 × ATR14
-//   Breakeven trigger: PnL ≥ 3 × ATR × qty  → SL moves to entry (locks $0)
-//   Lock trigger     : PnL ≥ 5 × ATR × qty  → SL locks 3 × ATR × qty profit
-//   After lock       : every additional +$100 PnL locks +$100 more
+//   Breakeven trigger: PnL ≥ $100 → SL moves to entry (locks $0)
+//   After BE         : every additional +$100 PnL locks +$100 more
 // Entry / zone / RSI(2) / swing SL reference are unchanged from algo33.
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
 const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($)
 const RISK_FRAC          = 0.015; // Risk fraction: 1.5% of balance, capped at MAX_LOSS
-const SL_ATR_MULT        = 2.0;   // Initial SL distance = 2 × ATR (was 1.5 in algo33)
-const BE_ATR_MULT        = 3.0;   // Breakeven trigger  = BE_ATR_MULT   × ATR × qty
-const LOCK_ATR_MULT      = 5.0;   // Lock trigger       = LOCK_ATR_MULT × ATR × qty
-const LOCK_PROFIT_MULT   = 3.0;   // Locked profit at lock trigger = LOCK_PROFIT_MULT × ATR × qty
-const TRAIL_STEP_PNL     = 100.0; // After lock, step +$100 lock per +$100 PnL
+const SL_ATR_MULT        = 2.0;   // Initial SL distance = 2 × ATR14
+const TRAIL_STEP_PNL     = 100.0; // Breakeven at +$100 PnL; trail +$100 per +$100 PnL after that
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const RSI_LEN            = 2;     // RSI period for entry trigger
 // Classic RSI(2) mean-reversion trigger:
@@ -282,49 +278,36 @@ function generateSignal(candles, flagState = {}, posSide = null) {
 }
 
 // ── Initialise a position after a fill at entryPrice ─────────────
-// Trailing thresholds are raw ATR-in-$ (NOT multiplied by qty), captured at
-// entry time so they don't drift with a moving ATR.
-//   BE trigger        : bestPnL ≥ 3 × ATR     (dollars)
-//   Lock trigger      : bestPnL ≥ 5 × ATR     (dollars)
-//   Locked $ at lock  : 3 × ATR              (dollars)
-// After the lock, every additional +$100 PnL locks +$100 more.
+// Initial SL = entry ± 2×ATR14. Trail activates at +$100 PnL (breakeven),
+// then advances the stop by $100 for every additional $100 of PnL.
 function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
-  const riskPerUnit  = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
-  const atrDollar    = atr || 0;   // $-valued ATR (no qty multiplication)
+  const riskPerUnit = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
   return {
     side,
     entryPrice,
     entryTime,
-    size:             qty,
+    size:            qty,
     slPrice,
     riskPerUnit,
-    atr:              atr || null,
-    beThreshold:      BE_ATR_MULT      * atrDollar,   // PnL $ that flips to breakeven
-    lockThreshold:    LOCK_ATR_MULT    * atrDollar,   // PnL $ that triggers the lock
-    lockProfit:       LOCK_PROFIT_MULT * atrDollar,   // $ locked at lockThreshold
-    trailing:         false,
-    trailStop:        null,
-    trailLockProfit:  0,
+    atr:             atr || null,
+    trailing:        false,
+    trailStop:       null,
+    trailLockProfit: 0,
     // UI-compat aliases
-    stopLoss:         slPrice,
-    unrealizedPnl:    0,
-    mae:              0,
+    stopLoss:        slPrice,
+    unrealizedPnl:   0,
+    mae:             0,
   };
 }
 
 // ── Advance a position one bar (used by backtest AND 1s live tick) ──
-// Three-phase trailing schedule (ATR-in-$ thresholds captured at entry):
-//   Phase 1 — bestPnl < beThreshold        → initial SL (entry ± 2×ATR)
-//   Phase 2 — beThreshold ≤ bestPnl < lockThreshold
-//             → trail stop = entry (breakeven, locks $0)
-//   Phase 3 — bestPnl ≥ lockThreshold      → trail locks LOCK_PROFIT_MULT×ATR ($)
-//             + floor((bestPnl − lockThreshold) / $100) × $100
-//   Trail stop never retreats.
-// Stop hit intra-bar (initial SL if not trailing, trailStop if trailing)
-// → exit at stopNow.
+// Trailing schedule ($100-step):
+//   bestPnl < $100            → initial SL (entry ± 2×ATR14), no trail
+//   bestPnl ≥ $100            → trail activated; locked$ = floor((bestPnl-100)/100)*100
+//     e.g. $100→ BE, $200→ $100 locked, $300→ $200 locked, etc.
+//   Trail stop never retreats. Stop hit intra-bar → exit at stopNow.
 function stepPosition(pos, candle) {
-  const { side, entryPrice, size, slPrice,
-          beThreshold = 0, lockThreshold = 0, lockProfit = 0 } = pos;
+  const { side, entryPrice, size, slPrice } = pos;
   let   { trailing, trailStop, trailLockProfit = 0 } = pos;
   const { high, low, close } = candle;
 
@@ -334,16 +317,10 @@ function stepPosition(pos, candle) {
     ? (bestPx - entryPrice) * size
     : (entryPrice - bestPx) * size;
 
-  // Decide the proposed locked profit for this phase.
-  //   Phase 1: null (leave initial SL alone)
-  //   Phase 2: 0 (breakeven)
-  //   Phase 3: lockProfit + step-in-$100s of surplus PnL above lockThreshold
+  // Proposed locked profit: null while under $100, 0 at $100, +$100 per +$100 after.
   let proposedLock = null;
-  if (bestPnl >= lockThreshold && lockThreshold > 0) {
-    const extra = Math.floor((bestPnl - lockThreshold) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
-    proposedLock = lockProfit + Math.max(0, extra);
-  } else if (bestPnl >= beThreshold && beThreshold > 0) {
-    proposedLock = 0;
+  if (bestPnl >= TRAIL_STEP_PNL) {
+    proposedLock = Math.floor((bestPnl - TRAIL_STEP_PNL) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
   }
 
   if (proposedLock !== null) {
@@ -507,7 +484,7 @@ async function fetchCurrentPrice(symbol) {
 
 module.exports = {
   RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  BE_ATR_MULT, LOCK_ATR_MULT, LOCK_PROFIT_MULT, TRAIL_STEP_PNL, ATR_LEN,
+  TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   USE_BAR_COLOR, WARMUP_BARS,
   computeSeries, computeATR, computeRSI, snapshotIndicators, generateSignal,

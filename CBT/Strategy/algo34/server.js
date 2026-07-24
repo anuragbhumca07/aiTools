@@ -9,7 +9,7 @@ const session  = require('express-session');
 const { OAuth2Client } = require('google-auth-library');
 const {
   RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  BE_ATR_MULT, LOCK_ATR_MULT, LOCK_PROFIT_MULT, TRAIL_STEP_PNL, ATR_LEN,
+  TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   WARMUP_BARS,
   generateSignal, initPosition, stepPosition,
@@ -74,7 +74,7 @@ function waEntry(side, symbol, timeframe, price, size, sl, riskPerUnit, riskAmt,
     `Size       : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
     `Initial SL : $${f(sl)}  (${SL_ATR_MULT}×ATR, risk/unit $${f(riskPerUnit)})\n` +
     `Risk       : $${f(riskAmt)}  (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${f(MAX_LOSS)})\n` +
-    `Trail sched: BE @ ${BE_ATR_MULT}×ATR → lock ${LOCK_PROFIT_MULT}×ATR @ ${LOCK_ATR_MULT}×ATR → +$${f(TRAIL_STEP_PNL, 0)}/step\n` +
+    `Trail sched: BE @ +$${f(TRAIL_STEP_PNL, 0)} PnL → +$${f(TRAIL_STEP_PNL, 0)} trail per +$${f(TRAIL_STEP_PNL, 0)} PnL\n` +
     `Balance    : $${f(balance)}`
   );
 }
@@ -139,8 +139,8 @@ const stmtInsert = db.prepare(`
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
   'rf-rsi-atrtrail-v1': {
-    name: 'rf-rsi-atrtrail-v1: RF bar-color + RSI(2) + ATR-based trail',
-    description: `Same entry as algo33 — Zone = Range Filter bar color (no KAMA cloud); BUY when zone GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}, SELL when zone RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. Three-phase ATR-based trailing (captured at entry): (1) initial SL until PnL ≥ ${BE_ATR_MULT}×ATR → move to BREAKEVEN, (2) until PnL ≥ ${LOCK_ATR_MULT}×ATR → LOCK ${LOCK_PROFIT_MULT}×ATR profit, then (3) every +$${TRAIL_STEP_PNL} PnL locks +$${TRAIL_STEP_PNL} more. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Immediate fill at signal tick, main tick fires at :01 past every candle boundary via a self-correcting timer.`,
+    name: 'rf-rsi-atrtrail-v1: RF bar-color + RSI(2) + $100-step trail',
+    description: `Same entry as algo33 — Zone = Range Filter bar color (no KAMA cloud); BUY when zone GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}, SELL when zone RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR14, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR14) → SL hit = $${MAX_LOSS} loss exactly. Trailing: initial SL until PnL ≥ +$${TRAIL_STEP_PNL} → BREAKEVEN, then lock +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Immediate fill at signal tick, main tick fires at :01 past every candle boundary via a self-correcting timer.`,
   },
 };
 
@@ -427,7 +427,7 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
       `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
       `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
       `Swing ${entryHint.side === 'long' ? 'low' : 'high'} ref: $${entryHint.slPrice.toFixed(2)} (trigger only, not SL)`,
-      `Trail sched (1s scan): BE @ $${pos.beThreshold.toFixed(0)} PnL (${BE_ATR_MULT}×ATR) → lock $${pos.lockProfit.toFixed(0)} @ $${pos.lockThreshold.toFixed(0)} PnL (${LOCK_ATR_MULT}×ATR) → +$${TRAIL_STEP_PNL.toFixed(0)}/step`,
+      `Trail sched (1s scan): BE @ +$${TRAIL_STEP_PNL.toFixed(0)} PnL → +$${TRAIL_STEP_PNL.toFixed(0)} trail per +$${TRAIL_STEP_PNL.toFixed(0)} PnL`,
     ],
     indicators: state.lastIndicators,
     tickmill: orderResult,
