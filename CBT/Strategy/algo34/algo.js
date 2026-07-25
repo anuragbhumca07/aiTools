@@ -2,12 +2,12 @@
 
 const https = require('https');
 
-// ── Algo34 — RF bar color + RSI(2) mean-reversion + $100-step trail ──
-// Copy of algo33 with a different SL / trailing schedule (see stepPosition).
-//   Initial SL       : entry ± 2 × ATR14
-//   Breakeven trigger: PnL ≥ $100 → SL moves to entry (locks $0)
-//   After BE         : every additional +$100 PnL locks +$100 more
-// Entry / zone / RSI(2) / swing SL reference are unchanged from algo33.
+// ── Algo34 — KAMA cloud + RF bar color + RSI(2) mean-reversion + $100-step trail ──
+//   Zone (BUY): RF bar GREEN + p2>p1 + p3>p1 + hband>p1 + lband>p1
+//   Zone (SELL): RF bar RED  + p2<p1 + p3<p1 + hband<p1 + lband<p1
+//   Entry trigger: RSI(2) crosses ABOVE 10 (BUY) / BELOW 90 (SELL)
+//   Initial SL: entry ± 2 × ATR14
+//   Trail: breakeven at +$100 PnL, then +$100 locked per +$100 PnL
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
 const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($)
@@ -16,19 +16,12 @@ const SL_ATR_MULT        = 2.0;   // Initial SL distance = 2 × ATR14
 const TRAIL_STEP_PNL     = 100.0; // Breakeven at +$100 PnL; trail +$100 per +$100 PnL after that
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const RSI_LEN            = 2;     // RSI period for entry trigger
-// Classic RSI(2) mean-reversion trigger:
-//   BUY  fires when zone is green AND RSI(2) recovers from oversold —
-//        i.e. the bar's RSI crosses ABOVE  RSI_BUY_LEVEL (10).
-//   SELL fires when zone is red   AND RSI(2) drops from overbought —
-//        i.e. the bar's RSI crosses BELOW RSI_SELL_LEVEL (90).
-const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while buyZone
-const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while sellZone
+const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while in buyZone
+const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while in sellZone
 const SWING_BARS         = 3;     // SL reference = min low / max high of last N bars
-const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
-// KAMA is gone → only RF needs warmup. 220 bars gives Range Filter (period 100,
-// 2×period-1 EMA smoothing) time to settle to ~4-decimal stability.
-const WARMUP_BARS = 220;
+// KAMA(100) needs the most warmup. 500 bars gives p1/p2/p3 and RF time to settle.
+const WARMUP_BARS = 500;
 
 // ── Pine-style EMA (seeded with first value) ─────────────────────
 function pineEma(values, period) {
@@ -72,6 +65,29 @@ function rngFilt(x, r) {
     }
     out[i] = rf;
     prev = rf;
+  }
+  return out;
+}
+
+// ── KAMA (Kaufman Adaptive Moving Average) ───────────────────────
+// Pine-canonical seed: nAMA[0] = src[0] (matches `na(nAMA[1]) ? src : ...`).
+function kama(s, len) {
+  const n = s.length;
+  const out = new Array(n).fill(0);
+  const fastend = 0.666;
+  const slowend = 0.0645;
+  const xvnoise = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) xvnoise[i] = Math.abs(s[i] - s[i - 1]);
+  let noiseSum = 0;
+  let ama = s[0] || 0;
+  for (let i = 0; i < n; i++) {
+    if (i >= len) noiseSum -= xvnoise[i - len];
+    noiseSum += xvnoise[i];
+    let ratio = 0;
+    if (i >= len && noiseSum > 0) ratio = Math.abs(s[i] - s[i - len]) / noiseSum;
+    const smooth = Math.pow(ratio * (fastend - slowend) + slowend, 2);
+    ama = ama + smooth * (s[i] - ama);
+    out[i] = ama;
   }
   return out;
 }
@@ -130,6 +146,7 @@ function computeRSI(closes, len) {
 function computeSeries(candles) {
   const n     = candles.length;
   const src   = candles.map(c => c.close);
+  const ohlc4 = candles.map(c => (c.open + c.high + c.low + c.close) / 4);
   const highs = candles.map(c => c.high);
   const lows  = candles.map(c => c.low);
 
@@ -151,17 +168,59 @@ function computeSeries(candles) {
     else                          downward[i] = downward[i-1];
   }
 
-  // Bar color reflects filter direction (matches the reference RF indicator):
-  //   downward > 0  → RED bar
-  //   downward == 0 → GREEN bar
-  // Zones now depend on bar color ALONE — no KAMA cloud gate.
+  // KAMA cloud — 19 MAs spaced 5..100 on ohlc4, totalDistance measures their spread.
+  const ma05  = kama(ohlc4,  5);  const ma10  = kama(ohlc4, 10);
+  const ma15  = kama(ohlc4, 15);  const ma20  = kama(ohlc4, 20);
+  const ma25  = kama(ohlc4, 25);  const ma30  = kama(ohlc4, 30);
+  const ma35  = kama(ohlc4, 35);  const ma40  = kama(ohlc4, 40);
+  const ma45  = kama(ohlc4, 45);  const ma50  = kama(ohlc4, 50);
+  const ma55  = kama(ohlc4, 55);  const ma60  = kama(ohlc4, 60);
+  const ma65  = kama(ohlc4, 65);  const ma70  = kama(ohlc4, 70);
+  const ma75  = kama(ohlc4, 75);  const ma80  = kama(ohlc4, 80);
+  const ma85  = kama(ohlc4, 85);  const ma90  = kama(ohlc4, 90);
+  const ma100 = kama(ohlc4, 100);
+
+  const totalDistance = new Array(n);
+  for (let i = 0; i < n; i++) {
+    totalDistance[i] = (
+      (ma05[i]-ma10[i])/ma10[i]   + (ma10[i]-ma15[i])/ma15[i]  +
+      (ma15[i]-ma20[i])/ma20[i]   + (ma20[i]-ma25[i])/ma25[i]  +
+      (ma25[i]-ma30[i])/ma30[i]   + (ma30[i]-ma35[i])/ma35[i]  +
+      (ma35[i]-ma40[i])/ma40[i]   + (ma40[i]-ma45[i])/ma45[i]  +
+      (ma45[i]-ma50[i])/ma50[i]   + (ma50[i]-ma55[i])/ma55[i]  +
+      (ma55[i]-ma60[i])/ma60[i]   + (ma60[i]-ma65[i])/ma65[i]  +
+      (ma65[i]-ma70[i])/ma70[i]   + (ma70[i]-ma75[i])/ma75[i]  +
+      (ma75[i]-ma80[i])/ma80[i]   + (ma80[i]-ma85[i])/ma85[i]  +
+      (ma85[i]-ma90[i])/ma90[i]   + (ma90[i]-ma100[i])/ma100[i]
+    ) / 18;
+  }
+
+  const p1 = kama(src, 100);
+  const p2 = new Array(n);
+  for (let i = 0; i < n; i++) p2[i] = p1[i] * (1 + totalDistance[i] * 10);
+  const p3 = kama(p2, 10);
+
+  const cloudTop = new Array(n);
+  const cloudBot = new Array(n);
+  for (let i = 0; i < n; i++) {
+    cloudTop[i] = Math.max(p2[i], p3[i]);
+    cloudBot[i] = Math.min(p2[i], p3[i]);
+  }
+
+  // Zone: RF bar color (green=downward==0, red=downward>0)
+  //   AND KAMA cloud aligned (p2 & p3 both above/below p1)
+  //   AND RF bands (hband & lband) both above/below p1
   const buyZone  = new Array(n);
   const sellZone = new Array(n);
   for (let i = 0; i < n; i++) {
     const barRed   = downward[i] > 0;
     const barGreen = !barRed;
-    buyZone[i]  = barGreen;
-    sellZone[i] = barRed;
+    buyZone[i]  = barGreen &&
+      p2[i] > p1[i] && p3[i] > p1[i] &&
+      hband[i] > p1[i] && lband[i] > p1[i];
+    sellZone[i] = barRed &&
+      p2[i] < p1[i] && p3[i] < p1[i] &&
+      hband[i] < p1[i] && lband[i] < p1[i];
   }
 
   const atr = computeATR(candles, ATR_LEN);
@@ -170,6 +229,7 @@ function computeSeries(candles) {
   return {
     src, highs, lows,
     smrng, filt, hband, lband, upward, downward,
+    p1, p2, p3, cloudTop, cloudBot,
     buyZone, sellZone, atr, rsi,
   };
 }
@@ -184,6 +244,11 @@ function snapshotIndicators(series, i) {
     smrng:      series.smrng[i],
     upward:     series.upward[i],
     downward:   series.downward[i],
+    p1:         series.p1[i],
+    p2:         series.p2[i],
+    p3:         series.p3[i],
+    cloudTop:   series.cloudTop[i],
+    cloudBot:   series.cloudBot[i],
     buyZone:    series.buyZone[i],
     sellZone:   series.sellZone[i],
     atr:        series.atr[i],
@@ -195,18 +260,11 @@ function snapshotIndicators(series, i) {
 }
 
 // ── Stateful signal generation ────────────────────────────────────
-// Algo33 v5 entry rules (classic RSI(2) mean-reversion):
-//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE RSI_BUY_LEVEL (10)
-//     (prev bar RSI ≤ 10, current bar RSI > 10). RSI(2) has been sitting in
-//     oversold territory and is just breaking back out.
-//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW RSI_SELL_LEVEL (90)
-//     (prev bar RSI ≥ 90, current bar RSI < 90). Overbought regime falling off.
-//   • SL reference: min low / max high of last SWING_BARS closed bars.
-//   • Qty sized in server at fill time (algo1-style: risk/SL distance).
-//   • Trailing identical to algo3.
-//
-// Triggers fire regardless of current position; callers decide whether to
-// (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
+// Entry rules (KAMA cloud + RF bar color + RSI(2) mean-reversion):
+//   • BUY zone : RF bar GREEN + p2>p1 + p3>p1 + hband>p1 + lband>p1
+//   • SELL zone: RF bar RED  + p2<p1 + p3<p1 + hband<p1 + lband<p1
+//   • LONG trigger : in BUY zone  AND RSI(2) crosses ABOVE 10
+//   • SHORT trigger: in SELL zone AND RSI(2) crosses BELOW 90
 // flagState is unused but echoed for API compatibility with algo3's server.
 function generateSignal(candles, flagState = {}, posSide = null) {
   const series = computeSeries(candles);
@@ -238,11 +296,15 @@ function generateSignal(candles, flagState = {}, posSide = null) {
   const reason = [];
   let entryHint = null;
 
+  const p1 = series.p1[i], p2 = series.p2[i], p3 = series.p3[i];
+  const hband = series.hband[i], lband = series.lband[i];
+
   if (longTrigger) {
     const riskEst = close - swingLow;
     if (riskEst > 0) {
       signal = 'BUY';
-      reason.push(`Long trigger — RF bar GREEN + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`Long trigger — RF GREEN + KAMA cloud bullish + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`p1 ${p1.toFixed(2)} · p2 ${p2.toFixed(2)} · p3 ${p3.toFixed(2)} · hband ${hband.toFixed(2)} · lband ${lband.toFixed(2)}`);
       reason.push(`SwingLow(${SWING_BARS}) ${swingLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'long', slPrice: swingLow, atr, riskEstimate: riskEst };
     }
@@ -250,16 +312,18 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     const riskEst = swingHigh - close;
     if (riskEst > 0) {
       signal = 'SELL';
-      reason.push(`Short trigger — RF bar RED + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`Short trigger — RF RED + KAMA cloud bearish + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`p1 ${p1.toFixed(2)} · p2 ${p2.toFixed(2)} · p3 ${p3.toFixed(2)} · hband ${hband.toFixed(2)} · lband ${lband.toFixed(2)}`);
       reason.push(`SwingHigh(${SWING_BARS}) ${swingHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'short', slPrice: swingHigh, atr, riskEstimate: riskEst };
     }
   } else if (buyZone) {
-    reason.push(`BUY zone (RF bar GREEN) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
+    reason.push(`BUY zone (RF GREEN + KAMA bullish) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
   } else if (sellZone) {
-    reason.push(`SELL zone (RF bar RED) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
+    reason.push(`SELL zone (RF RED + KAMA bearish) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
   } else {
-    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
+    const barRed = series.downward[i] > 0;
+    reason.push(`No zone — RF bar ${barRed ? 'RED' : 'GREEN'} but KAMA cloud not aligned · p1 ${p1.toFixed(2)} p2 ${p2.toFixed(2)} p3 ${p3.toFixed(2)} · RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
   }
 
   const indicators = snapshotIndicators(series, i);
@@ -486,7 +550,7 @@ module.exports = {
   RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
   TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
-  USE_BAR_COLOR, WARMUP_BARS,
+  WARMUP_BARS,
   computeSeries, computeATR, computeRSI, snapshotIndicators, generateSignal,
   initPosition, stepPosition,
   fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,

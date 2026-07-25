@@ -139,8 +139,8 @@ const stmtInsert = db.prepare(`
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
   'rf-rsi-atrtrail-v1': {
-    name: 'rf-rsi-atrtrail-v1: RF bar-color + RSI(2) + $100-step trail',
-    description: `Same entry as algo33 — Zone = Range Filter bar color (no KAMA cloud); BUY when zone GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}, SELL when zone RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR14, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR14) → SL hit = $${MAX_LOSS} loss exactly. Trailing: initial SL until PnL ≥ +$${TRAIL_STEP_PNL} → BREAKEVEN, then lock +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Immediate fill at signal tick, main tick fires at :01 past every candle boundary via a self-correcting timer.`,
+    name: 'rf-rsi-atrtrail-v1: KAMA cloud + RF bar-color + RSI(2) + $100-step trail',
+    description: `BUY zone: RF bar GREEN + p2>p1 + p3>p1 + hband>p1 + lband>p1 (KAMA cloud bullish). SELL zone: RF bar RED + p2<p1 + p3<p1 + hband<p1 + lband<p1. Entry: BUY zone AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL} | SELL zone AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR14, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR14). Trailing: BE at +$${TRAIL_STEP_PNL} PnL → +$${TRAIL_STEP_PNL} locked per +$${TRAIL_STEP_PNL} PnL. SL scanned every 1s. Exits on opposite trigger.`,
   },
 };
 
