@@ -207,20 +207,30 @@ function computeSeries(candles) {
     cloudBot[i] = Math.min(p2[i], p3[i]);
   }
 
-  // Zone: RF bar color (green=downward==0, red=downward>0)
-  //   AND KAMA cloud aligned (p2 & p3 both above/below p1)
-  //   AND RF bands (hband & lband) both above/below p1
+  // Pine-accurate bar color (three states, not two):
+  //   GREEN : src > filt AND upward   > 0
+  //   BLUE  : src < filt AND downward > 0  ← "sell" color in Pine = RED in our UI
+  //   MID   : everything else (neutral, neither zone)
+  const isGreenBar = new Array(n);
+  const isBlueBar  = new Array(n);
+  for (let i = 0; i < n; i++) {
+    isGreenBar[i] = src[i] > filt[i] && upward[i]   > 0;
+    isBlueBar[i]  = src[i] < filt[i] && downward[i] > 0;
+  }
+
+  // Zone: bar color + KAMA cloud alignment + filt + hband + lband all on same side of p1.
+  // Mirrors Pine exactly:
+  //   buyZone  = isGreenBar and p2>p1 and p3>p1 and hband>p1 and filt>p1 and lband>p1
+  //   sellZone = isBlueBar  and p2<p1 and p3<p1 and hband<p1 and filt<p1 and lband<p1
   const buyZone  = new Array(n);
   const sellZone = new Array(n);
   for (let i = 0; i < n; i++) {
-    const barRed   = downward[i] > 0;
-    const barGreen = !barRed;
-    buyZone[i]  = barGreen &&
+    buyZone[i]  = isGreenBar[i] &&
       p2[i] > p1[i] && p3[i] > p1[i] &&
-      hband[i] > p1[i] && lband[i] > p1[i];
-    sellZone[i] = barRed &&
+      hband[i] > p1[i] && filt[i] > p1[i] && lband[i] > p1[i];
+    sellZone[i] = isBlueBar[i] &&
       p2[i] < p1[i] && p3[i] < p1[i] &&
-      hband[i] < p1[i] && lband[i] < p1[i];
+      hband[i] < p1[i] && filt[i] < p1[i] && lband[i] < p1[i];
   }
 
   const atr = computeATR(candles, ATR_LEN);
@@ -229,6 +239,7 @@ function computeSeries(candles) {
   return {
     src, highs, lows,
     smrng, filt, hband, lband, upward, downward,
+    isGreenBar, isBlueBar,
     p1, p2, p3, cloudTop, cloudBot,
     buyZone, sellZone, atr, rsi,
   };
@@ -242,9 +253,11 @@ function snapshotIndicators(series, i) {
     hband:      series.hband[i],
     lband:      series.lband[i],
     smrng:      series.smrng[i],
-    upward:     series.upward[i],
-    downward:   series.downward[i],
-    p1:         series.p1[i],
+    upward:      series.upward[i],
+    downward:    series.downward[i],
+    isGreenBar:  series.isGreenBar[i],
+    isBlueBar:   series.isBlueBar[i],
+    p1:          series.p1[i],
     p2:         series.p2[i],
     p3:         series.p3[i],
     cloudTop:   series.cloudTop[i],
@@ -322,8 +335,8 @@ function generateSignal(candles, flagState = {}, posSide = null) {
   } else if (sellZone) {
     reason.push(`SELL zone (RF RED + KAMA bearish) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
   } else {
-    const barRed = series.downward[i] > 0;
-    reason.push(`No zone — RF bar ${barRed ? 'RED' : 'GREEN'} but KAMA cloud not aligned · p1 ${p1.toFixed(2)} p2 ${p2.toFixed(2)} p3 ${p3.toFixed(2)} · RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
+    const barColor = series.isGreenBar[i] ? 'GREEN' : series.isBlueBar[i] ? 'BLUE(sell)' : 'MID(neutral)';
+    reason.push(`No zone — RF bar ${barColor} · p1 ${p1.toFixed(2)} p2 ${p2.toFixed(2)} p3 ${p3.toFixed(2)} filt ${series.filt[i].toFixed(2)} · RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
   }
 
   const indicators = snapshotIndicators(series, i);
