@@ -46,6 +46,11 @@ CBT/DeltaEx/Algo3/logs/
 CBT/DeltaEx/Algo3/.env.demo
 CBT/DeltaEx/Algo3/.env.prod
 CBT/DeltaEx/Algo3/.env.local
+CBT/DeltaEx/Algo1/.env.local
+
+# CBT algo runtime artifacts
+CBT/DeltaEx/Algo1/data/
+CBT/DeltaEx/Algo1/logs/
 Robinhood/RobAlgo6/data/
 Robinhood/RobAlgo6/logs/
 

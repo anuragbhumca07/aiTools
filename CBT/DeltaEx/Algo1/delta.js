@@ -7,14 +7,25 @@
 const https  = require('https');
 const crypto = require('crypto');
 
-const HOST = 'api.india.delta.exchange';
+// Demo API keys only work against the testnet host; live keys only against
+// production. Set DELTA_HOST=cdn-ind.testnet.deltaex.org to run against demo.
+const PROD_HOST    = 'api.india.delta.exchange';
+const TESTNET_HOST = 'cdn-ind.testnet.deltaex.org';
+const HOST = (process.env.DELTA_HOST || PROD_HOST).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+const IS_TESTNET = /testnet/i.test(HOST);
 const UA   = 'cbt-deltaex-algo1/1.0';
 
-// Live-tradeable perpetuals on Delta India
-const PRODUCT = {
+// Live-tradeable perpetuals on Delta India. Product IDs differ between prod
+// and testnet, so the map must match the active HOST.
+const PRODUCT_PROD = {
   BTCUSD: { product_id: 27,   contract_value: 0.001, tick: 0.5  },
   ETHUSD: { product_id: 3136, contract_value: 0.01,  tick: 0.05 },
 };
+const PRODUCT_TESTNET = {
+  BTCUSD: { product_id: 84,   contract_value: 0.001, tick: 0.1  },
+  ETHUSD: { product_id: 1699, contract_value: 0.01,  tick: 0.05 },
+};
+const PRODUCT = IS_TESTNET ? PRODUCT_TESTNET : PRODUCT_PROD;
 
 // Only these symbols can be traded live on Delta; all others are paper-only
 const DELTA_LIVE_SYMBOLS = new Set(['BTCUSD', 'ETHUSD']);
