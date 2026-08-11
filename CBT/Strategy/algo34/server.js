@@ -8,7 +8,7 @@ const Database = require('better-sqlite3');
 const session  = require('express-session');
 const { OAuth2Client } = require('google-auth-library');
 const {
-  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, MAX_QTY, RISK_FRAC, SL_ATR_MULT,
   TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   WARMUP_BARS,
@@ -74,7 +74,7 @@ function waEntry(side, symbol, timeframe, price, size, sl, riskPerUnit, riskAmt,
     `Size       : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
     `Initial SL : $${f(sl)}  (${SL_ATR_MULT}×ATR, risk/unit $${f(riskPerUnit)})\n` +
     `Risk       : $${f(riskAmt)}  (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${f(MAX_LOSS)})\n` +
-    `Trail sched: BE @ +$${f(TRAIL_STEP_PNL, 0)} PnL → +$${f(TRAIL_STEP_PNL, 0)} trail per +$${f(TRAIL_STEP_PNL, 0)} PnL\n` +
+    `Trail sched: BE @ +$200 → $100 locked @ +$250 → $200 locked @ +$300 → +$100/+$100 above\n` +
     `Balance    : $${f(balance)}`
   );
 }
@@ -383,8 +383,8 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
   const userId = sess.userId;
 
   const entryPx  = (isFinite(tickerPrice) && tickerPrice > 0) ? tickerPrice : fallbackPrice;
-  const stopDist = SL_ATR_MULT * (entryHint.atr || 0);
-  if (!(stopDist > 0)) {
+  const atrDist  = SL_ATR_MULT * (entryHint.atr || 0);
+  if (!(atrDist > 0)) {
     pushLog(sess, {
       ts, type: 'TICK', signal: 'ENTRY-SKIP', price: entryPx,
       reason: [`${entryHint.side} entry skipped — ATR ${(entryHint.atr||0).toFixed(2)} must be > 0`],
@@ -392,10 +392,11 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
     });
     return;
   }
-  // Algo1-style: SL = entry ± 1.5×ATR so qty × stopDist = riskAmt exactly.
-  const slPrice = entryHint.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
-  const riskAmt = Math.min(state.balance * RISK_FRAC, MAX_LOSS);
-  const qty     = parseFloat((riskAmt / stopDist).toFixed(8));
+  // qty = min(MAX_QTY, $150 / (1.5×ATR)); then SL = entry ± ($150/qty) → always $150 fixed loss.
+  const qty      = parseFloat(Math.min(MAX_QTY, MAX_LOSS / atrDist).toFixed(8));
+  const stopDist = MAX_LOSS / qty;
+  const slPrice  = entryHint.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
+  const riskAmt  = MAX_LOSS;
   const pos = initPosition(entryHint.side, entryPx, slPrice, qty, Date.now(), entryHint.atr);
   const lots = parseFloat((riskAmt / (entryPx * 100)).toFixed(2));
   const orderResult = await tickmill.placeOrder(entryHint.side, symbol, lots, pos.slPrice, null, 'CBT Algo34 ATR-trail');
@@ -424,10 +425,10 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
     balance: state.balance.toFixed(4),
     reason: [
       fillNote + (tag ? ` — ${tag}` : ''),
-      `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
-      `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
+      `Risk $${riskAmt.toFixed(2)} · qty = min(${MAX_QTY}, $${MAX_LOSS}/(${SL_ATR_MULT}×ATR ${atrDist.toFixed(2)})) → ${qty}`,
+      `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${MAX_LOSS} loss on hit)`,
       `Swing ${entryHint.side === 'long' ? 'low' : 'high'} ref: $${entryHint.slPrice.toFixed(2)} (trigger only, not SL)`,
-      `Trail sched (1s scan): BE @ +$${TRAIL_STEP_PNL.toFixed(0)} PnL → +$${TRAIL_STEP_PNL.toFixed(0)} trail per +$${TRAIL_STEP_PNL.toFixed(0)} PnL`,
+      `Trail sched (1s scan): BE @ +$200 → $100 locked @ +$250 → $200 locked @ +$300 → +$100/+$100 above`,
     ],
     indicators: state.lastIndicators,
     tickmill: orderResult,
@@ -668,12 +669,11 @@ async function runBacktest(symbol, timeframe, months) {
     // 1. Fill any pending entry at THIS bar's open
     if (pendingEntry && !pos) {
       const entryPx  = bar.open;
-      const stopDist = SL_ATR_MULT * (pendingEntry.atr || 0);
-      if (stopDist > 0) {
-        // Algo1-style: SL = entry ± 1.5×ATR, qty = riskAmt / stopDist → loss on SL = riskAmt exactly.
-        const slPrice = pendingEntry.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
-        const riskAmt = Math.min(balance * RISK_FRAC, MAX_LOSS);
-        const qty     = riskAmt / stopDist;
+      const atrDist  = SL_ATR_MULT * (pendingEntry.atr || 0);
+      if (atrDist > 0) {
+        const qty      = Math.min(MAX_QTY, MAX_LOSS / atrDist);
+        const stopDist = MAX_LOSS / qty;
+        const slPrice  = pendingEntry.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
         pos = initPosition(pendingEntry.side, entryPx, slPrice, qty, bar.time, pendingEntry.atr);
         pos.entryIndex = i;
       }

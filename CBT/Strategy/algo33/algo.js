@@ -2,34 +2,27 @@
 
 const https = require('https');
 
-// ── Algo33 v4 — Range Filter bar color + RSI(2) crossover entry ──
-// KAMA cloud (p1/p2/p3/hband/lband gating) removed. Zone gate is now:
-//   • BUY  zone = Range Filter mid-line trending UP   (downward == 0)
-//   • SELL zone = Range Filter mid-line trending DOWN (downward >  0)
-// Entry trigger (same as v3):
-//   • LONG  when zone == BUY  AND RSI(2) crosses ABOVE RSI_BUY_LEVEL
-//   • SHORT when zone == SELL AND RSI(2) crosses BELOW RSI_SELL_LEVEL
+// ── Algo33 — RF bar color + RSI(2) mean-reversion + $100-step trail ──
+//   Zone (BUY) : RF bar GREEN  (src > filt AND upward   > 0)
+//   Zone (SELL): RF bar BLUE   (src < filt AND downward > 0)
+//   Entry trigger: RSI(2) crosses ABOVE 10 (BUY) / BELOW 90 (SELL)
+//   Initial SL: entry ± 2 × ATR14
+//   Trail: breakeven at +$100 PnL, then +$100 locked per +$100 PnL
+//   (KAMA cloud / p1 / p2 / p3 removed — zone gate is RF bar color only)
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
-const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($) — algo1-style sizing
-const RISK_FRAC          = 0.015; // Risk fraction: 1.5% of balance, capped at MAX_LOSS
-const SL_ATR_MULT        = 1.5;   // Sizing distance = SL_ATR_MULT × ATR (algo1 uses 1.5)
-const TRAIL_START_PNL    = 300.0; // Unrealised PnL that first activates trailing
-const TRAIL_STEP_PNL     = 100.0; // PnL bucket size: lock = floor((pnl-100)/100)*100
+const MAX_LOSS           = 150.0; // Fixed max risk per trade ($)
+const MAX_QTY            = 5.0;   // Hard cap on position size (contracts/units)
+const RISK_FRAC          = 0.015; // unused — kept for API compat
+const SL_ATR_MULT        = 1.5;   // Initial SL distance = 1.5 × ATR14 → risk = $150 exactly
+const TRAIL_STEP_PNL     = 100.0; // reference — actual milestones: $200 BE / $250→$100 / $300→$200 …
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const RSI_LEN            = 2;     // RSI period for entry trigger
-// Classic RSI(2) mean-reversion trigger:
-//   BUY  fires when zone is green AND RSI(2) recovers from oversold —
-//        i.e. the bar's RSI crosses ABOVE  RSI_BUY_LEVEL (10).
-//   SELL fires when zone is red   AND RSI(2) drops from overbought —
-//        i.e. the bar's RSI crosses BELOW RSI_SELL_LEVEL (90).
-const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while buyZone
-const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while sellZone
+const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while in buyZone
+const RSI_SELL_LEVEL     = 90;    // SELL when RSI(2) crosses BELOW this while in sellZone
 const SWING_BARS         = 3;     // SL reference = min low / max high of last N bars
-const USE_BAR_COLOR      = true;  // Bar color gates zones (green=buy, red=sell)
 
-// KAMA is gone → only RF needs warmup. 220 bars gives Range Filter (period 100,
-// 2×period-1 EMA smoothing) time to settle to ~4-decimal stability.
+// RF needs ~220 bars to settle. No KAMA → warmup is much shorter than algo34.
 const WARMUP_BARS = 220;
 
 // ── Pine-style EMA (seeded with first value) ─────────────────────
@@ -153,17 +146,15 @@ function computeSeries(candles) {
     else                          downward[i] = downward[i-1];
   }
 
-  // Bar color reflects filter direction (matches the reference RF indicator):
-  //   downward > 0  → RED bar
-  //   downward == 0 → GREEN bar
-  // Zones now depend on bar color ALONE — no KAMA cloud gate.
-  const buyZone  = new Array(n);
-  const sellZone = new Array(n);
+  // Pine-accurate bar color (three states, not two):
+  //   GREEN : src > filt AND upward   > 0
+  //   BLUE  : src < filt AND downward > 0  ← "sell" color in Pine = RED in our UI
+  //   MID   : everything else (neutral, neither zone)
+  const isGreenBar = new Array(n);
+  const isBlueBar  = new Array(n);
   for (let i = 0; i < n; i++) {
-    const barRed   = downward[i] > 0;
-    const barGreen = !barRed;
-    buyZone[i]  = barGreen;
-    sellZone[i] = barRed;
+    isGreenBar[i] = src[i] > filt[i] && upward[i]   > 0;
+    isBlueBar[i]  = src[i] < filt[i] && downward[i] > 0;
   }
 
   const atr = computeATR(candles, ATR_LEN);
@@ -172,7 +163,8 @@ function computeSeries(candles) {
   return {
     src, highs, lows,
     smrng, filt, hband, lband, upward, downward,
-    buyZone, sellZone, atr, rsi,
+    isGreenBar, isBlueBar,
+    atr, rsi,
   };
 }
 
@@ -184,10 +176,10 @@ function snapshotIndicators(series, i) {
     hband:      series.hband[i],
     lband:      series.lband[i],
     smrng:      series.smrng[i],
-    upward:     series.upward[i],
-    downward:   series.downward[i],
-    buyZone:    series.buyZone[i],
-    sellZone:   series.sellZone[i],
+    upward:      series.upward[i],
+    downward:    series.downward[i],
+    isGreenBar:  series.isGreenBar[i],
+    isBlueBar:   series.isBlueBar[i],
     atr:        series.atr[i],
     rsi:        series.rsi[i],
     rsiPrev:    i > 0 ? series.rsi[i - 1] : series.rsi[i],
@@ -197,29 +189,22 @@ function snapshotIndicators(series, i) {
 }
 
 // ── Stateful signal generation ────────────────────────────────────
-// Algo33 v5 entry rules (classic RSI(2) mean-reversion):
-//   • LONG:  buyZone (RF bar green) AND RSI(2) crosses ABOVE RSI_BUY_LEVEL (10)
-//     (prev bar RSI ≤ 10, current bar RSI > 10). RSI(2) has been sitting in
-//     oversold territory and is just breaking back out.
-//   • SHORT: sellZone (RF bar red)  AND RSI(2) crosses BELOW RSI_SELL_LEVEL (90)
-//     (prev bar RSI ≥ 90, current bar RSI < 90). Overbought regime falling off.
-//   • SL reference: min low / max high of last SWING_BARS closed bars.
-//   • Qty sized in server at fill time (algo1-style: risk/SL distance).
-//   • Trailing identical to algo3.
-//
-// Triggers fire regardless of current position; callers decide whether to
-// (a) open, (b) ignore (same-side), or (c) exit-then-open (opposite-side).
+// Entry rules — no zone concept, direct bar-color + RSI cross:
+//   • LONG  : BAR = GREEN (isGreenBar) AND RSI(2) crossed above 10
+//             on the current bar OR the bar immediately before it
+//             (1-bar lookback handles the common case where the RSI cross
+//             and bar colour flip happen on adjacent candles)
+//   • SHORT : BAR = BLUE  (isBlueBar)  AND RSI(2) crossed below 90 (same lookback)
 // flagState is unused but echoed for API compatibility with algo3's server.
 function generateSignal(candles, flagState = {}, posSide = null) {
   const series = computeSeries(candles);
   const i = candles.length - 1;
 
-  const buyZone  = series.buyZone[i];
-  const sellZone = series.sellZone[i];
-  const close    = series.src[i];
-  const atr      = series.atr[i];
-  const rsi      = series.rsi[i];
-  const rsiPrev  = i > 0 ? series.rsi[i - 1] : rsi;
+  const close   = series.src[i];
+  const atr     = series.atr[i];
+  const rsi     = series.rsi[i];
+  const rsiPrev = i > 0 ? series.rsi[i - 1] : rsi;
+  const rsi2ago = i > 1 ? series.rsi[i - 2] : rsiPrev;
 
   // Swing-based SL window: last SWING_BARS closed bars (inclusive of current)
   const w0 = Math.max(0, i - (SWING_BARS - 1));
@@ -230,21 +215,37 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     if (series.highs[k] > swingHigh) swingHigh = series.highs[k];
   }
 
-  const rsiCrossUp   = rsiPrev <= RSI_BUY_LEVEL  && rsi > RSI_BUY_LEVEL;
-  const rsiCrossDown = rsiPrev >= RSI_SELL_LEVEL && rsi < RSI_SELL_LEVEL;
+  // RSI cross on current bar (i) OR the previous bar (i-1).
+  // Using two checks so a cross that happened one candle before the bar colour
+  // flips to GREEN/BLUE still triggers entry on the colour-flip candle.
+  const rsiCrossUpNow    = rsiPrev  <= RSI_BUY_LEVEL  && rsi     > RSI_BUY_LEVEL;
+  const rsiCrossUpPrev   = rsi2ago  <= RSI_BUY_LEVEL  && rsiPrev > RSI_BUY_LEVEL;
+  const rsiCrossDownNow  = rsiPrev  >= RSI_SELL_LEVEL && rsi     < RSI_SELL_LEVEL;
+  const rsiCrossDownPrev = rsi2ago  >= RSI_SELL_LEVEL && rsiPrev < RSI_SELL_LEVEL;
 
-  const longTrigger  = buyZone  && rsiCrossUp;
-  const shortTrigger = sellZone && rsiCrossDown;
+  const rsiCrossUp   = rsiCrossUpNow   || rsiCrossUpPrev;
+  const rsiCrossDown = rsiCrossDownNow || rsiCrossDownPrev;
+
+  // Direct BAR-color + RSI-cross entry — no persistent zone needed.
+  const longTrigger  = series.isGreenBar[i] && rsiCrossUp;
+  const shortTrigger = series.isBlueBar[i]  && rsiCrossDown;
+
+  // Which cross fired (for logging)
+  const crossUpBar  = rsiCrossUpNow   ? 'current' : 'prev';
+  const crossDnBar  = rsiCrossDownNow ? 'current' : 'prev';
 
   let signal = 'HOLD';
   const reason = [];
   let entryHint = null;
 
+  const hband = series.hband[i], lband = series.lband[i];
+
   if (longTrigger) {
     const riskEst = close - swingLow;
     if (riskEst > 0) {
       signal = 'BUY';
-      reason.push(`Long trigger — RF bar GREEN + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed above ${RSI_BUY_LEVEL}`);
+      reason.push(`Long trigger — BAR GREEN + RSI(${RSI_LEN}) cross above ${RSI_BUY_LEVEL} [${crossUpBar} bar]`);
+      reason.push(`RSI ${rsi2ago.toFixed(1)}→${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} · filt ${series.filt[i].toFixed(2)}`);
       reason.push(`SwingLow(${SWING_BARS}) ${swingLow.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'long', slPrice: swingLow, atr, riskEstimate: riskEst };
     }
@@ -252,16 +253,17 @@ function generateSignal(candles, flagState = {}, posSide = null) {
     const riskEst = swingHigh - close;
     if (riskEst > 0) {
       signal = 'SELL';
-      reason.push(`Short trigger — RF bar RED + RSI(${RSI_LEN}) ${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} crossed below ${RSI_SELL_LEVEL}`);
+      reason.push(`Short trigger — BAR BLUE + RSI(${RSI_LEN}) cross below ${RSI_SELL_LEVEL} [${crossDnBar} bar]`);
+      reason.push(`RSI ${rsi2ago.toFixed(1)}→${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} · filt ${series.filt[i].toFixed(2)}`);
       reason.push(`SwingHigh(${SWING_BARS}) ${swingHigh.toFixed(2)} · risk/unit ${riskEst.toFixed(2)} · ATR ${atr.toFixed(2)} · max risk $${MAX_LOSS.toFixed(0)}`);
       entryHint = { side: 'short', slPrice: swingHigh, atr, riskEstimate: riskEst };
     }
-  } else if (buyZone) {
-    reason.push(`BUY zone (RF bar GREEN) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
-  } else if (sellZone) {
-    reason.push(`SELL zone (RF bar RED) — RSI(${RSI_LEN}) ${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
+  } else if (series.isGreenBar[i]) {
+    reason.push(`BAR GREEN — RSI(${RSI_LEN}) ${rsi2ago.toFixed(1)}→${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} · waiting for cross above ${RSI_BUY_LEVEL}`);
+  } else if (series.isBlueBar[i]) {
+    reason.push(`BAR BLUE — RSI(${RSI_LEN}) ${rsi2ago.toFixed(1)}→${rsiPrev.toFixed(1)}→${rsi.toFixed(1)} · waiting for cross below ${RSI_SELL_LEVEL}`);
   } else {
-    reason.push(`No zone — RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
+    reason.push(`BAR MID (neutral) · filt ${series.filt[i].toFixed(2)} · RSI(${RSI_LEN}) ${rsi.toFixed(1)}`);
   }
 
   const indicators = snapshotIndicators(series, i);
@@ -280,6 +282,8 @@ function generateSignal(candles, flagState = {}, posSide = null) {
 }
 
 // ── Initialise a position after a fill at entryPrice ─────────────
+// Initial SL = entry ± 2×ATR14. Trail activates at +$100 PnL (breakeven),
+// then advances the stop by $100 for every additional $100 of PnL.
 function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
   const riskPerUnit = side === 'long' ? entryPrice - slPrice : slPrice - entryPrice;
   return {
@@ -301,35 +305,43 @@ function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
 }
 
 // ── Advance a position one bar (used by backtest AND 1s live tick) ──
-// PnL-based trailing (algo1-style):
-//   • Activates at +$300 unrealised PnL → locks $200 profit.
-//   • Every additional +$100 PnL → locks $100 more:
-//       lockProfit = floor((bestPnl − $100) / $100) × $100
-//     e.g. +$400 → $300, +$500 → $400. Trail stop never retreats.
-//   • Stop hit intra-bar (initial SL if not trailing, trailStop if trailing)
-//     → exit at stopNow.
+// Trailing milestones (dollar PnL from bestPx intra-bar):
+//   < $200        → initial SL, no trail
+//   $200–$249     → SL → break-even ($0 locked)
+//   $250–$299     → SL locks $100 profit
+//   $300+         → SL locks $200 + floor((bestPnl-300)/100)*100
+//   Trail stop never retreats. Stop hit intra-bar → exit at stopNow.
 function stepPosition(pos, candle) {
   const { side, entryPrice, size, slPrice } = pos;
   let   { trailing, trailStop, trailLockProfit = 0 } = pos;
   const { high, low, close } = candle;
 
-  // Best-case intra-bar PnL — drives trail activation / advance.
   const bestPx  = side === 'long' ? high : low;
   const bestPnl = side === 'long'
     ? (bestPx - entryPrice) * size
     : (entryPrice - bestPx) * size;
 
-  if (bestPnl >= TRAIL_START_PNL) {
-    const lockProfit = Math.floor((bestPnl - TRAIL_STEP_PNL) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
+  let proposedLock = null;
+  if (bestPnl >= 200) {
+    if (bestPnl >= 300) {
+      proposedLock = 200 + Math.floor((bestPnl - 300) / 100) * 100;
+    } else if (bestPnl >= 250) {
+      proposedLock = 100;
+    } else {
+      proposedLock = 0; // break-even
+    }
+  }
+
+  if (proposedLock !== null) {
     const proposedSl = side === 'long'
-      ? entryPrice + lockProfit / size
-      : entryPrice - lockProfit / size;
+      ? entryPrice + proposedLock / size
+      : entryPrice - proposedLock / size;
     const improved = !trailing
       || (side === 'long' ? proposedSl > trailStop : proposedSl < trailStop);
     if (improved) {
       trailing        = true;
       trailStop       = proposedSl;
-      trailLockProfit = lockProfit;
+      trailLockProfit = proposedLock;
     }
   }
 
@@ -339,42 +351,24 @@ function stepPosition(pos, candle) {
   const unrealPnl = side === 'long'
     ? (close - entryPrice) * size
     : (entryPrice - close) * size;
-
   const worstPx  = side === 'long' ? low : high;
   const worstPnl = side === 'long'
     ? (worstPx - entryPrice) * size
     : (entryPrice - worstPx) * size;
 
   if (stopHit) {
-    const exitPrice = stopNow;
-    const exitPnl   = side === 'long'
-      ? (exitPrice - entryPrice) * size
-      : (entryPrice - exitPrice) * size;
+    const exitPnl = side === 'long'
+      ? (stopNow - entryPrice) * size
+      : (entryPrice - stopNow) * size;
     return {
-      exit: true,
-      exitPrice,
-      exitPnl,
-      trailing,
-      trailStop,
-      trailLockProfit,
-      stopNow,
-      unrealPnl,
-      worstPnl,
+      exit: true, exitPrice: stopNow, exitPnl,
+      trailing, trailStop, trailLockProfit, stopNow, unrealPnl, worstPnl,
       reason: trailing
-        ? `Trailing stop hit @ ${stopNow.toFixed(2)} (locked $${trailLockProfit.toFixed(0)} PnL)`
-        : `Initial SL hit @ ${stopNow.toFixed(2)}`,
+        ? `Trailing stop hit @ ${stopNow.toFixed(2)} (locked $${trailLockProfit.toFixed(0)} profit)`
+        : `Initial SL hit @ ${stopNow.toFixed(2)} ($150 max loss)`,
     };
   }
-
-  return {
-    exit: false,
-    trailing,
-    trailStop,
-    trailLockProfit,
-    stopNow,
-    unrealPnl,
-    worstPnl,
-  };
+  return { exit: false, trailing, trailStop, trailLockProfit, stopNow, unrealPnl, worstPnl };
 }
 
 // ── Kraken data fetchers ──────────────────────────────────────────
@@ -480,10 +474,9 @@ async function fetchCurrentPrice(symbol) {
 }
 
 module.exports = {
-  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN,
-  RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
-  USE_BAR_COLOR, WARMUP_BARS,
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, MAX_QTY, RISK_FRAC, SL_ATR_MULT,
+  TRAIL_STEP_PNL, ATR_LEN, RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
+  WARMUP_BARS,
   computeSeries, computeATR, computeRSI, snapshotIndicators, generateSignal,
   initPosition, stepPosition,
   fetchCandles, fetchCandlesHistorical, fetchCurrentPrice,

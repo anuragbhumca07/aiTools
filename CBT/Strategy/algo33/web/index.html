@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>CBT Algo33 — RF bar-color + RSI(2) cross</title>
+<title>CBT Algo33 â€” RF bar-color + RSI(2) + ATR-based trail</title>
 <style>
   :root {
     --bg: #0d1117; --card: #161b22; --border: #21262d;
@@ -245,20 +245,20 @@
 
 <div id="auth-wall">
   <div class="auth-card">
-    <div class="logo">🎯</div>
-    <h2>CBT Algo33 — RF bar-color + RSI(2) cross</h2>
-    <p>Sign in to run your own isolated RF bar-color + RSI(2) cross strategy session</p>
+    <div class="logo">ðŸŽ¯</div>
+    <h2>CBT Algo33 â€” RF bar-color + RSI(2) + ATR-based trail</h2>
+    <p>Sign in to run your own isolated RF bar-color + RSI(2) + ATR-trail strategy session</p>
     <div id="google-signin-btn"></div>
   </div>
 </div>
 
 <header>
   <div>
-    <div class="title">CBT Algo33 — RF bar-color + RSI(2) cross</div>
-    <div class="subtitle">Range Filter (100, 3.0×) bar color ONLY · RSI(2) mean-reversion entry (cross &gt;10 = BUY, &lt;90 = SELL) · Immediate fill at open of just-started candle · 3-bar swing SL ref · ATR-sized qty · +$300 PnL trail start (locks +$200), +$100/step · 1s SL scan · self-correcting :01 fetch</div>
+    <div class="title">CBT Algo33 â€” RF bar-color + RSI(2) + ATR-based trail</div>
+    <div class="subtitle">Range Filter (100, 3.0Ã—) bar color ONLY Â· RSI(2) mean-reversion entry (cross &gt;10 = BUY, &lt;90 = SELL) Â· Immediate fill Â· Initial SL = 2Ã—ATR14 Â· Trail: BE @ 3Ã—ATR PnL â†’ LOCK 3Ã—ATR @ 5Ã—ATR PnL â†’ +$100/step Â· 1s SL scan Â· self-correcting :01 fetch</div>
   </div>
   <span class="badge badge-paper" id="mode-badge">PAPER</span>
-  <span id="status-badge" class="badge badge-stopped">● STOPPED</span>
+  <span id="status-badge" class="badge badge-stopped">â— STOPPED</span>
   <div id="tm-status">
     <div class="tm-dot paper" id="tm-dot"></div>
     <span id="tm-label" style="font-size:.7rem;color:var(--muted)">Tickmill: paper-kraken</span>
@@ -269,7 +269,7 @@
     <span id="user-name"></span>
     <button class="btn-signout" onclick="signOut()">Sign out</button>
   </div>
-  <span id="last-update">—</span>
+  <span id="last-update">â€”</span>
 </header>
 
 <div class="wrap">
@@ -300,7 +300,7 @@
           <select id="ctrl-tf" onchange="syncCheckInterval()">
             <option value="1m">1m</option>
             <option value="5m">5m</option>
-            <option value="15m" selected>15m ★</option>
+            <option value="15m" selected>15m â˜…</option>
             <option value="30m">30m</option>
             <option value="1h">1h</option>
             <option value="4h">4h</option>
@@ -322,8 +322,8 @@
         <div class="ctrl-group">
           <label>&nbsp;</label>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-start" id="btn-start" onclick="startAlgo()">▶ START</button>
-            <button class="btn btn-stop"  id="btn-stop"  onclick="stopAlgo()" disabled>■ STOP</button>
+            <button class="btn btn-start" id="btn-start" onclick="startAlgo()">â–¶ START</button>
+            <button class="btn btn-stop"  id="btn-stop"  onclick="stopAlgo()" disabled>â–  STOP</button>
           </div>
         </div>
       </div>
@@ -344,7 +344,7 @@
             <select id="bt-tf">
               <option value="1m">1m</option>
               <option value="5m">5m</option>
-              <option value="15m" selected>15m ★</option>
+              <option value="15m" selected>15m â˜…</option>
               <option value="30m">30m</option>
               <option value="1h">1h</option>
               <option value="4h">4h</option>
@@ -361,7 +361,7 @@
           </div>
           <div class="ctrl-group">
             <label>&nbsp;</label>
-            <button class="btn btn-backtest" id="btn-run-bt" onclick="runBacktest()">▶ RUN BACKTEST</button>
+            <button class="btn btn-backtest" id="btn-run-bt" onclick="runBacktest()">â–¶ RUN BACKTEST</button>
           </div>
         </div>
         <div id="bt-status"></div>
@@ -392,86 +392,85 @@
 
   <!-- Algo Logic -->
   <div class="card">
-    <div class="card-title">Algo Logic — RF bar-color zone · RSI(2) cross entry · 3-bar swing SL ref · PnL-based trailing</div>
-    <div class="logic-gate zone-gate">🌐 Zone Gate (KAMA cloud removed): BUY zone = RF bar GREEN (downward=0). SELL zone = RF bar RED (downward&gt;0). Nothing else — no p1/p2/p3 checks.</div>
-    <div class="logic-gate risk-gate" style="margin-top:4px">🎯 Entry Trigger (RSI(2) mean-reversion): BUY when RF bar is GREEN AND RSI(2) crosses ABOVE 10 (prev ≤ 10, curr &gt; 10 — recovery from oversold). SELL when RF bar is RED AND RSI(2) crosses BELOW 90 (prev ≥ 90, curr &lt; 90 — drop from overbought). Fills IMMEDIATELY at the current market price (open of the just-started candle) — no 1-bar deferral. Initial SL = entry ± 1.5 × ATR14. Qty = min(balance×1.5%, $150) / (1.5 × ATR14) — so SL hit = exactly $150 loss. Opposite trigger while in trade → close &amp; reverse (also immediate).</div>
-    <div class="logic-gate" style="margin-top:4px">🛡️ SL Rule: initial SL = entry ± 1.5 × ATR14 (fixed $150 max loss). Swing high/low from 3 bars is a trigger reference only, not the SL.</div>
-    <div class="logic-gate trail-gate" style="margin-top:4px">🔁 Trail Rule: at +$300 unrealised PnL, SL jumps to lock $200. Every additional +$100 PnL → SL locks +$100 more (+$400→$300, +$500→$400, …). SL never retreats.</div>
-    <div class="logic-gate" style="margin-top:4px;background:#1a2438;border-color:var(--teal);color:var(--teal)">⏱️ Timing: signal checked at :01s past every candle boundary (self-correcting timer, no drift over long runs). Entry fires in the SAME tick — no 1-bar deferral. Position SL &amp; trailing scanned every 1s from entry.</div>
+    <div class="card-title">Algo Logic â€” RF bar-color zone Â· RSI(2) cross entry Â· 3-bar swing SL ref Â· ATR-based 3-phase trailing</div>
+    <div class="logic-gate zone-gate">ðŸŒ Zone Gate (KAMA cloud removed): BUY zone = RF bar GREEN (downward=0). SELL zone = RF bar RED (downward&gt;0). Nothing else â€” no p1/p2/p3 checks.</div>
+    <div class="logic-gate risk-gate" style="margin-top:4px">ðŸŽ¯ Entry Trigger (RSI(2) mean-reversion): BUY when RF bar is GREEN AND RSI(2) crosses ABOVE 10 (prev â‰¤ 10, curr &gt; 10 â€” recovery from oversold). SELL when RF bar is RED AND RSI(2) crosses BELOW 90 (prev â‰¥ 90, curr &lt; 90 â€” drop from overbought). Fills IMMEDIATELY at the current market price (open of the just-started candle) â€” no 1-bar deferral. Initial SL = entry Â± 2 Ã— ATR14. Qty = min(balanceÃ—1.5%, $150) / (2 Ã— ATR14) â€” so SL hit = exactly $150 loss. Opposite trigger while in trade â†’ close &amp; reverse (also immediate).</div>
+    <div class="logic-gate" style="margin-top:4px">ðŸ›¡ï¸ SL Rule: initial SL = entry Â± 2 Ã— ATR14 (fixed $150 max loss). Swing high/low from 3 bars is a trigger reference only, not the SL.</div>
+    <div class="logic-gate trail-gate" style="margin-top:4px">ðŸ” Trail Rule (3-phase, ATR-based; thresholds captured at entry): Phase 1 â€” hold initial SL until PnL â‰¥ 3Ã—ATR. Phase 2 â€” SL to BREAKEVEN (locks $0). Phase 3 â€” at PnL â‰¥ 5Ã—ATR, LOCK 3Ã—ATR profit; then every +$100 PnL locks +$100 more. SL never retreats.</div>
+    <div class="logic-gate" style="margin-top:4px;background:#1a2438;border-color:var(--teal);color:var(--teal)">â±ï¸ Timing: signal checked at :01s past every candle boundary (self-correcting timer, no drift over long runs). Entry fires in the SAME tick â€” no 1-bar deferral. Position SL &amp; trailing scanned every 1s from entry.</div>
     <div class="logic-grid" style="margin-top:8px">
       <div class="logic-box">
-        <div class="lh" style="color:var(--teal)">▲ LONG entry</div>
-        <div class="logic-rule">1. <span>BUY zone active</span> — Range Filter bar is GREEN (downward=0)</div>
-        <div class="logic-rule">2. <span class="new">RSI(2) crosses ABOVE 10</span> on the bar (prev ≤ 10, curr &gt; 10 — recovery from oversold)</div>
+        <div class="lh" style="color:var(--teal)">â–² LONG entry</div>
+        <div class="logic-rule">1. <span>BUY zone active</span> â€” Range Filter bar is GREEN (downward=0)</div>
+        <div class="logic-rule">2. <span class="new">RSI(2) crosses ABOVE 10</span> on the bar (prev â‰¤ 10, curr &gt; 10 â€” recovery from oversold)</div>
         <div class="logic-rule">3. Fill IMMEDIATELY at current market (open of just-started candle)</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
-          SL = entry − 1.5 × ATR14 · qty = min(balance×1.5%, $150) / (1.5 × ATR14) · SL hit = $150 loss exactly
+          SL = entry âˆ’ 2 Ã— ATR14 Â· qty = min(balanceÃ—1.5%, $150) / (2 Ã— ATR14) Â· SL hit = $150 loss exactly
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--red)">▼ SHORT entry</div>
-        <div class="logic-rule">1. <span>SELL zone active</span> — Range Filter bar is RED (downward&gt;0)</div>
-        <div class="logic-rule">2. <span class="new">RSI(2) crosses BELOW 90</span> on the bar (prev ≥ 90, curr &lt; 90 — drop from overbought)</div>
+        <div class="lh" style="color:var(--red)">â–¼ SHORT entry</div>
+        <div class="logic-rule">1. <span>SELL zone active</span> â€” Range Filter bar is RED (downward&gt;0)</div>
+        <div class="logic-rule">2. <span class="new">RSI(2) crosses BELOW 90</span> on the bar (prev â‰¥ 90, curr &lt; 90 â€” drop from overbought)</div>
         <div class="logic-rule">3. Fill IMMEDIATELY at current market (open of just-started candle)</div>
         <div class="logic-rule" style="margin-top:6px;color:var(--accent)">
-          SL = entry + 1.5 × ATR14 · qty = min(balance×1.5%, $150) / (1.5 × ATR14) · SL hit = $150 loss exactly
+          SL = entry + 2 Ã— ATR14 Â· qty = min(balanceÃ—1.5%, $150) / (2 Ã— ATR14) Â· SL hit = $150 loss exactly
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">📈 TRAILING PHASE (PnL-based, 1s scan)</div>
-        <div class="logic-rule">• <span>+$300 PnL</span> reached → trailing activates, SL locks $200 profit</div>
-        <div class="logic-rule">• Every additional +$100 PnL → SL locks $100 more (+$400→$300, +$500→$400, …).</div>
-        <div class="logic-rule">• Lock formula: <span>lockProfit = ⌊(bestPnL − $100) / $100⌋ × $100</span></div>
-        <div class="logic-rule">• SL price = entry ± lockProfit / size; never retreats.</div>
+        <div class="lh" style="color:var(--yellow)">ðŸ“ˆ TRAILING â€” 3 phases (ATR-based, 1s scan)</div>
+        <div class="logic-rule">â€¢ <span>Phase 1</span> â€” bestPnL &lt; 3Ã—ATR â†’ keep initial SL (entry Â± 2Ã—ATR).</div>
+        <div class="logic-rule">â€¢ <span>Phase 2 â€” Breakeven</span> â€” at bestPnL â‰¥ 3Ã—ATR, SL jumps to ENTRY price (locks $0).</div>
+        <div class="logic-rule">â€¢ <span>Phase 3 â€” Lock &amp; Trail</span> â€” at bestPnL â‰¥ 5Ã—ATR, LOCK 3Ã—ATR profit. Then every +$100 PnL beyond that â†’ lock +$100 more.</div>
+        <div class="logic-rule">â€¢ Lock formula (phase 3): <span>lock = 3Ã—ATR + âŒŠ(bestPnL âˆ’ 5Ã—ATR) / $100âŒ‹ Ã— $100</span></div>
+        <div class="logic-rule">â€¢ SL price = entry Â± lock / size; SL never retreats.</div>
         <div class="logic-rule" style="margin-top:4px;color:var(--teal)">
-          While trailing, tick log records only TRAIL-UPDATE and EXIT — normal per-candle ticks resume after exit.
+          While trailing, tick log records only TRAIL-UPDATE and EXIT â€” normal per-candle ticks resume after exit.
         </div>
       </div>
       <div class="logic-box">
-        <div class="lh" style="color:var(--yellow)">🚪 EXIT — any trigger</div>
-        <div class="logic-rule">• <span>Initial SL</span> — entry ± 1.5×ATR14 hit intra-candle (checked every 1s from entry)</div>
-        <div class="logic-rule">• <span>Locked SL</span> — trailing stop crossed after +$300 activation</div>
-        <div class="logic-rule">• <span class="new">Opposite trigger</span> — close &amp; reverse at trigger bar close</div>
-        <div class="logic-rule">• No fixed take-profit — trailing stop is the only profit exit</div>
-        <div class="logic-rule" style="margin-top:4px;color:var(--muted)">
-          Zones can flip between bars; flags reset the moment a zone breaks.
-        </div>
+        <div class="lh" style="color:var(--yellow)">ðŸšª EXIT â€” any trigger</div>
+        <div class="logic-rule">â€¢ <span>Initial SL</span> â€” entry Â± 2Ã—ATR14 hit intra-candle (checked every 1s from entry)</div>
+        <div class="logic-rule">â€¢ <span>Breakeven SL</span> â€” SL sitting at entry price hit after Phase 2 activation</div>
+        <div class="logic-rule">â€¢ <span>Locked SL</span> â€” trailing stop crossed after Phase 3 activation</div>
+        <div class="logic-rule">â€¢ <span class="new">Opposite trigger</span> â€” close &amp; reverse at trigger bar close</div>
+        <div class="logic-rule">â€¢ No fixed take-profit â€” trailing stop is the only profit exit</div>
       </div>
     </div>
   </div>
 
   <!-- Live Indicators -->
   <div class="card">
-    <div class="card-title">Live Indicators — Range Filter (bar color) · RSI(2)</div>
+    <div class="card-title">Live Indicators â€” Range Filter (bar color) Â· RSI(2)</div>
     <div class="ind-chips">
       <div class="ind-chip" style="border-color:rgba(88,166,255,.4)">
         <div class="ic-lbl" style="color:var(--blue)">Bar close (TF)</div>
-        <div class="ic-val" id="ic-candle-time">—</div>
+        <div class="ic-val" id="ic-candle-time">â€”</div>
       </div>
-      <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ic-price">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">Filt (RF)</div><div class="ic-val" id="ic-filt">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">H-band</div><div class="ic-val" id="ic-hband">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">L-band</div><div class="ic-val" id="ic-lband">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">Up / Dn</div><div class="ic-val" id="ic-updown">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Price</div><div class="ic-val" id="ic-price">â€”</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Filt (RF)</div><div class="ic-val" id="ic-filt">â€”</div></div>
+      <div class="ind-chip"><div class="ic-lbl">H-band</div><div class="ic-val" id="ic-hband">â€”</div></div>
+      <div class="ind-chip"><div class="ic-lbl">L-band</div><div class="ic-val" id="ic-lband">â€”</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Up / Dn</div><div class="ic-val" id="ic-updown">â€”</div></div>
       <div class="ind-chip" style="border-color:rgba(240,136,62,.4)">
-        <div class="ic-lbl" style="color:var(--orange)">ATR14 → qty</div>
-        <div class="ic-val" id="ic-atr">—</div>
+        <div class="ic-lbl" style="color:var(--orange)">ATR14 â†’ qty</div>
+        <div class="ic-val" id="ic-atr">â€”</div>
       </div>
-      <div class="ind-chip"><div class="ic-lbl">Bar color</div><div class="ic-val" id="ic-barcol">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Bar color</div><div class="ic-val" id="ic-barcol">â€”</div></div>
       <div class="ind-chip" style="border-color:rgba(63,185,80,.4)">
         <div class="ic-lbl" style="color:var(--accent)">Zone</div>
-        <div class="ic-val" id="ic-zone">—</div>
+        <div class="ic-val" id="ic-zone">â€”</div>
       </div>
       <div class="ind-chip" style="border-color:rgba(188,140,255,.4)">
         <div class="ic-lbl" style="color:var(--purple)">RSI(2)</div>
-        <div class="ic-val" id="ic-rsi">—</div>
+        <div class="ic-val" id="ic-rsi">â€”</div>
       </div>
-      <div class="ind-chip"><div class="ic-lbl">Swing Low(3)</div><div class="ic-val" id="ic-swlow">—</div></div>
-      <div class="ind-chip"><div class="ic-lbl">Swing High(3)</div><div class="ic-val" id="ic-swhigh">—</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Swing Low(3)</div><div class="ic-val" id="ic-swlow">â€”</div></div>
+      <div class="ind-chip"><div class="ic-lbl">Swing High(3)</div><div class="ic-val" id="ic-swhigh">â€”</div></div>
     </div>
     <div class="signal-row">
-      <div><span style="color:var(--muted);font-size:.72rem">Last signal:</span> <span id="last-signal-txt" style="font-weight:700;color:var(--accent)">—</span></div>
-      <div><span style="color:var(--muted);font-size:.72rem">Pending entry:</span> <span id="pending-entry-txt" style="font-weight:700">—</span></div>
+      <div><span style="color:var(--muted);font-size:.72rem">Last signal:</span> <span id="last-signal-txt" style="font-weight:700;color:var(--accent)">â€”</span></div>
+      <div><span style="color:var(--muted);font-size:.72rem">Pending entry:</span> <span id="pending-entry-txt" style="font-weight:700">â€”</span></div>
     </div>
   </div>
 
@@ -488,7 +487,7 @@
           </tr>
         </thead>
         <tbody id="trades-body">
-          <tr><td colspan="12" class="empty-msg">No trades yet — start the algo to begin</td></tr>
+          <tr><td colspan="12" class="empty-msg">No trades yet â€” start the algo to begin</td></tr>
         </tbody>
       </table>
     </div>
@@ -497,7 +496,7 @@
   <!-- Tick Log -->
   <div class="card">
     <div class="card-title">Tick Log <span id="log-count" style="color:var(--muted);font-weight:400">(0 / 500)</span>
-      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRIGGER-BUY/SELL = fill next open · TRAIL-UPDATE = trailStop advanced · ENTRY-SKIP = wrong-side open</span>
+      <span style="color:var(--accent);font-size:.68rem;margin-left:8px">TRIGGER-BUY/SELL = fill next open Â· TRAIL-UPDATE = trailStop advanced Â· ENTRY-SKIP = wrong-side open</span>
     </div>
     <div class="tbl-wrap log-wrap">
       <table id="log-tbl">
@@ -505,11 +504,11 @@
           <tr>
             <th>Date/Time</th><th>Type</th><th>Signal</th>
             <th>Price</th><th>Filt</th><th>H-band</th><th>L-band</th>
-            <th>Zone</th><th>Bar</th><th>RSI(2)</th><th>Sw Lo</th><th>Sw Hi</th><th>Notes</th>
+            <th>Zone</th><th>Bar</th><th>RSI(2)</th><th>ATR14</th><th>Sw Lo</th><th>Sw Hi</th><th>Notes</th>
           </tr>
         </thead>
         <tbody id="log-body">
-          <tr><td colspan="13" class="empty-msg">Waiting for first tick…</td></tr>
+          <tr><td colspan="14" class="empty-msg">Waiting for first tickâ€¦</td></tr>
         </tbody>
       </table>
     </div>
@@ -519,9 +518,9 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const fmt      = (v, d=2) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : '—';
-const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : '—';
-const fmtTime  = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+const fmt      = (v, d=2) => v != null && !isNaN(v) ? parseFloat(v).toFixed(d) : 'â€”';
+const fmtMoney = v => v != null ? (v >= 0 ? '+' : '') + '$' + parseFloat(v).toFixed(2) : 'â€”';
+const fmtTime  = iso => { if (!iso) return 'â€”'; const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
 const fmtDate  = iso => { const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }); };
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -610,21 +609,21 @@ function handle(d) {
 }
 
 function zoneBadgeHtml(ind) {
-  if (!ind) return `<span class="zone-badge neutral">—</span>`;
-  if (ind.buyZone)  return `<span class="zone-badge buy">▲ BUY</span>`;
-  if (ind.sellZone) return `<span class="zone-badge sell">▼ SELL</span>`;
+  if (!ind) return `<span class="zone-badge neutral">â€”</span>`;
+  if (ind.buyZone)  return `<span class="zone-badge buy">â–² BUY</span>`;
+  if (ind.sellZone) return `<span class="zone-badge sell">â–¼ SELL</span>`;
   return `<span class="zone-badge neutral">NONE</span>`;
 }
 function flagBadgeHtml(fs) {
-  if (!fs) return `<span class="flag-badge none">—</span>`;
-  if (fs.longFlag)  return `<span class="flag-badge long">🚩 LONG ${fs.longFlagLow != null ? '@'+parseFloat(fs.longFlagLow).toFixed(2) : ''}</span>`;
-  if (fs.shortFlag) return `<span class="flag-badge short">🚩 SHORT ${fs.shortFlagHigh != null ? '@'+parseFloat(fs.shortFlagHigh).toFixed(2) : ''}</span>`;
+  if (!fs) return `<span class="flag-badge none">â€”</span>`;
+  if (fs.longFlag)  return `<span class="flag-badge long">ðŸš© LONG ${fs.longFlagLow != null ? '@'+parseFloat(fs.longFlagLow).toFixed(2) : ''}</span>`;
+  if (fs.shortFlag) return `<span class="flag-badge short">ðŸš© SHORT ${fs.shortFlagHigh != null ? '@'+parseFloat(fs.shortFlagHigh).toFixed(2) : ''}</span>`;
   return `<span class="flag-badge none">none</span>`;
 }
-// Bar color mirrors the Range Filter mid-line: BLUE mid-line (downward>0) → RED bar,
-// non-blue mid-line (downward==0) → GREEN bar. Two-way, matches the reference RF indicator.
+// Bar color mirrors the Range Filter mid-line: BLUE mid-line (downward>0) â†’ RED bar,
+// non-blue mid-line (downward==0) â†’ GREEN bar. Two-way, matches the reference RF indicator.
 function barColorHtml(ind) {
-  if (!ind) return '—';
+  if (!ind) return 'â€”';
   const filterBlue = (ind.downward || 0) > 0;
   return filterBlue
     ? `<span style="color:var(--red)">RED</span>`
@@ -638,11 +637,11 @@ function applyState(s) {
   if (s.running) {
     if (s.symbol)    $('ctrl-symbol').value = s.symbol;
     if (s.timeframe) $('ctrl-tf').value     = s.timeframe;
-    badge.textContent = '● RUNNING'; badge.className = 'badge badge-running';
+    badge.textContent = 'â— RUNNING'; badge.className = 'badge badge-running';
     $('btn-start').disabled = true; $('btn-stop').disabled = false;
     ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = true);
   } else {
-    badge.textContent = '● STOPPED'; badge.className = 'badge badge-stopped';
+    badge.textContent = 'â— STOPPED'; badge.className = 'badge badge-stopped';
     $('btn-start').disabled = false; $('btn-stop').disabled = true;
     ['ctrl-symbol','ctrl-tf','ctrl-balance','ctrl-interval','ctrl-strategy'].forEach(id => $(id).disabled = false);
   }
@@ -665,11 +664,11 @@ function applyState(s) {
     if (ind.candleCloseTime) {
       const d = new Date(ind.candleCloseTime);
       const tf = s.timeframe || '';
-      ctEl.textContent = tf + ' · ' + d.toLocaleDateString([], {month:'short', day:'2-digit'}) + ' ' +
+      ctEl.textContent = tf + ' Â· ' + d.toLocaleDateString([], {month:'short', day:'2-digit'}) + ' ' +
         d.toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
       ctEl.style.color = 'var(--blue)';
     } else {
-      ctEl.textContent = '—';
+      ctEl.textContent = 'â€”';
       ctEl.style.color = 'var(--muted)';
     }
     $('ic-price').textContent  = fmt(ind.price);
@@ -683,23 +682,23 @@ function applyState(s) {
     const atrEl = $('ic-atr');
     if (atr != null && atr > 0) {
       const q = Math.max(1, Math.min(50, Math.round(150 / atr)));
-      atrEl.textContent = `${atr.toFixed(2)} → ${q}`;
+      atrEl.textContent = `${atr.toFixed(2)} â†’ ${q}`;
       atrEl.style.color = 'var(--orange)';
-    } else { atrEl.textContent = '—'; atrEl.style.color = 'var(--muted)'; }
+    } else { atrEl.textContent = 'â€”'; atrEl.style.color = 'var(--muted)'; }
     const rsi = ind.rsi;
     const rsiEl = $('ic-rsi');
     if (rsi != null) {
       rsiEl.textContent = rsi.toFixed(1);
-      // Colour reflects entry-setup potential: RSI<10 = oversold → BUY setup imminent (green);
-      // RSI>90 = overbought → SELL setup imminent (red).
+      // Colour reflects entry-setup potential: RSI<10 = oversold â†’ BUY setup imminent (green);
+      // RSI>90 = overbought â†’ SELL setup imminent (red).
       rsiEl.style.color = rsi < 10 ? 'var(--green)' : rsi > 90 ? 'var(--red)' : 'var(--purple)';
-    } else { rsiEl.textContent = '—'; }
+    } else { rsiEl.textContent = 'â€”'; }
     $('ic-swlow').textContent  = fmt(ind.swingLow);
     $('ic-swhigh').textContent = fmt(ind.swingHigh);
     $('ic-barcol').innerHTML = barColorHtml(ind);
     $('ic-zone').innerHTML   = zoneBadgeHtml(ind);
   }
-  // (algo33 has no flag chip — RSI drives the entry)
+  // (algo33 has no flag chip â€” RSI drives the entry)
 
   const ls = s.lastSignal;
   if (ls) {
@@ -710,7 +709,7 @@ function applyState(s) {
   const pe = s.pendingEntry;
   const peEl = $('pending-entry-txt');
   if (pe) {
-    peEl.textContent = `${pe.side.toUpperCase()} · SL ${parseFloat(pe.slPrice).toFixed(2)} · qty ${parseFloat(pe.qty).toFixed(4)}`;
+    peEl.textContent = `${pe.side.toUpperCase()} Â· SL ${parseFloat(pe.slPrice).toFixed(2)} Â· qty ${parseFloat(pe.qty).toFixed(4)}`;
     peEl.style.color = pe.side === 'long' ? 'var(--teal)' : 'var(--red)';
   } else {
     peEl.textContent = 'none';
@@ -731,25 +730,26 @@ function applyState(s) {
 
 function renderPosition(pos, ind) {
   const el = $('pos-display');
-  if (!pos) { el.innerHTML = '<div class="pos-none">No open position — FLAT</div>'; return; }
+  if (!pos) { el.innerHTML = '<div class="pos-none">No open position â€” FLAT</div>'; return; }
   const unreal  = pos.unrealizedPnl || 0;
   const urColor = unreal >= 0 ? 'var(--green)' : 'var(--red)';
   const trailBadge = pos.trailing
-    ? `<span class="trail-badge active">▲ TRAILING</span>`
+    ? `<span class="trail-badge active">â–² TRAILING</span>`
     : `<span class="trail-badge inactive">STATIC</span>`;
   const activeStop = pos.trailing ? pos.trailStop : pos.slPrice;
   el.innerHTML = `
     <div class="pos-row">
       <div class="pos-item"><div class="lbl">Side</div><div class="val" style="color:${pos.side==='long'?'var(--teal)':'var(--red)'}">${pos.side.toUpperCase()}</div></div>
       <div class="pos-item"><div class="lbl">Entry</div><div class="val">${fmt(pos.entryPrice)}</div></div>
-      <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">Current</div><div class="val">${ind ? fmt(ind.price) : 'â€”'}</div></div>
       <div class="pos-item"><div class="lbl">Size</div><div class="val">${parseFloat(pos.size).toFixed(6)}</div></div>
-      <div class="pos-item"><div class="lbl">Initial SL (1.5×ATR)</div><div class="val clr-r">${fmt(pos.slPrice)}</div></div>
+      <div class="pos-item"><div class="lbl">Initial SL (2Ã—ATR)</div><div class="val clr-r">${fmt(pos.slPrice)}</div></div>
       <div class="pos-item"><div class="lbl">Active Stop</div><div class="val ${pos.trailing?'clr-b':'clr-r'}">${fmt(activeStop)}</div></div>
-      <div class="pos-item"><div class="lbl">Trail start</div><div class="val clr-a">+$300 PnL</div></div>
-      <div class="pos-item"><div class="lbl">Locked PnL</div><div class="val clr-a">${pos.trailing ? '$' + (pos.trailLockProfit||0).toFixed(0) : '—'}</div></div>
+      <div class="pos-item"><div class="lbl">BE @ PnL</div><div class="val clr-a">$${(pos.beThreshold||0).toFixed(0)} (3Ã—ATR)</div></div>
+      <div class="pos-item"><div class="lbl">Lock @ PnL</div><div class="val clr-a">$${(pos.lockThreshold||0).toFixed(0)} â†’ locks $${(pos.lockProfit||0).toFixed(0)}</div></div>
+      <div class="pos-item"><div class="lbl">Locked PnL</div><div class="val clr-a">${pos.trailing ? '$' + (pos.trailLockProfit||0).toFixed(0) : 'â€”'}</div></div>
       <div class="pos-item"><div class="lbl">Risk/unit</div><div class="val">${fmt(pos.riskPerUnit)}</div></div>
-      <div class="pos-item"><div class="lbl">Trail step</div><div class="val">+$100 PnL</div></div>
+      <div class="pos-item"><div class="lbl">Trail step (Phase 3)</div><div class="val">+$100 PnL</div></div>
       <div class="pos-item"><div class="lbl">Unrealized PnL</div><div class="val" style="color:${urColor}">${fmtMoney(unreal)}</div></div>
       <div class="pos-item"><div class="lbl">SL Mode</div><div class="val">${trailBadge}</div></div>
       <div class="pos-item"><div class="lbl">MAE $</div><div class="val clr-r">${(pos.mae||0) < 0 ? fmtMoney(pos.mae) : '$0.00'}</div></div>
@@ -764,7 +764,7 @@ function prependLog(entry) {
   const tr  = document.createElement('tr');
   const ind = entry.indicators || {};
 
-  const sig = entry.signal || entry.type || '—';
+  const sig = entry.signal || entry.type || 'â€”';
   const isTrail    = sig === 'TRAIL-UPDATE' || sig === 'TRAIL-WATCH';
   const isTrigger  = sig === 'TRIGGER-BUY' || sig === 'TRIGGER-SELL';
   let typeCls = 'type-tick';
@@ -783,20 +783,20 @@ function prependLog(entry) {
   } else if (entry.type === 'ENTRY') {
     notesHtml = `<strong style="color:var(--teal)">${esc(notes.substring(0,60))}</strong>`;
   } else {
-    notesHtml = esc(notes.substring(0,60)) + (notes.length > 60 ? '…' : '');
+    notesHtml = esc(notes.substring(0,60)) + (notes.length > 60 ? 'â€¦' : '');
   }
 
-  const zone = ind.buyZone ? '▲ BUY' : ind.sellZone ? '▼ SELL' : '—';
+  const zone = ind.buyZone ? 'â–² BUY' : ind.sellZone ? 'â–¼ SELL' : 'â€”';
   const zoneCls = ind.buyZone ? 'clr-g' : ind.sellZone ? 'clr-r' : '';
   const filterBlue = (ind.downward || 0) > 0;
   const bar    = filterBlue ? 'RED' : 'GREEN';
   const barCls = filterBlue ? 'clr-r' : 'clr-g';
 
-  const rsiVal = ind.rsi != null ? ind.rsi.toFixed(1) : '—';
+  const rsiVal = ind.rsi != null ? ind.rsi.toFixed(1) : 'â€”';
   const rsiCls = ind.rsi < 10 ? 'clr-g' : ind.rsi > 90 ? 'clr-r' : '';
 
   tr.innerHTML = `
-    <td class="main">${entry.ts ? fmtTime(entry.ts) : '—'}</td>
+    <td class="main">${entry.ts ? fmtTime(entry.ts) : 'â€”'}</td>
     <td class="${typeCls}">${entry.type}</td>
     <td class="${typeCls}">${sig}</td>
     <td class="main">${fmt(ind.price || entry.price)}</td>
@@ -806,6 +806,7 @@ function prependLog(entry) {
     <td class="${zoneCls}">${zone}</td>
     <td class="${barCls}">${bar}</td>
     <td class="${rsiCls}">${rsiVal}</td>
+    <td class="clr-o">${fmt(ind.atr)}</td>
     <td>${fmt(ind.swingLow)}</td>
     <td>${fmt(ind.swingHigh)}</td>
     <td class="reason-cell" title="${esc(notes)}">${notesHtml}</td>`;
@@ -840,11 +841,11 @@ function prependTrade(trade) {
     <td>${parseFloat(trade.size||0).toFixed(6)}</td>
     <td class="clr-r">${fmt(trade.stop_loss)}</td>
     <td class="clr-a">${fmt(trade.take_profit)}</td>
-    <td class="${pnlClr}">${isEntry ? '—' : fmtMoney(pnl)}</td>
-    <td class="clr-r">${isEntry ? '—' : (mae < 0 ? fmtMoney(mae) : '$0.00')}</td>
+    <td class="${pnlClr}">${isEntry ? 'â€”' : fmtMoney(pnl)}</td>
+    <td class="clr-r">${isEntry ? 'â€”' : (mae < 0 ? fmtMoney(mae) : '$0.00')}</td>
     <td>$${parseFloat(trade.balance_after||0).toFixed(2)}</td>
-    <td class="clr-o" style="font-size:.72rem">${orderId ? esc(orderId.substring(0,12)) + (orderId.length>12?'…':'') : '—'}</td>
-    <td class="reason-cell" title="${esc(trade.reason||'')}">${esc((trade.reason||'').substring(0,45))}${(trade.reason||'').length>45?'…':''}</td>`;
+    <td class="clr-o" style="font-size:.72rem">${orderId ? esc(orderId.substring(0,12)) + (orderId.length>12?'â€¦':'') : 'â€”'}</td>
+    <td class="reason-cell" title="${esc(trade.reason||'')}">${esc((trade.reason||'').substring(0,45))}${(trade.reason||'').length>45?'â€¦':''}</td>`;
   tbody.insertBefore(tr, tbody.firstChild);
   tradeCount++;
   $('trades-count').textContent = `(${tradeCount})`;
@@ -867,19 +868,19 @@ function loadTrades() {
 async function runBacktest() {
   const btn = $('btn-run-bt');
   btn.disabled = true;
-  $('bt-status').innerHTML = '<div class="bt-progress">⏳ Fetching candles… Range Filter needs ~220-bar warmup.</div>';
+  $('bt-status').innerHTML = '<div class="bt-progress">â³ Fetching candlesâ€¦ Range Filter needs ~220-bar warmup.</div>';
   $('bt-results').style.display = 'none';
   const body = { symbol: $('bt-symbol').value, timeframe: $('bt-tf').value, months: parseInt($('bt-months').value, 10) };
   try {
     const r = await fetch('/api/backtest', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     btn.disabled = false;
-    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(d.error)}</div>`; return; }
+    if (!d.ok) { $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">âŒ ${esc(d.error)}</div>`; return; }
     $('bt-status').innerHTML = '';
     renderBacktestResults(d);
   } catch (e) {
     btn.disabled = false;
-    $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">❌ ${esc(e.message)}</div>`;
+    $('bt-status').innerHTML = `<div class="bt-progress" style="color:var(--red)">âŒ ${esc(e.message)}</div>`;
   }
 }
 
@@ -890,7 +891,7 @@ function renderBacktestResults(d) {
   res.style.display = 'block';
   res.innerHTML = `
     <div class="card-title" style="margin-bottom:8px">
-      Backtest: ${esc(s.symbol)} ${esc(s.timeframe)} · ${esc(s.period)} · ${s.candlesAnalyzed} candles
+      Backtest: ${esc(s.symbol)} ${esc(s.timeframe)} Â· ${esc(s.period)} Â· ${s.candlesAnalyzed} candles
       <span style="color:var(--muted);margin-left:8px">(warmup ${s.warmupBars} bars)</span>
     </div>
     <div class="bt-stat-grid">
@@ -907,7 +908,7 @@ function renderBacktestResults(d) {
       </tr></thead><tbody id="bt-trades-body"></tbody></table>
     </div>`;
   const tbody = document.getElementById('bt-trades-body');
-  if (!d.trades.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No trades triggered — try longer duration or different timeframe</td></tr>'; return; }
+  if (!d.trades.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No trades triggered â€” try longer duration or different timeframe</td></tr>'; return; }
   [...d.trades].reverse().forEach(t => {
     const pnlCls  = t.pnl > 0 ? 'clr-g' : t.pnl < 0 ? 'clr-r' : '';
     const sideCls = t.side === 'long' ? 'clr-g' : 'clr-r';
@@ -918,12 +919,12 @@ function renderBacktestResults(d) {
       <td class="${sideCls}">${t.side.toUpperCase()}</td>
       <td>${fmt(t.entryPrice)}</td><td>${fmt(t.exitPrice)}</td>
       <td class="clr-r">${fmt(t.slPrice)}</td>
-      <td class="clr-a">${t.trailed ? '$' + parseFloat(t.trailLockProfit||0).toFixed(0) : '—'}</td>
+      <td class="clr-a">${t.trailed ? '$' + parseFloat(t.trailLockProfit||0).toFixed(0) : 'â€”'}</td>
       <td>${fmt(t.riskPerUnit)}</td>
       <td class="${pnlCls}">${fmtMoney(t.pnl)}</td>
       <td class="clr-r">${t.mae < 0 ? fmtMoney(t.mae) : '$0.00'}</td>
-      <td style="color:${t.trailed?'var(--teal)':'var(--muted)'}">${t.trailed ? '▲ YES' : 'no'}</td>
-      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'…':''}</td>`;
+      <td style="color:${t.trailed?'var(--teal)':'var(--muted)'}">${t.trailed ? 'â–² YES' : 'no'}</td>
+      <td class="reason-cell" title="${esc(t.reason||'')}">${esc((t.reason||'').substring(0,40))}${(t.reason||'').length>40?'â€¦':''}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -948,7 +949,7 @@ async function stopAlgo() {
   $('btn-stop').disabled = true;
   try { await fetch('/api/stop', { method: 'POST', credentials: 'same-origin' }); } catch(e) { showErr(e.message); }
 }
-function showErr(msg) { const b = $('err-banner'); b.textContent = '⚠ ' + msg; b.classList.add('show'); }
+function showErr(msg) { const b = $('err-banner'); b.textContent = 'âš  ' + msg; b.classList.add('show'); }
 function hideErr() { $('err-banner').classList.remove('show'); }
 
 let googleInitialized = false;
@@ -995,3 +996,4 @@ bootAuth();
 </script>
 </body>
 </html>
+

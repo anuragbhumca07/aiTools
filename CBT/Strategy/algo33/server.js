@@ -8,8 +8,8 @@ const Database = require('better-sqlite3');
 const session  = require('express-session');
 const { OAuth2Client } = require('google-auth-library');
 const {
-  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
-  TRAIL_START_PNL, TRAIL_STEP_PNL, ATR_LEN,
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, MAX_QTY, RISK_FRAC, SL_ATR_MULT,
+  TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   WARMUP_BARS,
   generateSignal, initPosition, stepPosition,
@@ -20,7 +20,7 @@ const {
 const PORT             = parseInt(process.env.PORT || '3010', 10);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const AUTH_REQUIRED    = !!GOOGLE_CLIENT_ID;
-const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-algo3-dev-secret';
+const SESSION_SECRET   = process.env.SESSION_SECRET || 'cbt-algo33-dev-secret';
 
 const METAAPI_TOKEN      = process.env.METAAPI_TOKEN      || '';
 const METAAPI_ACCOUNT_ID = process.env.METAAPI_ACCOUNT_ID || '';
@@ -69,12 +69,12 @@ function waEntry(side, symbol, timeframe, price, size, sl, riskPerUnit, riskAmt,
   const sym   = symbol.replace('USDT', '/USDT');
   const f     = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   sendWhatsApp(
-    `${dir} *[Algo33 RSI-cross] ENTRY — ${label} ${sym} ${timeframe}*\n` +
+    `${dir} *[Algo33 ATR-trail] ENTRY — ${label} ${sym} ${timeframe}*\n` +
     `Price      : $${f(price)}\n` +
     `Size       : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
-    `Initial SL : $${f(sl)}  (swing ${side === 'long' ? 'low' : 'high'}, risk/unit $${f(riskPerUnit)})\n` +
+    `Initial SL : $${f(sl)}  (${SL_ATR_MULT}×ATR, risk/unit $${f(riskPerUnit)})\n` +
     `Risk       : $${f(riskAmt)}  (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${f(MAX_LOSS)})\n` +
-    `Trail      : starts @ +$${f(TRAIL_START_PNL, 0)} → locks $${f(TRAIL_START_PNL - TRAIL_STEP_PNL, 0)}, then +$${f(TRAIL_STEP_PNL, 0)}/step\n` +
+    `Trail sched: BE @ +$200 → $100 locked @ +$250 → $200 locked @ +$300 → +$100/+$100 above\n` +
     `Balance    : $${f(balance)}`
   );
 }
@@ -88,7 +88,7 @@ function waExit(side, symbol, timeframe, pnl, reason, balance, wins, totalTrades
   const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pnlStr = `${pnl >= 0 ? '+' : ''}$${f(Math.abs(pnl))}`;
   sendWhatsApp(
-    `${icon} *[Algo33 RSI-cross] EXIT — ${label} ${sym} ${timeframe}*\n` +
+    `${icon} *[Algo33 ATR-trail] EXIT — ${label} ${sym} ${timeframe}*\n` +
     `Reason   : ${reason}\n` +
     `PnL      : *${pnlStr}*\n` +
     `Trailing : ${trailed ? 'Yes' : 'No'}\n` +
@@ -138,9 +138,9 @@ const stmtInsert = db.prepare(`
 
 // ── Strategy registry ──────────────────────────────────────────────
 const STRATEGIES = {
-  'rf-rsi-v4': {
-    name: 'rf-rsi-v4: RF bar-color + RSI(2) cross entry',
-    description: `Zone = Range Filter bar color ONLY (no KAMA cloud). BUY when RF bar is GREEN AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL}; SELL when RF bar is RED AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Algo1-style fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR) → SL hit = $${MAX_LOSS} loss exactly. ${SWING_BARS}-bar swing low/high is a trigger reference only. Trailing starts at +$${TRAIL_START_PNL} PnL (locks $${TRAIL_START_PNL - TRAIL_STEP_PNL}), then locks +$${TRAIL_STEP_PNL} per +$${TRAIL_STEP_PNL} PnL step. SL & trailing scanned every 1s from entry. Exits on opposite trigger. Main tick fires at :01 past every candle boundary via a self-correcting timer.`,
+  'rf-rsi-atrtrail-v1': {
+    name: 'rf-rsi-atrtrail-v1: RF bar-color + RSI(2) + $100-step trail',
+    description: `BUY zone: RF bar GREEN (src > filt AND upward > 0). SELL zone: RF bar BLUE (src < filt AND downward > 0). No KAMA cloud gate. Entry: BUY zone AND RSI(${RSI_LEN}) crosses ABOVE ${RSI_BUY_LEVEL} | SELL zone AND RSI(${RSI_LEN}) crosses BELOW ${RSI_SELL_LEVEL}. Fixed-risk sizing: SL = entry ± ${SL_ATR_MULT}×ATR14, qty = min(balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR14). Trailing: BE at +$${TRAIL_STEP_PNL} PnL → +$${TRAIL_STEP_PNL} locked per +$${TRAIL_STEP_PNL} PnL. SL scanned every 1s. Exits on opposite trigger.`,
   },
 };
 
@@ -251,7 +251,7 @@ function defaultFlagState() {
 function defaultState() {
   return {
     running: false, symbol: 'BTCUSDT', timeframe: '1m',
-    strategyId: 'rf-rsi-v4', mode: 'paper',
+    strategyId: 'rf-rsi-atrtrail-v1', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
     position: null, pnl: 0, totalTrades: 0, wins: 0,
@@ -383,8 +383,8 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
   const userId = sess.userId;
 
   const entryPx  = (isFinite(tickerPrice) && tickerPrice > 0) ? tickerPrice : fallbackPrice;
-  const stopDist = SL_ATR_MULT * (entryHint.atr || 0);
-  if (!(stopDist > 0)) {
+  const atrDist  = SL_ATR_MULT * (entryHint.atr || 0);
+  if (!(atrDist > 0)) {
     pushLog(sess, {
       ts, type: 'TICK', signal: 'ENTRY-SKIP', price: entryPx,
       reason: [`${entryHint.side} entry skipped — ATR ${(entryHint.atr||0).toFixed(2)} must be > 0`],
@@ -392,13 +392,14 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
     });
     return;
   }
-  // Algo1-style: SL = entry ± 1.5×ATR so qty × stopDist = riskAmt exactly.
-  const slPrice = entryHint.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
-  const riskAmt = Math.min(state.balance * RISK_FRAC, MAX_LOSS);
-  const qty     = parseFloat((riskAmt / stopDist).toFixed(8));
+  // qty = min(MAX_QTY, $150 / (1.5×ATR)); then SL = entry ± ($150/qty) → always $150 fixed loss.
+  const qty      = parseFloat(Math.min(MAX_QTY, MAX_LOSS / atrDist).toFixed(8));
+  const stopDist = MAX_LOSS / qty;
+  const slPrice  = entryHint.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
+  const riskAmt  = MAX_LOSS;
   const pos = initPosition(entryHint.side, entryPx, slPrice, qty, Date.now(), entryHint.atr);
   const lots = parseFloat((riskAmt / (entryPx * 100)).toFixed(2));
-  const orderResult = await tickmill.placeOrder(entryHint.side, symbol, lots, pos.slPrice, null, 'CBT Algo33 RSI-cross');
+  const orderResult = await tickmill.placeOrder(entryHint.side, symbol, lots, pos.slPrice, null, 'CBT Algo33 ATR-trail');
   pos.tickmillOrderId = orderResult.orderId;
   state.position = pos;
 
@@ -424,10 +425,10 @@ async function fillEntryNow(sess, entryHint, tickerPrice, fallbackPrice, tag, ts
     balance: state.balance.toFixed(4),
     reason: [
       fillNote + (tag ? ` — ${tag}` : ''),
-      `Risk $${riskAmt.toFixed(2)} (min balance×${(RISK_FRAC*100).toFixed(1)}%, $${MAX_LOSS}) / (${SL_ATR_MULT}×ATR ${stopDist.toFixed(2)}) → qty ${qty}`,
-      `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${riskAmt.toFixed(0)} max loss on hit)`,
+      `Risk $${riskAmt.toFixed(2)} · qty = min(${MAX_QTY}, $${MAX_LOSS}/(${SL_ATR_MULT}×ATR ${atrDist.toFixed(2)})) → ${qty}`,
+      `Initial SL $${pos.slPrice.toFixed(2)} = entry ± $${stopDist.toFixed(2)} (fixed $${MAX_LOSS} loss on hit)`,
       `Swing ${entryHint.side === 'long' ? 'low' : 'high'} ref: $${entryHint.slPrice.toFixed(2)} (trigger only, not SL)`,
-      `Trail starts @ +$${TRAIL_START_PNL.toFixed(0)} PnL → locks $${(TRAIL_START_PNL - TRAIL_STEP_PNL).toFixed(0)}, then +$${TRAIL_STEP_PNL.toFixed(0)}/step (1s scan from entry)`,
+      `Trail sched (1s scan): BE @ +$200 → $100 locked @ +$250 → $200 locked @ +$300 → +$100/+$100 above`,
     ],
     indicators: state.lastIndicators,
     tickmill: orderResult,
@@ -586,7 +587,7 @@ function stopTicker(sess) {
 }
 
 // ── 1s trail loop: fires whenever a position is open so trailing can
-// activate on the tick that first crosses +$300 PnL (not just at candle close).
+// activate on the tick that first crosses +$100 PnL (not just at candle close).
 async function trailTick(sess) {
   const { state } = sess;
   if (!state.running || !state.position) {
@@ -648,7 +649,7 @@ function stopTrailTicker(sess) {
 async function runBacktest(symbol, timeframe, months) {
   const allCandles = await fetchCandlesHistorical(symbol, timeframe, months);
   if (allCandles.length < WARMUP_BARS + 20) {
-    throw new Error(`Need ${WARMUP_BARS + 20}+ candles for KAMA warmup. Got ${allCandles.length} — try a longer duration.`);
+    throw new Error(`Need ${WARMUP_BARS + 20}+ candles for warmup. Got ${allCandles.length} — try a longer duration.`);
   }
 
   let balance = 10000;
@@ -663,17 +664,16 @@ async function runBacktest(symbol, timeframe, months) {
 
   for (let i = WARMUP_BARS; i < allCandles.length; i++) {
     const bar = allCandles[i];
-    const seg = allCandles.slice(0, i + 1);   // full history matters (KAMA/RF are recursive)
+    const seg = allCandles.slice(0, i + 1);
 
     // 1. Fill any pending entry at THIS bar's open
     if (pendingEntry && !pos) {
       const entryPx  = bar.open;
-      const stopDist = SL_ATR_MULT * (pendingEntry.atr || 0);
-      if (stopDist > 0) {
-        // Algo1-style: SL = entry ± 1.5×ATR, qty = riskAmt / stopDist → loss on SL = riskAmt exactly.
-        const slPrice = pendingEntry.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
-        const riskAmt = Math.min(balance * RISK_FRAC, MAX_LOSS);
-        const qty     = riskAmt / stopDist;
+      const atrDist  = SL_ATR_MULT * (pendingEntry.atr || 0);
+      if (atrDist > 0) {
+        const qty      = Math.min(MAX_QTY, MAX_LOSS / atrDist);
+        const stopDist = MAX_LOSS / qty;
+        const slPrice  = pendingEntry.side === 'long' ? entryPx - stopDist : entryPx + stopDist;
         pos = initPosition(pendingEntry.side, entryPx, slPrice, qty, bar.time, pendingEntry.atr);
         pos.entryIndex = i;
       }
@@ -832,7 +832,7 @@ app.post('/auth/google', async (req, res) => {
 });
 app.post('/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 
-app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-rsi-v4' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', strategy: 'rf-rsi-atrtrail-v1' }));
 app.get('/api/strategies', (_, res) =>
   res.json(Object.entries(STRATEGIES).map(([id, s]) => ({ id, ...s })))
 );
@@ -868,7 +868,7 @@ app.post('/api/start', requireAuth, (req, res) => {
   const {
     symbol = 'BTCUSDT', timeframe = '1m',
     balance = 10000,
-    strategyId = 'rf-rsi-v4', mode = 'paper',
+    strategyId = 'rf-rsi-atrtrail-v1', mode = 'paper',
   } = req.body || {};
   // Main tick must fire ONCE per closed candle (at :01s past the candle boundary),
   // regardless of any user-supplied interval. Otherwise signals fire mid-bar.
@@ -947,5 +947,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT Algo33 (RF bar-color + RSI(${RSI_LEN}) cross) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+  console.log(`CBT Algo33 (RF bar-color + RSI(${RSI_LEN}) cross + ATR-based trail, no KAMA) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
 );

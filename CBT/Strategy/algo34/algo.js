@@ -10,10 +10,11 @@ const https = require('https');
 //   Trail: breakeven at +$100 PnL, then +$100 locked per +$100 PnL
 const RF_SAMPLING_PERIOD = 100;   // Range Filter sampling period
 const RF_MULT            = 3.0;   // Range Filter multiplier
-const MAX_LOSS           = 150.0; // Hard cap on risk per trade ($)
-const RISK_FRAC          = 0.015; // Risk fraction: 1.5% of balance, capped at MAX_LOSS
-const SL_ATR_MULT        = 2.0;   // Initial SL distance = 2 × ATR14
-const TRAIL_STEP_PNL     = 100.0; // Breakeven at +$100 PnL; trail +$100 per +$100 PnL after that
+const MAX_LOSS           = 150.0; // Fixed max risk per trade ($)
+const MAX_QTY            = 5.0;   // Hard cap on position size (contracts/units)
+const RISK_FRAC          = 0.015; // unused — kept for API compat
+const SL_ATR_MULT        = 1.5;   // Initial SL distance = 1.5 × ATR14 → risk = $150 exactly
+const TRAIL_STEP_PNL     = 100.0; // reference — actual milestones: $200 BE / $250→$100 / $300→$200 …
 const ATR_LEN            = 14;    // ATR period (drives sizing + reported in indicators)
 const RSI_LEN            = 2;     // RSI period for entry trigger
 const RSI_BUY_LEVEL      = 10;    // BUY when RSI(2) crosses ABOVE this while in buyZone
@@ -378,26 +379,31 @@ function initPosition(side, entryPrice, slPrice, qty, entryTime, atr) {
 }
 
 // ── Advance a position one bar (used by backtest AND 1s live tick) ──
-// Trailing schedule ($100-step):
-//   bestPnl < $100            → initial SL (entry ± 2×ATR14), no trail
-//   bestPnl ≥ $100            → trail activated; locked$ = floor((bestPnl-100)/100)*100
-//     e.g. $100→ BE, $200→ $100 locked, $300→ $200 locked, etc.
+// Trailing milestones (dollar PnL from bestPx intra-bar):
+//   < $200        → initial SL, no trail
+//   $200–$249     → SL → break-even ($0 locked)
+//   $250–$299     → SL locks $100 profit
+//   $300+         → SL locks $200 + floor((bestPnl-300)/100)*100
 //   Trail stop never retreats. Stop hit intra-bar → exit at stopNow.
 function stepPosition(pos, candle) {
   const { side, entryPrice, size, slPrice } = pos;
   let   { trailing, trailStop, trailLockProfit = 0 } = pos;
   const { high, low, close } = candle;
 
-  // Best-case intra-bar PnL — drives trail activation / advance.
   const bestPx  = side === 'long' ? high : low;
   const bestPnl = side === 'long'
     ? (bestPx - entryPrice) * size
     : (entryPrice - bestPx) * size;
 
-  // Proposed locked profit: null while under $100, 0 at $100, +$100 per +$100 after.
   let proposedLock = null;
-  if (bestPnl >= TRAIL_STEP_PNL) {
-    proposedLock = Math.floor((bestPnl - TRAIL_STEP_PNL) / TRAIL_STEP_PNL) * TRAIL_STEP_PNL;
+  if (bestPnl >= 200) {
+    if (bestPnl >= 300) {
+      proposedLock = 200 + Math.floor((bestPnl - 300) / 100) * 100;
+    } else if (bestPnl >= 250) {
+      proposedLock = 100;
+    } else {
+      proposedLock = 0; // break-even
+    }
   }
 
   if (proposedLock !== null) {
@@ -419,42 +425,24 @@ function stepPosition(pos, candle) {
   const unrealPnl = side === 'long'
     ? (close - entryPrice) * size
     : (entryPrice - close) * size;
-
   const worstPx  = side === 'long' ? low : high;
   const worstPnl = side === 'long'
     ? (worstPx - entryPrice) * size
     : (entryPrice - worstPx) * size;
 
   if (stopHit) {
-    const exitPrice = stopNow;
-    const exitPnl   = side === 'long'
-      ? (exitPrice - entryPrice) * size
-      : (entryPrice - exitPrice) * size;
+    const exitPnl = side === 'long'
+      ? (stopNow - entryPrice) * size
+      : (entryPrice - stopNow) * size;
     return {
-      exit: true,
-      exitPrice,
-      exitPnl,
-      trailing,
-      trailStop,
-      trailLockProfit,
-      stopNow,
-      unrealPnl,
-      worstPnl,
+      exit: true, exitPrice: stopNow, exitPnl,
+      trailing, trailStop, trailLockProfit, stopNow, unrealPnl, worstPnl,
       reason: trailing
-        ? `Trailing stop hit @ ${stopNow.toFixed(2)} (locked $${trailLockProfit.toFixed(0)} PnL)`
-        : `Initial SL hit @ ${stopNow.toFixed(2)}`,
+        ? `Trailing stop hit @ ${stopNow.toFixed(2)} (locked $${trailLockProfit.toFixed(0)} profit)`
+        : `Initial SL hit @ ${stopNow.toFixed(2)} ($150 max loss)`,
     };
   }
-
-  return {
-    exit: false,
-    trailing,
-    trailStop,
-    trailLockProfit,
-    stopNow,
-    unrealPnl,
-    worstPnl,
-  };
+  return { exit: false, trailing, trailStop, trailLockProfit, stopNow, unrealPnl, worstPnl };
 }
 
 // ── Kraken data fetchers ──────────────────────────────────────────
@@ -560,7 +548,7 @@ async function fetchCurrentPrice(symbol) {
 }
 
 module.exports = {
-  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, RISK_FRAC, SL_ATR_MULT,
+  RF_SAMPLING_PERIOD, RF_MULT, MAX_LOSS, MAX_QTY, RISK_FRAC, SL_ATR_MULT,
   TRAIL_STEP_PNL, ATR_LEN,
   RSI_LEN, RSI_BUY_LEVEL, RSI_SELL_LEVEL, SWING_BARS,
   WARMUP_BARS,

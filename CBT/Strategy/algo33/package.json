@@ -1,7 +1,7 @@
 {
   "name": "cbt-algo33",
   "version": "1.0.0",
-  "description": "CBT Algo33 — RSI-cross entry inside RF+KAMA zones (Tickmill/MetaApi)",
+  "description": "CBT Algo33 — RF bar-color + RSI(2) entry with ATR-based trail (no KAMA cloud)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
