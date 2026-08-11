@@ -18,17 +18,21 @@ const UA   = 'cbt-deltaex-algo1/1.0';
 // Live-tradeable perpetuals on Delta India. Product IDs differ between prod
 // and testnet, so the map must match the active HOST.
 const PRODUCT_PROD = {
-  BTCUSD: { product_id: 27,   contract_value: 0.001, tick: 0.5  },
-  ETHUSD: { product_id: 3136, contract_value: 0.01,  tick: 0.05 },
+  BTCUSD:  { product_id: 27,     contract_value: 0.001, tick: 0.5  },
+  ETHUSD:  { product_id: 3136,   contract_value: 0.01,  tick: 0.05 },
+  XAUTUSD: { product_id: 131253, contract_value: 0.001, tick: 0.01 },
 };
 const PRODUCT_TESTNET = {
-  BTCUSD: { product_id: 84,   contract_value: 0.001, tick: 0.1  },
-  ETHUSD: { product_id: 1699, contract_value: 0.01,  tick: 0.05 },
+  BTCUSD:  { product_id: 84,     contract_value: 0.001, tick: 0.1  },
+  ETHUSD:  { product_id: 1699,   contract_value: 0.01,  tick: 0.05 },
+  XAUTUSD: { product_id: 181689, contract_value: 0.001, tick: 0.01 },
 };
 const PRODUCT = IS_TESTNET ? PRODUCT_TESTNET : PRODUCT_PROD;
 
-// Only these symbols can be traded live on Delta; all others are paper-only
-const DELTA_LIVE_SYMBOLS = new Set(['BTCUSD', 'ETHUSD']);
+// Only these symbols can be traded live on Delta; all others are paper-only.
+// Delta has no plain XAUUSD spot/futures contract — XAUTUSD (Tether Gold
+// perpetual, 1 token ≈ 1 troy oz) is the live gold-tracking proxy.
+const DELTA_LIVE_SYMBOLS = new Set(['BTCUSD', 'ETHUSD', 'XAUTUSD']);
 
 // Yahoo Finance tickers for commodity paper-trading
 const YAHOO_TICKER = {
@@ -43,6 +47,7 @@ const YAHOO_TICKER = {
 const SYMBOL_LABEL = {
   BTCUSD:  'BTCUSD perp (live)',
   ETHUSD:  'ETHUSD perp (live)',
+  XAUTUSD: 'Tether Gold (XAUTUSD) perp — live',
   XAUUSD:  'Gold (XAUUSD) — paper',
   XAGUSD:  'Silver (XAGUSD) — paper',
   WTIUSD:  'Crude Oil WTI — paper',
