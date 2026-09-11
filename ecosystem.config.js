@@ -109,5 +109,27 @@ module.exports = {
       cwd: path.join(ROOT, 'CBT', 'Strategy', 'algo2'),
       env: { PORT: 3009, NODE_ENV: 'development' },
     },
+
+    // ── CBT Algo1x — EMA Ribbon Swing (Fixed Qty=1 · ATR Dynamic SL) ──
+    {
+      name: 'cbt-algo111',
+      script: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo111', 'server.js'),
+      cwd: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo111'),
+      env: { PORT: 3017, NODE_ENV: 'development' },
+    },
+
+    {
+      name: 'cbt-algo105',
+      script: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo105', 'server.js'),
+      cwd: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo105'),
+      env: { PORT: 3018, NODE_ENV: 'development' },
+    },
+
+    {
+      name: 'cbt-algo115',
+      script: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo115', 'server.js'),
+      cwd: path.join(ROOT, 'CBT', 'Strategy', 'Algo1x', 'algo115'),
+      env: { PORT: 3019, NODE_ENV: 'development' },
+    },
   ],
 };
