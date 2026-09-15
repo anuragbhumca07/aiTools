@@ -668,6 +668,25 @@ html, body {
 .signal-badge.failed    { background: var(--red-dim);   color: var(--red); }
 .signal-badge.new       { background: #1a2540;          color: var(--blue); }
 
+/* ── Backtest weight comparison table ────────────────────────── */
+#btWeightsTable .weight-row {
+  grid-template-columns: 1fr 36px 36px 36px;
+  font-size: 10px;
+}
+
+#btWeightsTable .weight-name {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#btWeightsTable .weight-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -35,6 +35,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 import config
+from backtester import run_backtest, get_bt_state, _set_bt, BacktestResults
 from data_cache import (bootstrap_cache, load_ohlcv, get_cache_stats,
                         clear_ohlcv_cache, reset_dhan_access_flag, _dhan_access_denied)
 from features import get_latest_features
@@ -301,6 +302,95 @@ def _serialise(obj) -> dict:
         return v
 
     return {k: _clean(v) for k, v in d.items()}
+
+
+# ── Backtest endpoints ────────────────────────────────────────────────────────
+
+@app.route("/api/backtest/run", methods=["POST"])
+def api_backtest_run():
+    body = request.get_json(silent=True) or {}
+    lookback  = int(body.get("lookback_days", 60))
+    min_score = float(body.get("min_score", 52.0))
+
+    bt = get_bt_state()
+    if bt["status"] == "running":
+        return jsonify({"error": "Backtest already running"}), 409
+
+    t = threading.Thread(
+        target=_backtest_worker,
+        args=(lookback, min_score),
+        daemon=True,
+    )
+    t.start()
+    return jsonify({"status": "started", "lookback_days": lookback, "min_score": min_score})
+
+
+@app.route("/api/backtest/status")
+def api_backtest_status():
+    bt = get_bt_state()
+    return jsonify({
+        "status":   bt["status"],
+        "progress": bt["progress"],
+        "message":  bt["message"],
+        "error":    bt["error"],
+    })
+
+
+@app.route("/api/backtest/results")
+def api_backtest_results():
+    import dataclasses
+    bt = get_bt_state()
+    results: BacktestResults | None = bt.get("results")
+    if results is None:
+        return jsonify({"error": "No backtest results yet — run a backtest first"}), 404
+
+    d = dataclasses.asdict(results)
+    d.pop("trades", None)   # omit raw trade list from API (large); use /api/backtest/trades
+    return jsonify(d)
+
+
+@app.route("/api/backtest/trades")
+def api_backtest_trades():
+    import dataclasses
+    bt = get_bt_state()
+    results: BacktestResults | None = bt.get("results")
+    if results is None:
+        return jsonify([])
+    return jsonify([dataclasses.asdict(t) for t in results.trades])
+
+
+def _backtest_worker(lookback_days: int, min_score: float):
+    try:
+        _log("Backtest started — loading universe …")
+
+        # Load universe (may already be in memory from a prior scan)
+        with _lock:
+            universe = _state.get("universe_df")
+
+        if universe is None or universe.empty:
+            _log("Fetching instrument master for backtest …")
+            master   = fetch_instrument_master(force_refresh=False)
+            universe = build_universe(master)
+            with _lock:
+                _state["universe_df"]   = universe
+                _state["universe_size"] = len(universe)
+            _log(f"Universe: {len(universe):,} stocks")
+
+        _log(f"Backtest: {lookback_days}d lookback | min_score={min_score} | "
+             f"OHLCV cache (real Dhan data)")
+        run_backtest(universe=universe, lookback_days=lookback_days, min_score=min_score)
+
+        bt = get_bt_state()
+        r  = bt.get("results")
+        if r:
+            _log(f"Backtest done: {r.total_trades} trades | WR={r.win_rate}% | "
+                 f"PF={r.profit_factor} | Sharpe={r.sharpe}")
+            _log(f"Long WR={r.long_win_rate}% | Short WR={r.short_win_rate}% | "
+                 f"Avg R={r.avg_r:+.3f} | MaxDD={r.max_drawdown:.2f}R")
+    except Exception as exc:
+        logger.exception("Backtest worker error: %s", exc)
+        _set_bt(status="error", error=str(exc))
+        _log(f"Backtest ERROR: {exc}", level="error")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

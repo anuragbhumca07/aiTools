@@ -388,6 +388,155 @@ function escHtml(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// ── Backtest ──────────────────────────────────────────────────────────────────
+let _btPollTimer = null;
+
+async function runBacktest() {
+  const btn      = document.getElementById('btRunBtn');
+  const lookback = parseInt(document.getElementById('btLookback').value) || 60;
+  const minScore = parseFloat(document.getElementById('btMinScore').value) || 52;
+
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  document.getElementById('btProgressWrap').style.display = 'block';
+  document.getElementById('btMetrics').style.display = 'none';
+  document.getElementById('btWeightsWrap').style.display = 'none';
+  _btSetProgress(2, 'Starting backtest…');
+
+  try {
+    const res = await fetch(`${API}/api/backtest/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lookback_days: lookback, min_score: minScore }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    _btStartPolling();
+  } catch (e) {
+    appendLog(`Backtest ERROR: ${e.message}`, true);
+    _btSetProgress(0, 'Error');
+    btn.disabled = false;
+    btn.textContent = '⟳ Run Backtest';
+  }
+}
+
+function _btStartPolling() {
+  if (_btPollTimer) clearInterval(_btPollTimer);
+  _btPollTimer = setInterval(_btPoll, 1000);
+}
+
+async function _btPoll() {
+  try {
+    const res  = await fetch(`${API}/api/backtest/status`);
+    const data = await res.json();
+
+    _btSetProgress(data.progress || 0, data.message || '');
+
+    if (data.status === 'done') {
+      clearInterval(_btPollTimer);
+      _btPollTimer = null;
+      await _btLoadResults();
+      const btn = document.getElementById('btRunBtn');
+      btn.disabled = false;
+      btn.textContent = '⟳ Run Backtest';
+    } else if (data.status === 'error') {
+      clearInterval(_btPollTimer);
+      _btPollTimer = null;
+      appendLog(`Backtest ERROR: ${data.error}`, true);
+      document.getElementById('btProgressWrap').style.display = 'none';
+      const btn = document.getElementById('btRunBtn');
+      btn.disabled = false;
+      btn.textContent = '⟳ Run Backtest';
+    }
+  } catch(e) { console.error('BT poll error', e); }
+}
+
+async function _btLoadResults() {
+  try {
+    const res  = await fetch(`${API}/api/backtest/results`);
+    if (!res.ok) return;
+    const r = await res.json();
+    _btRenderMetrics(r);
+    _btRenderWeights(r);
+    document.getElementById('btProgressWrap').style.display = 'none';
+  } catch(e) { console.error('BT load results', e); }
+}
+
+function _btSetProgress(pct, label) {
+  document.getElementById('btProgressWrap').style.display = 'block';
+  document.getElementById('btProgressBar').style.width    = `${Math.min(pct, 100)}%`;
+  document.getElementById('btProgressLabel').textContent  = label || '';
+}
+
+function _btRenderMetrics(r) {
+  const m = document.getElementById('btMetrics');
+  m.style.display = '';
+
+  const wr    = r.win_rate;
+  const wrCls = wr >= 50 ? 'var(--green)' : wr >= 40 ? 'var(--amber)' : 'var(--red)';
+  const pfCls = r.profit_factor >= 1.5 ? 'var(--green)' : r.profit_factor >= 1.0 ? 'var(--amber)' : 'var(--red)';
+  const rCls  = r.avg_r >= 0 ? 'var(--green)' : 'var(--red)';
+
+  _btSet('btTrades',  `${r.total_trades} (W:${r.win_count} L:${r.loss_count} N:${r.neutral_count})`);
+  _btSet('btWinRate', `${wr}%`,         wrCls);
+  _btSet('btLongWR',  `${r.long_win_rate}%`);
+  _btSet('btShortWR', `${r.short_win_rate}%`);
+  _btSet('btPF',      `${r.profit_factor}`,         pfCls);
+  _btSet('btAvgR',    `${r.avg_r >= 0 ? '+' : ''}${r.avg_r}R`, rCls);
+  _btSet('btSharpe',  `${r.sharpe}`);
+  _btSet('btMaxDD',   `${r.max_drawdown}R`);
+  _btSet('btDays',    `${r.days_tested} (${r.lookback_days}d window)`);
+}
+
+function _btSet(id, text, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  if (color) el.style.color = color;
+}
+
+function _btRenderWeights(r) {
+  const wrap = document.getElementById('btWeightsWrap');
+  const tbl  = document.getElementById('btWeightsTable');
+  if (!r.proposed_weights || !Object.keys(r.proposed_weights).length) return;
+
+  wrap.style.display = '';
+  const cur  = r.current_weights  || {};
+  const prop = r.proposed_weights || {};
+  const auc  = r.factor_auc       || {};
+
+  // Build ordered list by proposed weight descending
+  const names = Object.keys(prop).sort((a, b) => prop[b] - prop[a]);
+
+  tbl.innerHTML = names.map(name => {
+    const cw   = cur[name]  || 0;
+    const pw   = prop[name] || 0;
+    const diff = pw - cw;
+    const diffStr = diff > 0 ? `<span style="color:var(--green)">+${diff.toFixed(1)}</span>`
+                  : diff < 0 ? `<span style="color:var(--red)">${diff.toFixed(1)}</span>`
+                  : `<span style="color:var(--text-dim)">0</span>`;
+    return `
+      <div class="weight-row" style="grid-template-columns:1fr 36px 36px 36px">
+        <span class="weight-name" title="${escHtml(name)}">${escHtml(name)}</span>
+        <span class="weight-num" style="color:var(--text-dim)" title="Current">${cw}</span>
+        <span class="weight-num" title="Proposed">${pw.toFixed(0)}</span>
+        <span class="weight-num">${diffStr}</span>
+      </div>
+    `;
+  }).join('') + `
+    <div class="weight-row" style="grid-template-columns:1fr 36px 36px 36px; margin-top:4px; border-top:1px solid var(--border); padding-top:4px">
+      <span class="weight-name" style="font-weight:600">Total</span>
+      <span class="weight-num" style="color:var(--text-dim)">${Object.values(cur).reduce((a,b)=>a+b,0)}</span>
+      <span class="weight-num">${Object.values(prop).reduce((a,b)=>a+b,0).toFixed(0)}</span>
+      <span class="weight-num"></span>
+    </div>
+  `;
+
+  document.getElementById('btDisclaimer').textContent = r.disclaimer || '';
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async function init() {
   await loadWeights();

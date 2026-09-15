@@ -113,6 +113,53 @@
         <div class="log-box" id="logBox"></div>
       </section>
 
+      <!-- Backtest panel -->
+      <section class="panel" id="btPanel">
+        <h3 class="panel-title">Phase 3 — Backtest
+          <span class="hint">(daily OHLCV, real Dhan data)</span>
+        </h3>
+
+        <div class="field-group">
+          <label>Lookback (trading days)</label>
+          <input type="number" id="btLookback" value="60" min="10" max="250" />
+        </div>
+        <div class="field-group">
+          <label>Min score to trade</label>
+          <input type="number" id="btMinScore" value="52" min="50" max="80" step="1" />
+        </div>
+
+        <button class="btn-scan" id="btRunBtn" onclick="runBacktest()" style="margin-top:8px">
+          <span class="btn-icon">⟳</span> Run Backtest
+        </button>
+
+        <div class="progress-wrap" id="btProgressWrap" style="display:none">
+          <div class="progress-bar" id="btProgressBar"></div>
+          <div class="progress-label" id="btProgressLabel">Running…</div>
+        </div>
+
+        <!-- Metrics summary -->
+        <div id="btMetrics" style="display:none; margin-top:10px">
+          <div class="stat-row"><span>Total trades</span>   <span class="stat-val" id="btTrades">—</span></div>
+          <div class="stat-row"><span>Win rate</span>       <span class="stat-val" id="btWinRate">—</span></div>
+          <div class="stat-row"><span>Long WR</span>        <span class="stat-val" id="btLongWR">—</span></div>
+          <div class="stat-row"><span>Short WR</span>       <span class="stat-val" id="btShortWR">—</span></div>
+          <div class="stat-row"><span>Profit factor</span>  <span class="stat-val" id="btPF">—</span></div>
+          <div class="stat-row"><span>Avg R</span>          <span class="stat-val" id="btAvgR">—</span></div>
+          <div class="stat-row"><span>Sharpe</span>         <span class="stat-val" id="btSharpe">—</span></div>
+          <div class="stat-row"><span>Max drawdown</span>   <span class="stat-val" id="btMaxDD">—</span></div>
+          <div class="stat-row"><span>Days tested</span>    <span class="stat-val" id="btDays">—</span></div>
+        </div>
+
+        <!-- Weight comparison table -->
+        <div id="btWeightsWrap" style="display:none; margin-top:12px">
+          <div class="panel-title" style="font-size:11px; margin-bottom:6px">
+            Weight comparison — Current vs Proposed
+          </div>
+          <div id="btWeightsTable" class="weights-table"></div>
+          <p class="hint" style="margin-top:6px; font-size:10px" id="btDisclaimer"></p>
+        </div>
+      </section>
+
       <section class="disclaimer-panel">
         <p>
           ⚠ <strong>Paper trade only.</strong>
