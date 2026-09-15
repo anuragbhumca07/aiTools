@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSE ORB Scanner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Header ────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span>NSE ORB Scanner</span>
+      </div>
+      <div class="status-chip" id="statusChip">IDLE</div>
+    </div>
+    <div class="topbar-right">
+      <div class="regime-badge" id="regimeBadge">—</div>
+      <div class="ist-clock" id="istClock">—:—:—</div>
+      <div class="unvalidated-badge">⚠ UNVALIDATED WEIGHTS</div>
+    </div>
+  </header>
+
+  <!-- ── Main layout ────────────────────────────────────────────── -->
+  <div class="layout">
+
+    <!-- ── Left sidebar ──────────────────────────────────────────── -->
+    <aside class="sidebar">
+
+      <!-- Parameters -->
+      <section class="panel">
+        <h3 class="panel-title">Scan Parameters</h3>
+
+        <div class="field-group">
+          <label>Min Price (₹)</label>
+          <input type="number" id="minPrice" value="50" min="1" />
+        </div>
+        <div class="field-group">
+          <label>Min ADTV (₹ Cr)</label>
+          <input type="number" id="minAdtv" value="10" min="1" />
+        </div>
+        <div class="field-group">
+          <label>Top N picks</label>
+          <input type="number" id="topN" value="5" min="1" max="20" />
+        </div>
+        <div class="field-group">
+          <label>Max instruments <span class="hint">(0 = all)</span></label>
+          <input type="number" id="maxInstruments" value="50" min="0" />
+        </div>
+        <div class="field-group">
+          <label>Scan time</label>
+          <select id="scanTime">
+            <option value="09:20">09:20 — Early signal</option>
+            <option value="09:30" selected>09:30 — Primary scan</option>
+            <option value="09:45">09:45 — Confirmation</option>
+            <option value="10:00">10:00 — Final check</option>
+          </select>
+        </div>
+        <div class="field-group checkbox-group">
+          <label>
+            <input type="checkbox" id="forceRefresh" />
+            Force data refresh
+          </label>
+        </div>
+
+        <button class="btn-scan" id="scanBtn" onclick="triggerScan()">
+          <span class="btn-icon">▶</span> Run Scan
+        </button>
+        <button class="btn-clear" id="clearBtn" onclick="clearCache()" title="Delete cached data and re-download fresh from Dhan">
+          &#x21BA; Clear Cache &amp; Rescan
+        </button>
+
+        <!-- Progress bar -->
+        <div class="progress-wrap" id="progressWrap" style="display:none">
+          <div class="progress-bar" id="progressBar"></div>
+          <div class="progress-label" id="progressLabel">Loading…</div>
+        </div>
+      </section>
+
+      <!-- Universe stats -->
+      <section class="panel">
+        <h3 class="panel-title">Universe</h3>
+        <div class="stat-row">
+          <span>Eligible stocks</span>
+          <span class="stat-val" id="universeSize">—</span>
+        </div>
+        <div class="stat-row">
+          <span>Last scan</span>
+          <span class="stat-val" id="lastScanAt">—</span>
+        </div>
+        <div class="stat-row">
+          <span>OHLCV cached</span>
+          <span class="stat-val" id="cacheCount">—</span>
+        </div>
+        <div class="stat-row">
+          <span>Data source</span>
+          <span class="stat-val" id="dataSource">—</span>
+        </div>
+      </section>
+
+      <!-- Weights reference -->
+      <section class="panel">
+        <h3 class="panel-title">Scoring Weights <span class="hint">(unvalidated)</span></h3>
+        <div id="weightsTable" class="weights-table"></div>
+      </section>
+
+      <!-- Scan log -->
+      <section class="panel panel-log">
+        <h3 class="panel-title">Log</h3>
+        <div class="log-box" id="logBox"></div>
+      </section>
+
+      <section class="disclaimer-panel">
+        <p>
+          ⚠ <strong>Paper trade only.</strong>
+          All weights are placeholder guesses. Phase 3 backtesting must validate them
+          before any real money is involved.
+          Run in paper mode for 30–60 trading days first.
+        </p>
+      </section>
+
+    </aside>
+
+    <!-- ── Main content area ───────────────────────────────────── -->
+    <main class="content">
+
+      <!-- Scan time tabs -->
+      <div class="tab-bar">
+        <button class="tab active" data-slot="09:30" onclick="selectTab(this,'09:30')">
+          9:30 <span class="tab-sub">Primary</span>
+        </button>
+        <button class="tab" data-slot="09:20" onclick="selectTab(this,'09:20')">
+          9:20 <span class="tab-sub">Early</span>
+        </button>
+        <button class="tab" data-slot="09:45" onclick="selectTab(this,'09:45')">
+          9:45 <span class="tab-sub">Confirm</span>
+        </button>
+        <button class="tab" data-slot="10:00" onclick="selectTab(this,'10:00')">
+          10:00 <span class="tab-sub">Final</span>
+        </button>
+      </div>
+
+      <!-- Regime + note bar -->
+      <div class="info-bar" id="infoBar" style="display:none">
+        <span id="infoNote"></span>
+      </div>
+
+      <!-- Results grid (long | short) -->
+      <div class="results-grid">
+        <div class="col-header long-header">▲ &nbsp;TOP LONG PICKS</div>
+        <div class="col-header short-header">▼ &nbsp;TOP SHORT PICKS</div>
+
+        <div class="results-col" id="longCol">
+          <div class="empty-state" id="longEmpty">
+            <span class="empty-icon">◉</span>
+            <span>Run a scan to see long candidates</span>
+          </div>
+        </div>
+
+        <div class="results-col" id="shortCol">
+          <div class="empty-state" id="shortEmpty">
+            <span class="empty-icon">◉</span>
+            <span>Run a scan to see short candidates</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
