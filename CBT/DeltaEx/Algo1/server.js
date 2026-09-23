@@ -246,21 +246,24 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
     mae, brokerOrderId, contracts, trailing, trailLockProfit,
   } = position;
 
-  const rawPnl = side === 'long'
-    ? (exitPrice - entryPrice) * size
-    : (entryPrice - exitPrice) * size;
-  const pnl = parseFloat(rawPnl.toFixed(4));
-
   let closeResult = { paper: true };
+  let fillPrice   = exitPrice; // signal/SL-TP-trigger price — fallback for paper/failed-live trades
   if (isLiveSymbol(state.symbol) && brokerOrderId && !String(brokerOrderId).startsWith('paper_')) {
     try {
       const r = await delta.closePosition(...creds(), { symbol: state.symbol, side, contracts: contracts || 1 });
       closeResult = { closed: true, closeOrderId: r?.result?.id || null };
+      const avgFill = parseFloat(r?.result?.average_fill_price);
+      if (Number.isFinite(avgFill) && avgFill > 0) fillPrice = avgFill;
     } catch (e) {
       closeResult = { error: e.message };
       pushLog(sess, { ts, type: 'ERROR', message: `Delta close failed: ${e.message}` });
     }
   }
+
+  const rawPnl = side === 'long'
+    ? (fillPrice - entryPrice) * size
+    : (entryPrice - fillPrice) * size;
+  const pnl = parseFloat(rawPnl.toFixed(4));
 
   state.balance   += pnl;
   state.pnl       += pnl;
@@ -272,7 +275,7 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
   const trade = {
     session_id: sessionId, user_id: userId,
     type: 'exit', side, symbol: state.symbol, timeframe: state.timeframe,
-    price: exitPrice, size, pnl,
+    price: fillPrice, size, pnl,
     stop_loss: stopLoss, take_profit: takeProfit,
     reason: exitReasonStr,
     balance_after: parseFloat(state.balance.toFixed(4)),
@@ -283,7 +286,7 @@ async function handleExit(sess, position, exitPrice, exitReasonStr, indicators, 
   };
   stmtInsert.run(trade);
   waExit(side, state.symbol, state.timeframe, pnl, exitReasonStr, state.balance, state.wins, state.totalTrades, trailing || false, trailLockProfit || 0);
-  pushLog(sess, { ts, type: 'EXIT', side, price: exitPrice, pnl,
+  pushLog(sess, { ts, type: 'EXIT', side, price: fillPrice, pnl,
                   mae: (mae || 0).toFixed(4), reason: [exitReasonStr], indicators });
   broadcast(sess, { type: 'trade', trade, state: publicState(state) });
 }
@@ -495,27 +498,32 @@ async function runTick(sess) {
       const stopDist = 1.5 * atr;
       const riskAmt  = Math.min(state.balance * 0.015, 150);
       const size     = parseFloat((riskAmt / stopDist).toFixed(8));
-      const sl       = side === 'long' ? price - stopDist : price + stopDist;
-      const tp       = side === 'long' ? price + 3 * atr  : price - 3 * atr;
 
       // Live order (only for Delta-supported symbols with creds)
       let orderResult = { paper: true, orderId: `paper_${Date.now()}` };
       let contracts   = null;
+      let fillPrice   = price; // signal (closed-candle) price — fallback for paper/failed-live trades
       if (isLiveSymbol(symbol)) {
-        contracts = Math.max(1, Math.round(size * 1000)); // 1 contract = 0.001 BTC
+        contracts = Math.max(1, Math.round(size * 1000)); // 1 contract = 0.001 unit (BTC/XAUT)
         try {
           const r = await delta.placeMarketOrder(...creds(), {
             symbol, side, contracts, clientOrderId: `algo1_${Date.now()}`,
           });
           orderResult = { orderId: r?.result?.id ? String(r.result.id) : null, live: true };
+          const avgFill = parseFloat(r?.result?.average_fill_price);
+          if (Number.isFinite(avgFill) && avgFill > 0) fillPrice = avgFill;
         } catch (e) {
           orderResult = { paper: true, orderId: `paper_${Date.now()}`, error: e.message };
           pushLog(sess, { ts, type: 'ERROR', message: `Delta placeOrder failed: ${e.message}` });
         }
       }
 
+      // SL/TP computed off the actual fill price so they match what's really open on Delta
+      const sl = side === 'long' ? fillPrice - stopDist : fillPrice + stopDist;
+      const tp = side === 'long' ? fillPrice + 3 * atr   : fillPrice - 3 * atr;
+
       state.position = {
-        side, entryPrice: price, size, stopLoss: sl, takeProfit: tp,
+        side, entryPrice: fillPrice, size, stopLoss: sl, takeProfit: tp,
         entryTime: ts, unrealizedPnl: 0, mae: 0,
         trailing: false, trailLockProfit: 0,
         brokerOrderId: orderResult.orderId,
@@ -525,7 +533,7 @@ async function runTick(sess) {
       const trade = {
         session_id: sessionId, user_id: userId,
         type: 'entry', side, symbol, timeframe,
-        price, size, pnl: 0,
+        price: fillPrice, size, pnl: 0,
         stop_loss: sl, take_profit: tp,
         reason: reason.join(' | '),
         balance_after: parseFloat(state.balance.toFixed(4)),
@@ -534,8 +542,8 @@ async function runTick(sess) {
         contracts,
       };
       stmtInsert.run(trade);
-      waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, state.balance, isLiveSymbol(symbol));
-      pushLog(sess, { ts, type: 'ENTRY', side, signal, price, size,
+      waEntry(side, symbol, timeframe, fillPrice, size, sl, tp, riskAmt, state.balance, isLiveSymbol(symbol));
+      pushLog(sess, { ts, type: 'ENTRY', side, signal, price: fillPrice, size,
                       stopLoss: sl, takeProfit: tp,
                       balance: state.balance.toFixed(4),
                       reason, indicators, broker: orderResult });

@@ -89,3 +89,6 @@ tests/*.wav
 tests/*.mp4
 tests/*.png
 tests/temp/
+
+# Claude assistant local scratch notes
+/memory/

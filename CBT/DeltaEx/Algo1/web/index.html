@@ -259,7 +259,7 @@
       CBT DeltaEx Algo1 — EMA Ribbon Swing
       <span id="paper-badge" class="paper-badge">PAPER</span>
     </div>
-    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1.5×ATR SL · Trail: BE@$200 → lock$100@$250 → +$100/step · Live: BTCUSD/ETHUSD on Delta India · Gold/Silver/Oil/Gas: paper via Yahoo Finance</div>
+    <div class="subtitle">EMA Ribbon · ADX Rising · DI-Spread≥15 · 6/7 · Closed Candle · No-Drift :01s Timer · 1.5×ATR SL · Trail: BE@$200 → lock$100@$250 → +$100/step · Live: BTCUSD/ETHUSD/XAUTUSD on Delta India · Gold(XAUUSD)/Silver/Oil/Gas: paper via Yahoo Finance</div>
   </div>
   <span id="mode-pill" class="badge badge-paper">PAPER</span>
   <span id="run-pill" class="badge badge-stopped">Idle</span>
@@ -299,9 +299,10 @@
               <option value="NGASUSD" class="paper-sym">Natural Gas</option>
               <option value="COPPER"  class="paper-sym">Copper</option>
             </optgroup>
-            <optgroup label="Crypto — Live on Delta India">
-              <option value="BTCUSD" class="live-sym">BTCUSD perp (live)</option>
-              <option value="ETHUSD" class="live-sym">ETHUSD perp (live)</option>
+            <optgroup label="Live on Delta India">
+              <option value="BTCUSD"  class="live-sym">BTCUSD perp (live)</option>
+              <option value="ETHUSD"  class="live-sym">ETHUSD perp (live)</option>
+              <option value="XAUTUSD" class="live-sym">Tether Gold (XAUTUSD) perp (live)</option>
             </optgroup>
           </select>
         </div>
@@ -561,7 +562,7 @@ const fmtTime  = iso => { if (!iso) return '—'; const d = new Date(iso); retur
 const fmtDate  = iso => { const d = new Date(iso); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }); };
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-const LIVE_SYMBOLS  = new Set(['BTCUSD', 'ETHUSD']);
+const LIVE_SYMBOLS  = new Set(['BTCUSD', 'ETHUSD', 'XAUTUSD']);
 const PAPER_SYMBOLS = new Set(['XAUUSD', 'XAGUSD', 'WTIUSD', 'NGASUSD', 'COPPER']);
 
 let appState    = {};
