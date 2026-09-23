@@ -82,8 +82,10 @@ class TradeRecord:
     day_high:      float
     day_low:       float
     day_close:     float
-    outcome:       str      # WIN | LOSS | NEUTRAL
-    r_multiple:    float    # +1.0 = 1R win, -1.0 = full stop
+    outcome:             str    # WIN | LOSS | NEUTRAL
+    r_multiple:          float  # +1.0 = 1R win, -1.0 = full stop
+    directional_correct: bool   # did stock close in predicted direction vs entry?
+    return_pct:          float  # % move from entry to EOD close (+ = profitable direction)
     factor_scores: dict = field(default_factory=dict)
 
 
@@ -101,6 +103,13 @@ class BacktestResults:
     max_drawdown:    float = 0.0      # max peak-to-trough cumulative R
     long_win_rate:   float = 0.0
     short_win_rate:  float = 0.0
+    # ── Directional accuracy (answers "does the LONG list actually go up?") ──
+    directional_accuracy:       float = 0.0  # % trades where stock moved in predicted direction
+    long_directional_accuracy:  float = 0.0
+    short_directional_accuracy: float = 0.0
+    avg_return_pct:             float = 0.0  # mean % move from entry to EOD (+ = right direction)
+    avg_long_return_pct:        float = 0.0
+    avg_short_return_pct:       float = 0.0
     days_tested:     int   = 0
     stocks_per_day:  float = 0.0
     lookback_days:   int   = 0
@@ -302,8 +311,13 @@ def _backtest_day(
         day_low   = float(row_D["low"])
         day_close = float(row_D["close"])
 
-        long_cands.append( (long_r.score,  sid, long_r,  day_open, day_high, day_low, day_close))
-        short_cands.append((short_r.score, sid, short_r, day_open, day_high, day_low, day_close))
+        # Daily breakout gate: only trade when stock actually gapped into breakout territory.
+        # LONG = opened above prev-day high (gap-up breakout of OR proxy).
+        # SHORT = opened below prev-day low (gap-down breakdown).
+        if day_open > prev_high:
+            long_cands.append( (long_r.score,  sid, long_r,  day_open, day_high, day_low, day_close))
+        if day_open < prev_low:
+            short_cands.append((short_r.score, sid, short_r, day_open, day_high, day_low, day_close))
 
     # Select top N each direction
     long_cands.sort( key=lambda x: x[0], reverse=True)
@@ -323,12 +337,15 @@ def _backtest_day(
             day_high=day_high, day_low=day_low,
             day_close=day_close, risk=risk,
         )
+        dir_correct = day_close > entry
+        ret_pct     = (day_close - entry) / entry * 100 if entry > 0 else 0.0
         day_trades.append(TradeRecord(
             date=str(day_D), security_id=sid, symbol=r.symbol,
             direction="LONG", score=score, fb_risk=r.fb_risk,
             entry=entry, stop=r.stop_loss, target=r.target_1r,
             day_high=day_high, day_low=day_low, day_close=day_close,
             outcome=outcome, r_multiple=r_mult,
+            directional_correct=dir_correct, return_pct=round(ret_pct, 3),
             factor_scores=r.factor_scores,
         ))
 
@@ -344,12 +361,15 @@ def _backtest_day(
             day_high=day_high, day_low=day_low,
             day_close=day_close, risk=risk,
         )
+        dir_correct = day_close < entry                          # SHORT wins when price falls
+        ret_pct     = (entry - day_close) / entry * 100 if entry > 0 else 0.0
         day_trades.append(TradeRecord(
             date=str(day_D), security_id=sid, symbol=r.symbol,
             direction="SHORT", score=score, fb_risk=r.fb_risk,
             entry=entry, stop=r.stop_loss, target=r.target_1r,
             day_high=day_high, day_low=day_low, day_close=day_close,
             outcome=outcome, r_multiple=r_mult,
+            directional_correct=dir_correct, return_pct=round(ret_pct, 3),
             factor_scores=r.factor_scores,
         ))
 
@@ -447,6 +467,18 @@ def _compute_metrics(
     long_wr  = sum(1 for t in longs  if t.outcome == "WIN") / len(longs)  * 100 if longs  else 0.0
     short_wr = sum(1 for t in shorts if t.outcome == "WIN") / len(shorts) * 100 if shorts else 0.0
 
+    # ── Directional accuracy ──────────────────────────────────────────────────
+    dir_acc  = sum(1 for t in trades if t.directional_correct) / n * 100
+    long_da  = sum(1 for t in longs  if t.directional_correct) / len(longs)  * 100 if longs  else 0.0
+    short_da = sum(1 for t in shorts if t.directional_correct) / len(shorts) * 100 if shorts else 0.0
+
+    ret_vals       = [t.return_pct for t in trades]
+    long_ret_vals  = [t.return_pct for t in longs]
+    short_ret_vals = [t.return_pct for t in shorts]
+    avg_ret        = float(np.mean(ret_vals))       if ret_vals       else 0.0
+    avg_long_ret   = float(np.mean(long_ret_vals))  if long_ret_vals  else 0.0
+    avg_short_ret  = float(np.mean(short_ret_vals)) if short_ret_vals else 0.0
+
     factor_auc    = _compute_factor_auc(trades)
     current_w     = _current_weights()
     proposed_w    = _propose_weights(factor_auc)
@@ -464,6 +496,12 @@ def _compute_metrics(
         max_drawdown  =round(max_dd, 2),
         long_win_rate =round(long_wr, 1),
         short_win_rate=round(short_wr, 1),
+        directional_accuracy      =round(dir_acc,  1),
+        long_directional_accuracy =round(long_da,  1),
+        short_directional_accuracy=round(short_da, 1),
+        avg_return_pct            =round(avg_ret,       3),
+        avg_long_return_pct       =round(avg_long_ret,  3),
+        avg_short_return_pct      =round(avg_short_ret, 3),
         days_tested   =days_tested,
         stocks_per_day=round(n / max(days_tested, 1), 1),
         lookback_days =lookback_days,

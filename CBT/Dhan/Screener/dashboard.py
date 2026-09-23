@@ -356,7 +356,13 @@ def api_backtest_trades():
     results: BacktestResults | None = bt.get("results")
     if results is None:
         return jsonify([])
-    return jsonify([dataclasses.asdict(t) for t in results.trades])
+
+    def _clean_trade(t):
+        d = dataclasses.asdict(t)
+        return {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+                for k, v in d.items()}
+
+    return jsonify([_clean_trade(t) for t in results.trades])
 
 
 def _backtest_worker(lookback_days: int, min_score: float):

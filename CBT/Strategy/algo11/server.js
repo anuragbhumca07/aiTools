@@ -59,16 +59,25 @@ function sendWhatsApp(text) {
   req.end();
 }
 
+function fmtSymbolDisplay(symbol) {
+  if (symbol === 'XAUUSD') return 'XAU/USD';
+  return symbol.replace('USDT', '/USDT');
+}
+function fmtSymbolBase(symbol) {
+  if (symbol === 'XAUUSD') return 'XAU';
+  return symbol.replace('USDT', '');
+}
+
 function waEntry(side, symbol, timeframe, price, size, sl, tp, riskAmt, balance) {
   const dir   = side === 'long' ? '🟢' : '🔴';
   const label = side === 'long' ? 'LONG' : 'SHORT';
-  const sym   = symbol.replace('USDT', '/USDT');
+  const sym   = fmtSymbolDisplay(symbol);
   const f     = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   sendWhatsApp(
     `${dir} *[Algo11] ENTRY — ${label} ${sym} ${timeframe}*\n` +
     `Price  : $${f(price)}\n` +
-    `Size   : ${f(size, 5)} ${symbol.replace('USDT', '')}\n` +
-    `SL     : $${f(sl)}  (1.5×ATR — static until $300 profit, then $50/step trailing)\n` +
+    `Size   : ${f(size, 5)} ${fmtSymbolBase(symbol)}\n` +
+    `SL     : $${f(sl)}  (1.5×ATR → BE@$200, lock$100@$250, lock$200@$300, +$100/step)\n` +
     `Init TP: $${f(tp)}  (3×ATR — trailing SL takes over beyond)\n` +
     `Risk   : $${f(riskAmt)}\n` +
     `Balance: $${f(balance)}`
@@ -79,7 +88,7 @@ function waExit(side, symbol, timeframe, pnl, reason, balance, wins, totalTrades
   const win    = pnl > 0;
   const icon   = win ? '✅' : '❌';
   const label  = side === 'long' ? 'LONG' : 'SHORT';
-  const sym    = symbol.replace('USDT', '/USDT');
+  const sym    = fmtSymbolDisplay(symbol);
   const wr     = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
   const f      = (n, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const pnlStr = `${pnl >= 0 ? '+' : ''}$${f(Math.abs(pnl))}`;
@@ -136,7 +145,7 @@ const stmtInsert = db.prepare(`
 const STRATEGIES = {
   'swing-v3-closed-candle': {
     name: 'swing-v3-closed-candle: EMA Ribbon Swing (Closed Candle + No-Drift Timer)',
-    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + :01s No-Drift Timer + 1.5×ATR SL + Trail: $50/step after $300 profit every 10s + Opposite Signal Exit + $1000 Hard Stop',
+    description: 'EMA21/55/200 + ADX(25) + DI-spread≥15 + 6/7 conditions + Closed Candle Eval + :01s No-Drift Timer + 1.5×ATR SL + Trail: BE@$200 → lock$100@$250 → lock$200@$300 → $100/step every 10s + Opposite Signal Exit + $1000 Hard Stop',
   },
 };
 
@@ -242,7 +251,7 @@ const CANDLE_MS = { '1m': 60000, '5m': 300000, '15m': 900000, '30m': 1800000, '1
 
 function defaultState() {
   return {
-    running: false, symbol: 'BTCUSDT', timeframe: '1m',
+    running: false, symbol: 'XAUUSD', timeframe: '1m',
     strategyId: 'swing-v3-closed-candle', mode: 'paper',
     balance: 10000, initialBalance: 10000,
     sessionId: null, sessionStart: null,
@@ -365,7 +374,7 @@ function manageFastTicker(sess) {
   const { state } = sess;
   const pos = state.position;
   const needFast = state.running && pos &&
-    ((pos.unrealizedPnl || 0) > 250 || pos.trailing);
+    ((pos.unrealizedPnl || 0) > 150 || pos.trailing);
 
   if (needFast && !sess.fastTicker) {
     console.log(`[Algo11] Starting fast 10s poll (unrealPnl=${(pos.unrealizedPnl||0).toFixed(2)})`);
@@ -429,7 +438,7 @@ async function runFastTick(sess) {
 
     broadcast(sess, { type: 'tick', state: publicState(state) });
   } catch (err) {
-    console.error('[Algo1 fastTick]', err.message);
+    console.error('[Algo11 fastTick]', err.message);
   }
 }
 
@@ -574,7 +583,7 @@ async function runTick(sess) {
       const tp       = side === 'long' ? price + 3 * atr  : price - 3 * atr;
       const lots     = parseFloat((riskAmt / (price * 100)).toFixed(2));
 
-      const orderResult = await tickmill.placeOrder(side, symbol, lots, sl, tp, 'CBT Algo1 Closed Candle');
+      const orderResult = await tickmill.placeOrder(side, symbol, lots, sl, tp, 'CBT Algo11 Gold');
 
       state.position = {
         side, entryPrice: price, size, stopLoss: sl, takeProfit: tp,
@@ -854,7 +863,7 @@ app.post('/api/start', requireAuth, (req, res) => {
   const sess = getSession(req.userId);
   if (sess.state.running) return res.json({ ok: false, msg: 'Already running' });
   const {
-    symbol = 'BTCUSDT', timeframe = '1m',
+    symbol = 'XAUUSD', timeframe = '1m',
     balance = 10000, interval = 60,
     strategyId = 'swing-v3-closed-candle', mode = 'paper',
   } = req.body || {};
@@ -891,7 +900,7 @@ app.post('/api/stop', requireAuth, (req, res) => {
 });
 
 app.post('/api/backtest', requireAuth, async (req, res) => {
-  const { symbol = 'BTCUSDT', timeframe = '1m', months = 3 } = req.body || {};
+  const { symbol = 'XAUUSD', timeframe = '1m', months = 3 } = req.body || {};
   const m = Math.max(1, Math.min(12, parseInt(months, 10) || 3));
   try {
     const result = await runBacktest(symbol, timeframe, m);
@@ -919,5 +928,5 @@ app.get('/events', (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`CBT Algo11 (Algo1 Entry + $50/step Trail) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
+  console.log(`CBT Algo11 (Gold XAU/USD — Closed Candle + Trailing SL) listening on :${PORT} | MetaApi: ${tickmill.mode}`)
 );

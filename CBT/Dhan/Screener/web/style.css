@@ -667,6 +667,20 @@ html, body {
 .signal-badge.confirmed { background: var(--green-dim); color: var(--green); }
 .signal-badge.failed    { background: var(--red-dim);   color: var(--red); }
 .signal-badge.new       { background: #1a2540;          color: var(--blue); }
+.signal-badge.live      { background: #1a2540;          color: var(--blue); font-weight: 700; letter-spacing: 0.04em; }
+
+/* ── Breakout chip (OR distance) ─────────────────────────────── */
+.stat-chip.brk-chip       { font-weight: 700; }
+.stat-chip.brk-chip.pos   { background: var(--green-dim); color: var(--green); }
+.stat-chip.brk-chip.neg   { background: var(--red-dim);   color: var(--red); }
+
+/* ── OR range bar ─────────────────────────────────────────────── */
+.or-range-bar {
+  font-size: 10px;
+  color: var(--fg3);
+  padding: 3px 0 2px;
+  letter-spacing: 0.03em;
+}
 
 /* ── Backtest weight comparison table ────────────────────────── */
 #btWeightsTable .weight-row {

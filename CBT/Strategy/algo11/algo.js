@@ -296,15 +296,25 @@ function checkExit(position, candles) {
 }
 
 // ── Trailing SL computation ───────────────────────────────────────
-// Band-based $50/step starting at $300 profit (band 6):
-//   band = floor(unrealPnl / 50); lock = (band - 1) * 50
-//   $300 (band 6) → lock $250, $350 (band 7) → lock $300, ...
+// Milestones:
+//   profit ≥ $200 → SL to break-even (lock $0)
+//   profit ≥ $250 → lock $100
+//   profit ≥ $300 → lock $200
+//   profit ≥ $400 → lock $300  (every +$100 above $300: lock = profit − $100)
 function computeTrailUpdate(position, unrealPnl) {
   const { side, entryPrice, size, stopLoss } = position;
-  const band = Math.floor(unrealPnl / 50);
-  if (band < 6) return null;
 
-  const lockProfit = (band - 1) * 50;
+  let lockProfit;
+  if (unrealPnl >= 300) {
+    lockProfit = Math.floor((unrealPnl - 100) / 100) * 100; // 300→200, 400→300, 500→400 …
+  } else if (unrealPnl >= 250) {
+    lockProfit = 100;
+  } else if (unrealPnl >= 200) {
+    lockProfit = 0; // break-even
+  } else {
+    return null;
+  }
+
   const newSl = side === 'long'
     ? entryPrice + lockProfit / size
     : entryPrice - lockProfit / size;
@@ -313,36 +323,82 @@ function computeTrailUpdate(position, unrealPnl) {
   return improved ? { oldSl: stopLoss, newSl, lockProfit } : null;
 }
 
-// ── Kraken data fetchers ──────────────────────────────────────────
+// ── Yahoo Finance data fetchers (Gold XAU/USD + other assets) ────────
+// Kraken does not list gold; Yahoo Finance provides free OHLCV for metals/forex.
 
-const KRAKEN_PAIR = {
-  BTCUSDT:  'XBTUSD', ETHUSDT:  'ETHUSD',
-  SOLUSDT:  'SOLUSD', XRPUSDT:  'XRPUSD',
-  ADAUSDT:  'ADAUSD', LTCUSDT:  'LTCUSD',
-  DOGEUSDT: 'XDGUSD',
-};
-const KRAKEN_INTERVAL = {
-  '1m': 1, '5m': 5, '15m': 15, '30m': 30, '1h': 60, '4h': 240, '1d': 1440,
+const YF_SYMBOL_MAP = {
+  XAUUSD:  'GC=F',       // Gold Futures (continuous contract) — spot equivalent, no API key needed
+  BTCUSDT: 'BTC-USD',
+  ETHUSDT: 'ETH-USD',
+  SOLUSDT: 'SOL-USD',
 };
 
-function fetchCandlesRaw(pair, ivMin, since) {
+// Yahoo Finance interval strings
+const YF_INTERVAL_MAP = {
+  '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '60m', '4h': '60m', '1d': '1d',
+};
+
+// Max range Yahoo Finance allows per interval
+// 1m → 7d; 5/15/30m → 60d; 60m → 730d; 1d → unlimited
+function yfLiveRange(interval) {
+  if (interval === '1m')                                      return '5d';
+  if (['5m','15m','30m'].includes(interval))                  return '60d';
+  return '729d';
+}
+
+// Aggregate hourly candles into 4h bars (Yahoo doesn't have a 4h interval)
+function agg4h(candles) {
+  const out = [];
+  let bar = null;
+  for (const c of candles) {
+    const h = new Date(c.time).getUTCHours();
+    if (!bar || h % 4 === 0) {
+      if (bar) out.push(bar);
+      bar = { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+    } else {
+      bar.high    = Math.max(bar.high, c.high);
+      bar.low     = Math.min(bar.low,  c.low);
+      bar.close   = c.close;
+      bar.volume += c.volume;
+    }
+  }
+  if (bar) out.push(bar);
+  return out;
+}
+
+function yfFetch(yfTicker, yfInterval, params) {
   return new Promise((resolve, reject) => {
-    const qs = `pair=${pair}&interval=${ivMin}${since ? `&since=${since}` : ''}`;
-    const opts = { hostname: 'api.kraken.com', path: `/0/public/OHLC?${qs}`, method: 'GET' };
+    const qs   = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&');
+    const path = `/v8/finance/chart/${encodeURIComponent(yfTicker)}?interval=${yfInterval}&${qs}`;
+    const opts = {
+      hostname: 'query1.finance.yahoo.com',
+      path,
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CBT-algo11/1.0)' },
+    };
     const req = https.request(opts, res => {
       let raw = '';
       res.on('data', d => raw += d);
       res.on('end', () => {
         try {
           const json = JSON.parse(raw);
-          if (json.error && json.error.length) return reject(new Error(json.error[0]));
-          const key = Object.keys(json.result).find(k => k !== 'last');
-          if (!key) return reject(new Error('No OHLC key in Kraken response'));
-          const candles = json.result[key].map(c => ({
-            time: c[0] * 1000, open: +c[1], high: +c[2], low: +c[3],
-            close: +c[4], volume: +c[6],
-          }));
-          resolve({ candles, last: json.result.last });
+          if (json.chart?.error) return reject(new Error(json.chart.error.description || 'Yahoo Finance error'));
+          const result = json.chart?.result?.[0];
+          if (!result) return reject(new Error('No chart data from Yahoo Finance'));
+          const ts = result.timestamp || [];
+          const q  = result.indicators?.quote?.[0] || {};
+          const candles = ts
+            .map((t, i) => ({
+              time:   t * 1000,
+              open:   +(q.open?.[i]   ?? q.close?.[i] ?? 0),
+              high:   +(q.high?.[i]   ?? q.close?.[i] ?? 0),
+              low:    +(q.low?.[i]    ?? q.close?.[i] ?? 0),
+              close:  +(q.close?.[i]  ?? 0),
+              volume: +(q.volume?.[i] ?? 0),
+            }))
+            .filter(c => c.close > 0);
+          resolve(candles);
         } catch (e) { reject(e); }
       });
     });
@@ -352,60 +408,30 @@ function fetchCandlesRaw(pair, ivMin, since) {
 }
 
 async function fetchCandles(symbol, interval, limit = 200) {
-  const pair  = KRAKEN_PAIR[symbol] || symbol;
-  const ivMin = KRAKEN_INTERVAL[interval] || 60;
-  const { candles } = await fetchCandlesRaw(pair, ivMin, null);
+  const yfTicker   = YF_SYMBOL_MAP[symbol] || symbol;
+  const yfInterval = YF_INTERVAL_MAP[interval] || '1m';
+  const range      = yfLiveRange(interval);
+  let candles      = await yfFetch(yfTicker, yfInterval, { range });
+  if (interval === '4h') candles = agg4h(candles);
   return candles.slice(-limit);
 }
 
 async function fetchCandlesHistorical(symbol, interval, months) {
-  const pair  = KRAKEN_PAIR[symbol] || symbol;
-  const ivMin = KRAKEN_INTERVAL[interval] || 60;
-  const ivSec = ivMin * 60;
-  const now   = Math.floor(Date.now() / 1000);
-  const fetchFrom    = now - Math.ceil(months * 30.44 * 24 * 3600) - 100 * ivSec;
-  const candlesNeeded = Math.ceil((now - fetchFrom) / ivSec);
-  const maxCalls      = Math.min(50, Math.ceil(candlesNeeded / 700) + 2);
-  const allCandles    = [];
-  let since = fetchFrom;
-  for (let i = 0; i < maxCalls; i++) {
-    const { candles, last } = await fetchCandlesRaw(pair, ivMin, since);
-    if (!candles.length) break;
-    const seen = new Set(allCandles.map(c => c.time));
-    allCandles.push(...candles.filter(c => !seen.has(c.time)));
-    const lastMs = allCandles[allCandles.length - 1].time;
-    if (lastMs / 1000 >= now - ivSec * 3) break;
-    since = last || Math.floor(lastMs / 1000) + 1;
-    if (i < maxCalls - 1) await new Promise(r => setTimeout(r, 350));
-  }
-  return allCandles;
+  const yfTicker   = YF_SYMBOL_MAP[symbol] || symbol;
+  const yfInterval = YF_INTERVAL_MAP[interval] || '1m';
+  const now        = Math.floor(Date.now() / 1000);
+  const period1    = now - Math.ceil(months * 30.44 * 24 * 3600);
+  let candles      = await yfFetch(yfTicker, yfInterval, { period1, period2: now });
+  if (interval === '4h') candles = agg4h(candles);
+  return candles;
 }
 
-// Lightweight single-price fetch via Kraken Ticker endpoint.
-// Used by the 10-second fast poll to avoid fetching 250 candles every 10s.
+// Lightweight current-price fetch for the 10-second fast-poll trail ticker.
 async function fetchCurrentPrice(symbol) {
-  const pair = KRAKEN_PAIR[symbol] || symbol;
-  return new Promise((resolve, reject) => {
-    const opts = {
-      hostname: 'api.kraken.com',
-      path: `/0/public/Ticker?pair=${pair}`,
-      method: 'GET',
-    };
-    const req = https.request(opts, res => {
-      let raw = '';
-      res.on('data', d => raw += d);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(raw);
-          if (json.error && json.error.length) return reject(new Error(json.error[0]));
-          const key = Object.keys(json.result)[0];
-          resolve(parseFloat(json.result[key].c[0]));
-        } catch (e) { reject(e); }
-      });
-    });
-    req.on('error', reject);
-    req.end();
-  });
+  const yfTicker = YF_SYMBOL_MAP[symbol] || symbol;
+  const candles  = await yfFetch(yfTicker, '1m', { range: '1d' });
+  if (!candles.length) throw new Error(`No price data from Yahoo Finance for ${symbol}`);
+  return candles[candles.length - 1].close;
 }
 
 module.exports = {

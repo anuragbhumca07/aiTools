@@ -38,6 +38,11 @@ CACHE_DIR     = os.getenv("CACHE_DIR", "cache")
 OHLCV_DIR     = os.path.join(CACHE_DIR, "ohlcv")
 RESULTS_DIR   = os.path.join(CACHE_DIR, "results")
 
+# ── Breakout gate ─────────────────────────────────────────────────────────────
+# Hard conditions a stock must satisfy before entering the LONG or SHORT list.
+# Stocks that don't pass are excluded entirely — not ranked lower.
+MIN_RVOL_BREAKOUT = float(os.getenv("MIN_RVOL_BREAKOUT", "1.5"))  # min time-normalised RVOL at breakout
+
 # ── API rate limiting ─────────────────────────────────────────────────────────
 # VERIFY: Dhan's actual rate limits for historical data API calls.
 # These are conservative placeholders — adjust after checking DhanHQ docs.

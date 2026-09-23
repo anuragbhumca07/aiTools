@@ -249,43 +249,54 @@ function updateCard(card, s, dir, rank, confirmed, failed) {
 }
 
 function cardHTML(s, dir, rank, confirmed, failed) {
-  const score    = typeof s.score === 'number' ? s.score.toFixed(1) : '—';
-  const fbRisk   = typeof s.fb_risk === 'number' ? s.fb_risk : 50;
-  const fbColor  = fbRisk < 35 ? '#1eca7a' : fbRisk < 65 ? '#f5a623' : '#e8404a';
-  const ltp      = fmt(s.ltp);
-  const entry    = fmt(s.entry);
-  const sl       = fmt(s.stop_loss);
-  const t1r      = fmt(s.target_1r);
-  const t2r      = fmt(s.target_2r);
-  const relVol   = s.rel_volume != null ? `${s.rel_volume.toFixed(2)}×` : '—';
-  const dayMove  = s.day_move_pct != null ? pctStr(s.day_move_pct) : '—';
-  const rs       = s.rs_nifty    != null ? pctStr(s.rs_nifty)      : '—';
-  const vwap     = s.vwap        != null ? fmt(s.vwap)              : '—';
+  const fbRisk  = typeof s.fb_risk === 'number' ? s.fb_risk : 50;
+  const fbColor = fbRisk < 35 ? '#1eca7a' : fbRisk < 65 ? '#f5a623' : '#e8404a';
+  const ltp     = fmt(s.ltp);
+  const entry   = fmt(s.entry);
+  const sl      = fmt(s.stop_loss);
+  const t1r     = fmt(s.target_1r);
+  const t2r     = fmt(s.target_2r);
+  const relVol  = s.rel_volume != null ? `${s.rel_volume.toFixed(2)}x` : '—';
+  const dayMove = s.day_move_pct != null ? pctStr(s.day_move_pct) : '—';
+  const rs      = s.rs_nifty    != null ? pctStr(s.rs_nifty)      : '—';
+  const vwap    = s.vwap        != null ? fmt(s.vwap)              : '—';
 
-  const badge = confirmed ? '<span class="signal-badge confirmed">▲ CONFIRMED</span>'
-              : failed    ? '<span class="signal-badge failed">▼ FAILED</span>'
-              : '';
+  // Breakout distance — the primary signal indicator
+  let brkChip = '';
+  if (s.breakout_pct != null) {
+    const sign = s.breakout_pct >= 0 ? '+' : '';
+    const cls  = s.breakout_pct >= 0 ? 'pos' : 'neg';
+    brkChip = `<span class="stat-chip brk-chip ${cls}">OR ${sign}${s.breakout_pct.toFixed(2)}%</span>`;
+  }
+
+  // OR range label
+  const orRange = (s.or_high != null && s.or_low != null)
+    ? `OR: ${fmt(s.or_low)} – ${fmt(s.or_high)}`
+    : '';
+
+  const badge = confirmed ? '<span class="signal-badge confirmed">HOLDING</span>'
+              : failed    ? '<span class="signal-badge failed">FAILED</span>'
+              : '<span class="signal-badge live">BREAKOUT</span>';
 
   const reasons = (s.reasons || []).map(r => {
-    const isWarn = r.startsWith('⚠') || r.toLowerCase().includes('unvalidated');
+    const isWarn = r.startsWith('Bearish') || r.startsWith('Bullish');
     return `<div class="reason-item${isWarn?' warn':''}">${escHtml(r)}</div>`;
   }).join('');
 
   return `
     <div class="card-header">
       <div>
-        <div class="card-sym">#${rank+1} ${escHtml(s.symbol || s.security_id)}${badge}</div>
+        <div class="card-sym">#${rank+1} ${escHtml(s.symbol || s.security_id)} ${badge}</div>
         <div class="card-company">${escHtml(s.company || s.security_id)}</div>
       </div>
       <div class="card-scores">
-        <div class="score-main">${score}</div>
+        <div class="score-main" title="Relative Volume">${relVol}</div>
         <div class="score-fb">
           <span class="fb-dot" style="background:${fbColor}"></span>
           Risk ${fbRisk.toFixed(0)}
         </div>
       </div>
     </div>
-    <div class="score-bar-wrap"><div class="score-bar" style="width:${Math.min(s.score||0,100)}%"></div></div>
     <div class="price-grid">
       <div class="price-cell entry"><div class="plabel">Entry</div><div class="pval">${entry}</div></div>
       <div class="price-cell sl">   <div class="plabel">Stop</div> <div class="pval">${sl}</div></div>
@@ -296,12 +307,13 @@ function cardHTML(s, dir, rank, confirmed, failed) {
       <span class="stat-chip">LTP <span class="chip-val">${ltp}</span></span>
       <span class="stat-chip ${signClass(s.day_move_pct)}">Day <span class="chip-val">${dayMove}</span></span>
       <span class="stat-chip ${signClass(s.rs_nifty)}">RS <span class="chip-val">${rs}</span></span>
-      <span class="stat-chip">RVOL <span class="chip-val">${relVol}</span></span>
+      ${brkChip}
       <span class="stat-chip">VWAP <span class="chip-val">${vwap}</span></span>
     </div>
+    ${orRange ? `<div class="or-range-bar">${orRange}</div>` : ''}
     ${reasons ? `
     <div class="card-reasons">
-      <button class="reasons-toggle" onclick="toggleReasons(this)">▸ Reasons</button>
+      <button class="reasons-toggle" onclick="toggleReasons(this)">Why this stock?</button>
       <div class="reasons-list" style="display:none">${reasons}</div>
     </div>` : ''}
   `;
@@ -311,7 +323,7 @@ function toggleReasons(btn) {
   const list = btn.nextElementSibling;
   const open = list.style.display !== 'none';
   list.style.display = open ? 'none' : 'flex';
-  btn.textContent = open ? '▸ Reasons' : '▾ Reasons';
+  btn.textContent = open ? 'Why this stock?' : 'Why this stock? (hide)';
 }
 
 function clearResults() {
@@ -488,6 +500,28 @@ function _btRenderMetrics(r) {
   _btSet('btSharpe',  `${r.sharpe}`);
   _btSet('btMaxDD',   `${r.max_drawdown}R`);
   _btSet('btDays',    `${r.days_tested} (${r.lookback_days}d window)`);
+
+  // Directional accuracy (did the pick close in the predicted direction?)
+  const da     = r.directional_accuracy       ?? null;
+  const longDA = r.long_directional_accuracy  ?? null;
+  const shortDA= r.short_directional_accuracy ?? null;
+  const daCls  = (v) => v == null ? '' : v >= 55 ? 'var(--green)' : v >= 50 ? 'var(--amber)' : 'var(--red)';
+  if (da != null) {
+    _btSet('btDirAcc',      `${da.toFixed(1)}%`,      daCls(da));
+    _btSet('btLongDA',      `${longDA.toFixed(1)}%`,  daCls(longDA));
+    _btSet('btShortDA',     `${shortDA.toFixed(1)}%`, daCls(shortDA));
+  }
+
+  // Average % return from entry to day close
+  const avgRet      = r.avg_return_pct       ?? null;
+  const avgLongRet  = r.avg_long_return_pct  ?? null;
+  const avgShortRet = r.avg_short_return_pct ?? null;
+  const retCls = (v) => v == null ? '' : v >= 0 ? 'var(--green)' : 'var(--red)';
+  if (avgRet != null) {
+    _btSet('btAvgRet',      `${avgRet >= 0 ? '+' : ''}${avgRet.toFixed(2)}%`,      retCls(avgRet));
+    _btSet('btAvgLongRet',  `${avgLongRet >= 0 ? '+' : ''}${avgLongRet.toFixed(2)}%`,  retCls(avgLongRet));
+    _btSet('btAvgShortRet', `${avgShortRet >= 0 ? '+' : ''}${avgShortRet.toFixed(2)}%`, retCls(avgShortRet));
+  }
 }
 
 function _btSet(id, text, color) {

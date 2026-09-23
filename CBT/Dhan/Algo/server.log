@@ -1,0 +1,21 @@
+============================================================
+  Dhan NSE Intraday Algo
+  http://localhost:5051
+  Capital cap: Rs 50,000 per position
+  EOD: stop=15:10  close=15:20  fallback=15:25 IST
+============================================================
+INFO:     127.0.0.1:64465 - "POST /api/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55427 - "GET /api/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54063 - "POST /api/stop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54063 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52707 - "GET /static/app.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54063 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51524 - "POST /api/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54635 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59372 - "POST /api/stop HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59372 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59372 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58433 - "GET /static/app.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58433 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58433 - "POST /api/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57996 - "POST /api/stop HTTP/1.1" 200 OK

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Alpaca Intraday Algo</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">Alpaca Algo</span>
+      <span id="brokerBadge" class="badge badge-blue">alpaca</span>
+      <span id="modeBadge"   class="badge badge-amber">paper</span>
+    </div>
+    <div class="header-right">
+      <span id="clockEl" class="clock"></span>
+      <span id="statusDot" class="status-dot idle" title="Engine status"></span>
+      <span id="statusLabel" class="status-label">idle</span>
+    </div>
+  </header>
+
+  <!-- Account strip -->
+  <div class="account-strip">
+    <div class="acct-stat">
+      <div class="acct-label">Equity</div>
+      <div class="acct-val" id="acctEquity">—</div>
+    </div>
+    <div class="acct-stat">
+      <div class="acct-label">Session P&amp;L</div>
+      <div class="acct-val pnl" id="acctPnl">—</div>
+    </div>
+    <div class="acct-stat">
+      <div class="acct-label">Win rate</div>
+      <div class="acct-val" id="acctWR">—</div>
+    </div>
+    <div class="acct-stat">
+      <div class="acct-label">Trades</div>
+      <div class="acct-val" id="acctTrades">0</div>
+    </div>
+    <div class="acct-stat wide">
+      <div class="acct-label">Portfolio risk</div>
+      <div class="risk-bar-wrap">
+        <div class="risk-bar" id="riskBar"></div>
+      </div>
+      <div class="acct-val" id="acctRisk">0%</div>
+    </div>
+    <div class="acct-stat">
+      <div class="acct-label">EOD phase</div>
+      <div class="acct-val" id="acctEOD">—</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button id="btnStart" class="btn btn-green" onclick="apiStart()">Start engine</button>
+    <button id="btnStop"  class="btn btn-red"   onclick="apiStop()">Stop</button>
+    <button id="btnCloseAll" class="btn btn-amber" onclick="apiCloseAll()">Close all</button>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+    <!-- Positions panel -->
+    <section class="panel panel-pos">
+      <div class="panel-hdr">
+        <span>Open positions</span>
+        <span id="posCount" class="count-badge">0</span>
+      </div>
+      <div id="posTable" class="pos-table-wrap">
+        <div class="empty-msg">No open positions</div>
+      </div>
+    </section>
+
+    <!-- Screener panel -->
+    <section class="panel panel-screen">
+      <div class="panel-hdr">
+        <span>Screener candidates</span>
+        <button class="btn-sm" onclick="reloadScreener()">↺ Refresh</button>
+      </div>
+      <div id="screenerList" class="screener-list">
+        <div class="empty-msg">Run engine to populate screener</div>
+      </div>
+    </section>
+
+    <!-- Log panel -->
+    <section class="panel panel-log">
+      <div class="panel-hdr">
+        <span>Engine log</span>
+        <label class="toggle-label">
+          <input type="checkbox" id="autoScrollChk" checked/>
+          auto-scroll
+        </label>
+      </div>
+      <div id="logFeed" class="log-feed"></div>
+    </section>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

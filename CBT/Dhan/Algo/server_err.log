@@ -1,0 +1,148 @@
+INFO:     Started server process [1940]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5051 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64456 - "WebSocket /ws" [accepted]
+INFO:     connection open
+00:13:12 INFO     engine: Building NSE universe...
+00:13:12 INFO     engine: Engine started (Dhan NSE | 5-min bars)
+00:13:14 INFO     universe: Loaded cached instrument master: cache\instrument_master.csv
+00:13:15 INFO     universe: Segment filter (E): 207159 → 23528
+00:13:15 INFO     universe: Exchange filter (NSE): 23528 → 9924
+00:13:15 INFO     universe: Series filter (EQ): 9924 → 2690
+00:13:15 INFO     universe: Instrument filter (EQUITY): 2690 → 2690
+00:13:15 INFO     universe: Final universe (pre-price filter): 2690 stocks
+00:13:16 INFO     screener: Universe loaded: 2690 stocks
+00:13:16 INFO     engine: Running screener...
+00:13:16 INFO     screener: Screener: scoring 200 NSE EQ securities using daily bars...
+00:13:17 INFO     screener: Dhan daily API active — fetching 200 stocks...
+00:13:29 INFO     screener: Screener progress: 20/200, 20 qualify
+00:13:41 INFO     screener: Screener progress: 40/200, 40 qualify
+00:13:52 INFO     screener: Screener progress: 60/200, 60 qualify
+00:14:04 INFO     screener: Screener progress: 80/200, 80 qualify
+00:14:16 INFO     screener: Screener progress: 100/200, 100 qualify
+00:14:27 INFO     screener: Screener progress: 120/200, 120 qualify
+00:14:39 INFO     screener: Screener progress: 140/200, 140 qualify
+00:14:51 INFO     screener: Screener progress: 160/200, 160 qualify
+00:15:03 INFO     screener: Screener progress: 180/200, 180 qualify
+00:15:15 INFO     screener: Screener progress: 200/200, 200 qualify
+00:15:15 INFO     screener: Screener done: 162 / 200 qualify - top: HDFCNIFTY(3.4x), MOHEALTH(3.9x), SCHAEFFLER(3.4x), SYNGENE(5.0x), NIFTYBETA(41.9x)
+00:15:15 INFO     engine: Loading 12d of 5-min bars for 50 securities...
+00:17:30 INFO     engine: History loaded: 50/50 securities have bars
+00:17:30 INFO     engine: Engine running - 50 candidates | broker=dhan | mode=live
+00:20:32 INFO     engine: SIGNAL BUY LT  score=6/7  price=3895.80  atr=5.8458  qty=12  SL=3881.19  TP=3939.64
+00:20:32 ERROR    engine: Entry order for LT failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:20:32 INFO     engine: SIGNAL BUY APARINDS  score=6/7  price=18892.00  atr=112.2956  qty=2  SL=18611.26  TP=19734.22
+00:20:32 ERROR    engine: Entry order for APARINDS failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:21:01 INFO     engine: SIGNAL BUY BHARTIARTL  score=7/7  price=1847.90  atr=3.4186  qty=27  SL=1839.35  TP=1873.54
+00:21:01 ERROR    engine: Entry order for BHARTIARTL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:25:33 INFO     engine: SIGNAL BUY SETFNIF50  score=6/7  price=252.39  atr=0.5276  qty=198  SL=251.07  TP=256.35
+00:25:33 ERROR    engine: Entry order for SETFNIF50 failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:31:05 INFO     engine: SIGNAL BUY HDFCNIFTY  score=7/7  price=264.12  atr=0.4483  qty=189  SL=263.00  TP=267.48
+00:31:05 ERROR    engine: Entry order for HDFCNIFTY failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:31:18 WARNING  engine: Stop requested - finishing current tick
+INFO:     127.0.0.1:59010 - "WebSocket /ws" [accepted]
+INFO:     connection open
+00:31:28 INFO     engine: Building NSE universe...
+00:31:28 INFO     engine: Engine started (Dhan NSE | 5-min bars)
+00:31:28 INFO     universe: Loaded cached instrument master: cache\instrument_master.csv
+00:31:30 INFO     universe: Segment filter (E): 207159 → 23528
+00:31:31 INFO     universe: Exchange filter (NSE): 23528 → 9924
+00:31:31 INFO     universe: Series filter (EQ): 9924 → 2690
+00:31:31 INFO     universe: Instrument filter (EQUITY): 2690 → 2690
+00:31:31 INFO     universe: Final universe (pre-price filter): 2690 stocks
+00:31:32 INFO     screener: Universe loaded: 2690 stocks
+00:31:32 INFO     engine: Running screener...
+00:31:32 INFO     screener: Screener: scoring 200 NSE EQ securities using daily bars...
+00:31:33 INFO     screener: Dhan daily API active — fetching 200 stocks...
+00:31:45 INFO     screener: Screener progress: 20/200, 20 qualify
+00:31:57 INFO     screener: Screener progress: 40/200, 40 qualify
+00:32:09 INFO     screener: Screener progress: 60/200, 60 qualify
+00:32:20 INFO     screener: Screener progress: 80/200, 80 qualify
+00:32:32 INFO     screener: Screener progress: 100/200, 100 qualify
+00:32:44 INFO     screener: Screener progress: 120/200, 120 qualify
+00:32:55 INFO     screener: Screener progress: 140/200, 140 qualify
+00:33:07 INFO     screener: Screener progress: 160/200, 160 qualify
+00:33:19 INFO     screener: Screener progress: 180/200, 180 qualify
+00:33:31 INFO     screener: Screener progress: 200/200, 200 qualify
+00:33:31 INFO     screener: Screener done: 162 / 200 qualify - top: HDFCNIFTY(3.4x), MOHEALTH(3.9x), SCHAEFFLER(3.4x), SYNGENE(5.0x), NIFTYBETA(41.9x)
+00:33:31 INFO     engine: Loading 12d of 5-min bars for 50 securities...
+00:35:36 INFO     engine: SIGNAL BUY PETRONET  score=7/7  price=288.85  atr=0.7690  qty=173  SL=286.93  TP=294.62
+00:35:36 ERROR    engine: Entry order for PETRONET failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:35:37 INFO     engine: SIGNAL BUY AURUM  score=6/7  price=220.56  atr=0.7111  qty=226  SL=218.78  TP=225.89
+00:35:37 ERROR    engine: Entry order for AURUM failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:35:38 INFO     engine: History loaded: 50/50 securities have bars
+00:35:38 INFO     engine: Engine running - 50 candidates | broker=dhan | mode=live
+00:36:06 INFO     engine: SIGNAL BUY SETFNIF50  score=6/7  price=252.33  atr=0.5060  qty=198  SL=251.07  TP=256.12
+00:36:06 ERROR    engine: Entry order for SETFNIF50 failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:40:40 INFO     engine: SIGNAL BUY HDFCNIFTY  score=6/7  price=264.02  atr=0.4172  qty=189  SL=262.98  TP=267.15
+00:40:40 ERROR    engine: Entry order for HDFCNIFTY failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:40:40 INFO     engine: SIGNAL SELL NTPC  score=7/7  price=326.80  atr=0.6426  qty=152  SL=328.41  TP=321.98
+00:40:41 ERROR    engine: Entry order for NTPC failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:49:53 WARNING  engine: Stop requested - finishing current tick
+INFO:     127.0.0.1:64832 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:63195 - "WebSocket /ws" [accepted]
+INFO:     connection open
+00:50:01 INFO     engine: Building NSE universe...
+00:50:01 INFO     engine: Engine started (Dhan NSE | 5-min bars)
+00:50:01 INFO     universe: Loaded cached instrument master: cache\instrument_master.csv
+00:50:03 INFO     universe: Segment filter (E): 207159 → 23528
+00:50:03 INFO     universe: Exchange filter (NSE): 23528 → 9924
+00:50:03 INFO     universe: Series filter (EQ): 9924 → 2690
+00:50:03 INFO     universe: Instrument filter (EQUITY): 2690 → 2690
+00:50:03 INFO     universe: Final universe (pre-price filter): 2690 stocks
+00:50:04 INFO     screener: Universe loaded: 2690 stocks
+00:50:04 INFO     engine: Running screener...
+00:50:04 INFO     screener: Screener: scoring 200 NSE EQ securities using daily bars...
+00:50:06 INFO     screener: Dhan daily API active — fetching 200 stocks...
+00:50:16 INFO     engine: SIGNAL SELL NTPC  score=7/7  price=326.75  atr=0.5921  qty=153  SL=328.23  TP=322.31
+00:50:17 ERROR    engine: Entry order for NTPC failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:50:18 INFO     screener: Screener progress: 20/200, 11 qualify
+00:50:29 INFO     screener: Screener progress: 40/200, 28 qualify
+00:50:41 INFO     screener: Screener progress: 60/200, 42 qualify
+00:50:53 INFO     screener: Screener progress: 80/200, 60 qualify
+00:51:05 INFO     screener: Screener progress: 100/200, 80 qualify
+00:51:16 INFO     engine: SIGNAL BUY HDFCNIFTY  score=6/7  price=263.98  atr=0.3713  qty=189  SL=263.05  TP=266.77
+00:51:16 ERROR    engine: Entry order for HDFCNIFTY failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+00:51:16 INFO     screener: Screener progress: 120/200, 100 qualify
+00:51:29 INFO     screener: Screener progress: 140/200, 120 qualify
+00:51:41 INFO     screener: Screener progress: 160/200, 137 qualify
+00:51:52 INFO     screener: Screener progress: 180/200, 152 qualify
+00:52:04 INFO     screener: Screener progress: 200/200, 172 qualify
+00:52:05 INFO     screener: Screener done: 139 / 200 qualify - top: HDFCNIFTY(3.4x), MOHEALTH(3.9x), SCHAEFFLER(3.4x), SYNGENE(5.0x), NIFTYBETA(41.9x)
+00:52:05 INFO     engine: Loading 12d of 5-min bars for 50 securities...
+00:54:05 INFO     engine: History loaded: 50/50 securities have bars
+00:54:05 INFO     engine: Engine running - 50 candidates | broker=dhan | mode=live
+00:55:34 INFO     engine: SIGNAL SELL JSL  score=6/7  price=743.95  atr=2.1854  qty=67  SL=749.41  TP=727.56
+00:55:34 ERROR    engine: Entry order for JSL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:00:16 INFO     engine: SIGNAL SELL LALPATHLAB  score=6/7  price=1905.30  atr=5.5362  qty=26  SL=1919.14  TP=1863.78
+01:00:16 ERROR    engine: Entry order for LALPATHLAB failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:00:16 INFO     engine: SIGNAL BUY DIVISLAB  score=6/7  price=9406.00  atr=17.8701  qty=5  SL=9361.32  TP=9540.03
+01:00:16 ERROR    engine: Entry order for DIVISLAB failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:00:34 INFO     engine: SIGNAL BUY SHAREINDIA  score=6/7  price=225.47  atr=1.5491  qty=194  SL=221.60  TP=237.09
+01:00:35 ERROR    engine: Entry order for SHAREINDIA failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:00:35 INFO     engine: SIGNAL SELL JSL  score=6/7  price=743.45  atr=2.0650  qty=67  SL=748.61  TP=727.96
+01:00:35 ERROR    engine: Entry order for JSL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:01:34 INFO     engine: SIGNAL BUY HDFCQUAL  score=6/7  price=57.02  atr=0.0971  qty=876  SL=56.78  TP=57.75
+01:01:35 ERROR    engine: Entry order for HDFCQUAL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:05:17 INFO     engine: SIGNAL SELL NTPC  score=6/7  price=326.50  atr=0.5130  qty=153  SL=327.78  TP=322.65
+01:05:17 ERROR    engine: Entry order for NTPC failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:05:17 INFO     engine: SIGNAL BUY DIVISLAB  score=6/7  price=9407.00  atr=16.8794  qty=5  SL=9364.80  TP=9533.60
+01:05:17 ERROR    engine: Entry order for DIVISLAB failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:06:35 INFO     engine: SIGNAL BUY HDFCQUAL  score=6/7  price=57.02  atr=0.0902  qty=876  SL=56.79  TP=57.70
+01:06:35 ERROR    engine: Entry order for HDFCQUAL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:07:17 INFO     engine: SIGNAL BUY HDFCNIFTY  score=6/7  price=263.84  atr=0.3295  qty=189  SL=263.02  TP=266.31
+01:07:17 ERROR    engine: Entry order for HDFCNIFTY failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:10:34 INFO     engine: SIGNAL BUY EMIL  score=6/7  price=194.04  atr=0.9983  qty=257  SL=191.54  TP=201.53
+01:10:34 ERROR    engine: Entry order for EMIL failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:11:17 INFO     engine: SIGNAL BUY HDFCNIFTY  score=6/7  price=263.88  atr=0.3203  qty=189  SL=263.08  TP=266.28
+01:11:17 ERROR    engine: Entry order for HDFCNIFTY failed: place_market_order failed: {'error_code': 'DH-905', 'error_type': 'Input_Exception', 'error_message': 'Invalid IP'}
+01:12:17 WARNING  engine: Stop requested - finishing current tick
+01:12:17 INFO     engine: Engine stopped
+01:12:17 INFO     engine: Engine stopped
+01:12:35 INFO     engine: Engine stopped
+INFO:     127.0.0.1:54507 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:56167 - "WebSocket /ws" [accepted]
+INFO:     connection open

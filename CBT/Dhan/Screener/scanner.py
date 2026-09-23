@@ -128,6 +128,31 @@ def _get_trade_date(dhan) -> date:
     return today
 
 
+def _is_valid_long(r: "ScanResult") -> bool:
+    """
+    Hard gate for LONG: price must have actually broken above OR high,
+    volume must confirm (RVOL ≥ MIN_RVOL_BREAKOUT), and price must be
+    above the intraday VWAP.  All three conditions are required.
+    """
+    return (
+        r.ltp > r.or_high and
+        r.rel_volume >= config.MIN_RVOL_BREAKOUT and
+        r.ltp >= r.vwap
+    )
+
+
+def _is_valid_short(r: "ScanResult") -> bool:
+    """
+    Hard gate for SHORT: price must have broken below OR low with volume,
+    and price must be below intraday VWAP.
+    """
+    return (
+        r.ltp < r.or_low and
+        r.rel_volume >= config.MIN_RVOL_BREAKOUT and
+        r.ltp <= r.vwap
+    )
+
+
 def _get_prev_scan_time(current: str) -> str | None:
     order = config.SCAN_TIMES
     try:
@@ -262,33 +287,45 @@ def run_scan(
         short_results.append(short_r)
         live_count += 1
 
-    long_results.sort( key=lambda r: r.score, reverse=True)
-    short_results.sort(key=lambda r: r.score, reverse=True)
+    # ── Hard breakout gate ────────────────────────────────────────────────────
+    # Only show stocks that are ACTUALLY breaking out with confirming volume.
+    # Gate: ltp > or_high (LONG) or ltp < or_low (SHORT), RVOL ≥ MIN_RVOL_BREAKOUT,
+    #       price on the right side of intraday VWAP.
+    valid_longs  = [r for r in long_results  if _is_valid_long(r)]
+    valid_shorts = [r for r in short_results if _is_valid_short(r)]
 
-    # Signal tracking vs previous slot (Phase 2b)
+    # Sort by score within the gated set, mark confirmed
+    valid_longs.sort( key=lambda r: r.score, reverse=True)
+    valid_shorts.sort(key=lambda r: r.score, reverse=True)
+    for r in valid_longs:  r.breakout_confirmed = True
+    for r in valid_shorts: r.breakout_confirmed = True
+
+    # Signal tracking vs previous slot
     prev_scan = _get_prev_scan_time(scan_time)
     confirmed, failed = [], []
     with _store_lock:
         prev_slot = _results_store.get(prev_scan) if prev_scan else None
     if prev_slot:
-        prev_long = {r.symbol: r.score for r in (prev_slot.get("LONG") or [])}
-        for r in long_results[:top_n]:
-            delta = r.score - prev_long.get(r.symbol, r.score)
-            if delta > 5:
+        prev_long_syms = {r.symbol for r in (prev_slot.get("LONG") or [])}
+        for r in valid_longs[:top_n]:
+            if r.symbol in prev_long_syms:
                 confirmed.append(r.symbol)
-            elif delta < -5:
-                failed.append(r.symbol)
 
     if live_count == 0:
         note = (f"No intraday data for {trade_date} — "
                 "market may be closed or pre-open.")
+    elif not valid_longs and not valid_shorts:
+        note = (f"No confirmed OR breakouts at {scan_time}. "
+                f"{live_count} stocks scanned — none broke out with RVOL ≥ {config.MIN_RVOL_BREAKOUT}×. "
+                "Market may still be establishing range.")
     else:
-        note = (f"⚠ UNVALIDATED WEIGHTS — paper trade only. "
-                f"{live_count} stocks scored, {skip_count} skipped (no intraday data).")
+        note = (f"Confirmed breakouts: {len(valid_longs)} LONG, {len(valid_shorts)} SHORT "
+                f"(from {live_count} stocks with intraday data). "
+                f"Gate: ltp beyond OR + RVOL ≥ {config.MIN_RVOL_BREAKOUT}× + price vs VWAP.")
 
     out = {
-        "LONG":          long_results[:top_n],
-        "SHORT":         short_results[:top_n],
+        "LONG":          valid_longs[:top_n],
+        "SHORT":         valid_shorts[:top_n],
         "scan_time":     scan_time,
         "prev_scan":     prev_scan,
         "confirmed":     confirmed,

@@ -38,26 +38,30 @@ class ORBar:
 
 @dataclass
 class ScanResult:
-    security_id:   str
-    symbol:        str
-    company:       str = ""
-    direction:     str = "LONG"    # "LONG" or "SHORT"
-    score:         float = 0.0     # 0–100 (UNVALIDATED weights)
-    fb_risk:       float = 50.0    # 0–100 false-breakout risk (higher = riskier)
-    ltp:           float = 0.0     # last traded price at scan time
-    entry:         float = 0.0
-    stop_loss:     float = 0.0
-    target_1r:     float = 0.0
-    target_2r:     float = 0.0
-    rel_volume:    float = 1.0     # time-normalised relative volume ×multiple
-    vwap:          float = 0.0
-    day_move_pct:  float = 0.0     # % from prev close to ltp
-    rs_nifty:      float = 0.0     # stock return minus NIFTY return from prev close
-    buy_imbalance: float = float("nan")  # Phase 4 (order book)
-    reasons:       list[str] = field(default_factory=list)
-    factor_scores: dict       = field(default_factory=dict)
-    scan_time:     str        = "09:30"
-    unvalidated:   bool       = True
+    security_id:        str
+    symbol:             str
+    company:            str   = ""
+    direction:          str   = "LONG"    # "LONG" or "SHORT"
+    score:              float = 0.0       # 0–100 conviction within gated set
+    fb_risk:            float = 50.0      # 0–100 false-breakout risk
+    ltp:                float = 0.0       # last traded price at scan time
+    entry:              float = 0.0
+    stop_loss:          float = 0.0
+    target_1r:          float = 0.0
+    target_2r:          float = 0.0
+    rel_volume:         float = 1.0       # time-normalised RVOL ×multiple
+    vwap:               float = 0.0       # intraday VWAP from open to scan_time
+    or_high:            float = 0.0       # OR high (9:15–9:30)
+    or_low:             float = 0.0       # OR low  (9:15–9:30)
+    breakout_pct:       float = 0.0       # % beyond OR boundary in signal direction
+    breakout_confirmed: bool  = False      # passed hard gate (ltp>orH, rvol≥1.5, ltp≥vwap)
+    day_move_pct:       float = 0.0       # % from prev close to ltp
+    rs_nifty:           float = 0.0       # stock return minus NIFTY return
+    buy_imbalance:      float = float("nan")  # Phase 4 (order book)
+    reasons:            list[str] = field(default_factory=list)
+    factor_scores:      dict       = field(default_factory=dict)
+    scan_time:          str        = "09:30"
+    unvalidated:        bool       = True
 
 
 def score_stock(
@@ -87,14 +91,15 @@ def score_stock(
 
     atr   = daily_features.get("atr14") or 1.0
     risk  = config.ATR_RISK_MULTIPLIER * atr
-    day_move  = (ltp - prev_close) / prev_close * 100
-    rs_nifty  = day_move - nifty_return
-    display_rvol = _compute_display_rvol(intraday_bars, daily_features)
+    day_move      = (ltp - prev_close) / prev_close * 100
+    rs_nifty      = day_move - nifty_return
+    display_rvol  = _compute_display_rvol(intraday_bars, daily_features)
+    intraday_vwap = _compute_intraday_vwap(intraday_bars)
 
     factors = {
         "or_breakout": _f_or_breakout(ltp, or_bar),
         "rel_volume":  _f_rel_volume(intraday_bars, daily_features),
-        "vwap":        _f_vwap(ltp, or_bar),
+        "vwap":        _f_vwap(ltp, intraday_vwap),
         "momentum5":   _f_momentum5(intraday_bars),
         "prev_hl":     _f_prev_hl(ltp, daily_features),
         "ema_struct":  _f_ema_structure(ltp, daily_features),
@@ -125,31 +130,40 @@ def score_stock(
 
     def make_result(direction: str, score: float) -> ScanResult:
         mult    = 1 if direction == "LONG" else -1
-        reasons = _build_reasons(factors, direction, daily_features, or_bar, ltp)
+        reasons = _build_reasons(factors, direction, daily_features, or_bar, ltp, intraday_vwap)
         if market_regime in ("STRONG_BEAR", "BEAR") and direction == "LONG":
-            reasons.insert(0, f"⚠ Bearish regime ({market_regime}) — long carries extra risk")
+            reasons.insert(0, f"Bearish regime ({market_regime}) — long carries extra risk")
         if market_regime in ("STRONG_BULL", "BULL") and direction == "SHORT":
-            reasons.insert(0, f"⚠ Bullish regime ({market_regime}) — short carries extra risk")
+            reasons.insert(0, f"Bullish regime ({market_regime}) — short carries extra risk")
+        # Breakout distance: how far % beyond OR boundary in the signal direction
+        if direction == "LONG":
+            bp = (ltp - or_bar.or_high) / max(or_bar.or_high, 0.01) * 100
+        else:
+            bp = (or_bar.or_low - ltp) / max(or_bar.or_low, 0.01) * 100
         return ScanResult(
-            security_id=security_id,
-            symbol=symbol,
-            direction=direction,
-            score=round(score, 1),
-            fb_risk=round(fb_risk, 1),
-            ltp=round(ltp, 2),
-            entry=round(ltp, 2),
-            stop_loss=round(ltp - mult * risk, 2),
-            target_1r=round(ltp + mult * risk, 2),
-            target_2r=round(ltp + mult * 2 * risk, 2),
-            rel_volume=round(display_rvol, 2),
-            vwap=round(or_bar.or_vwap, 2),
-            day_move_pct=round(day_move, 2),
-            rs_nifty=round(rs_nifty, 2),
-            buy_imbalance=float("nan"),   # Phase 4
-            reasons=reasons,
-            factor_scores={k: round(v, 3) for k, v in factors.items()},
-            scan_time=scan_time,
-            unvalidated=True,
+            security_id       =security_id,
+            symbol            =symbol,
+            direction         =direction,
+            score             =round(score, 1),
+            fb_risk           =round(fb_risk, 1),
+            ltp               =round(ltp, 2),
+            entry             =round(ltp, 2),
+            stop_loss         =round(ltp - mult * risk, 2),
+            target_1r         =round(ltp + mult * risk, 2),
+            target_2r         =round(ltp + mult * 2 * risk, 2),
+            rel_volume        =round(display_rvol, 2),
+            vwap              =round(intraday_vwap, 2),
+            or_high           =round(or_bar.or_high, 2),
+            or_low            =round(or_bar.or_low, 2),
+            breakout_pct      =round(bp, 2),
+            breakout_confirmed=False,   # set by scanner after gate check
+            day_move_pct      =round(day_move, 2),
+            rs_nifty          =round(rs_nifty, 2),
+            buy_imbalance     =float("nan"),   # Phase 4
+            reasons           =reasons,
+            factor_scores     ={k: round(v, 3) for k, v in factors.items()},
+            scan_time         =scan_time,
+            unvalidated       =True,
         )
 
     return make_result("LONG", bull_score), make_result("SHORT", bear_score)
@@ -195,11 +209,11 @@ def _f_rel_volume(bars: pd.DataFrame, feat: dict) -> float:
     return _sigmoid_norm(rvol - 1.0, scale=1.5)
 
 
-def _f_vwap(ltp: float, or_bar: ORBar) -> float:
-    """Price position relative to opening-range VWAP."""
-    if or_bar.or_vwap <= 0:
+def _f_vwap(ltp: float, vwap: float) -> float:
+    """Price position relative to intraday VWAP (open → scan_time)."""
+    if vwap <= 0:
         return 0.5
-    diff_pct = (ltp - or_bar.or_vwap) / or_bar.or_vwap * 100
+    diff_pct = (ltp - vwap) / vwap * 100
     return _sigmoid_norm(diff_pct, scale=0.5)
 
 
@@ -401,9 +415,10 @@ def _build_reasons(
     feat: dict,
     or_bar: ORBar,
     ltp: float,
+    intraday_vwap: float = 0.0,
 ) -> list[str]:
     """Generate plain-language reason strings for the card display."""
-    reasons = [UNVALIDATED_WARNING]
+    reasons = []
     bull = direction == "LONG"
 
     # OR breakout
@@ -420,10 +435,11 @@ def _build_reasons(
 
     # VWAP
     f = factors.get("vwap", 0.5)
+    vwap_disp = intraday_vwap if intraday_vwap > 0 else or_bar.or_vwap
     if f > 0.62:
-        reasons.append(f"▲ Above VWAP {or_bar.or_vwap:.2f}")
+        reasons.append(f"▲ Above VWAP {vwap_disp:.2f}")
     elif f < 0.38:
-        reasons.append(f"▼ Below VWAP {or_bar.or_vwap:.2f}")
+        reasons.append(f"▼ Below VWAP {vwap_disp:.2f}")
 
     # Relative volume
     f = factors.get("rel_volume", 0.5)
@@ -493,6 +509,17 @@ def _build_reasons(
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _compute_intraday_vwap(bars: pd.DataFrame) -> float:
+    """Volume-weighted average price from market open to scan_time."""
+    if bars is None or bars.empty:
+        return 0.0
+    if "volume" in bars.columns:
+        vol = float(bars["volume"].sum())
+        if vol > 0:
+            return float((bars["close"] * bars["volume"]).sum() / vol)
+    return float(bars["close"].mean())
+
 
 def _elapsed_minutes(bars: pd.DataFrame) -> int:
     """Minutes elapsed from market open (09:15) to last bar's timestamp."""
