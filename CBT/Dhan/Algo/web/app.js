@@ -58,7 +58,7 @@ function renderState(s) {
   if (label) { label.textContent = s.status || 'idle'; }
 
   setBadge('brokerBadge', s.broker || 'dhan', 'badge-blue');
-  setBadge('modeBadge', s.mode || 'live', 'badge-red');
+  setBadge('modeBadge', s.mode || 'live', s.mode === 'paper' ? 'badge-amber' : 'badge-red');
 
   // Account strip (INR)
   setText('acctEquity', s.equity != null ? 'Rs' + fmtINR(s.equity) : '—');
@@ -92,6 +92,7 @@ function renderState(s) {
   }
 
   renderPositions(s.positions || {});
+  renderClosedTrades(s.closed_trades || []);
   renderScreener(s.screener || []);
   renderLog(s.log || []);
 
@@ -104,6 +105,8 @@ function renderState(s) {
   setDisabled('btnCloseAll', s.status !== 'running');
   const tfSel = document.getElementById('tfSelect');
   if (tfSel) tfSel.disabled = running;
+  const paperChk = document.getElementById('paperChk');
+  if (paperChk) paperChk.disabled = running;
 }
 
 // ── Positions table ───────────────────────────────────────────────────────────
@@ -132,6 +135,7 @@ function renderPositions(positions) {
       <td><strong>${esc(sym)}</strong></td>
       <td><span class="side-badge ${p.side}">${p.side.toUpperCase()}</span></td>
       <td>${p.qty || 0}</td>
+      <td>${esc(p.entry_time || '—')}</td>
       <td>Rs${fmtINR(p.entry_price || 0)}</td>
       <td>Rs${fmtINR(p.stop_loss || 0)}</td>
       <td class="${pnlCls}">${pnlStr}</td>
@@ -144,9 +148,76 @@ function renderPositions(positions) {
   wrap.innerHTML = `
     <table class="pos-table">
       <thead><tr>
-        <th>Symbol</th><th>Side</th><th>Qty</th>
+        <th>Symbol</th><th>Side</th><th>Qty</th><th>Entry Time</th>
         <th>Entry</th><th>Stop</th>
         <th>P&amp;L</th><th>Risk Rs</th><th>Phase</th><th>Bars</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Position / Closed / Log tabs ────────────────────────────────────────────────
+function switchPosTab(which) {
+  const tabs = { open: 'tabOpen', closed: 'tabClosed', log: 'tabLog' };
+  const panes = { open: 'posTable', closed: 'closedTable', log: 'logFeed' };
+
+  for (const key in tabs) {
+    const tabEl  = document.getElementById(tabs[key]);
+    const paneEl = document.getElementById(panes[key]);
+    if (tabEl)  tabEl.classList.toggle('active', key === which);
+    if (paneEl) paneEl.style.display = key === which ? '' : 'none';
+  }
+
+  const autoScrollWrap = document.getElementById('autoScrollWrap');
+  if (autoScrollWrap) autoScrollWrap.style.display = which === 'log' ? '' : 'none';
+  if (which === 'log') {
+    const feed = document.getElementById('logFeed');
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  }
+}
+
+// ── Closed trades table ─────────────────────────────────────────────────────────
+function renderClosedTrades(trades) {
+  const wrap  = document.getElementById('closedTable');
+  const count = document.getElementById('closedCount');
+  if (!wrap) return;
+  if (count) count.textContent = trades.length;
+
+  if (!trades.length) {
+    wrap.innerHTML = '<div class="empty-msg">No closed positions yet</div>';
+    return;
+  }
+
+  // most recently closed first
+  const rows = trades.slice().reverse().map(t => {
+    const pnl    = t.pnl || 0;
+    const phase  = t.phase || 1;
+    const phaseCls = phase >= 4 ? 'p4' : phase >= 3 ? 'p3' : phase >= 2 ? 'p2' : '';
+    const pnlCls = pnl > 0.01 ? 'pnl-pos' : pnl < -0.01 ? 'pnl-neg' : 'pnl-zero';
+    const pnlStr = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
+    const sym    = t.symbol || t.security_id;
+
+    return `<tr>
+      <td><strong>${esc(sym)}</strong></td>
+      <td><span class="side-badge ${t.side}">${(t.side || '').toUpperCase()}</span></td>
+      <td>${t.qty || 0}</td>
+      <td>${esc(t.entry_time || '—')}</td>
+      <td>Rs${fmtINR(t.entry_price || 0)}</td>
+      <td>Rs${fmtINR(t.exit_price || 0)}</td>
+      <td class="${pnlCls}">${pnlStr}</td>
+      <td><span class="phase-badge ${phaseCls}">P${phase}</span></td>
+      <td>${t.candles_held || 0}</td>
+      <td>${esc(t.closed_at || '')}</td>
+      <td>${esc(t.close_reason || '')}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="pos-table">
+      <thead><tr>
+        <th>Symbol</th><th>Side</th><th>Qty</th><th>Entry Time</th>
+        <th>Entry</th><th>Exit</th>
+        <th>P&amp;L</th><th>Phase</th><th>Bars</th><th>Closed</th><th>Reason</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -209,12 +280,13 @@ function renderLog(entries) {
 // ── API calls ─────────────────────────────────────────────────────────────────
 async function apiStart() {
   const tf = parseInt(document.getElementById('tfSelect')?.value || '5');
+  const paper = document.getElementById('paperChk')?.checked !== false;
   updateTfBadge(tf);
   try {
     const r = await fetch('/api/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candle_interval: tf }),
+      body: JSON.stringify({ candle_interval: tf, paper }),
     });
     const d = await r.json();
     if (d.error) alert('Start error: ' + d.error);

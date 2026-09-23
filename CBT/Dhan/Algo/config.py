@@ -63,6 +63,12 @@ PHASE4_ATR_THRESH = float(os.getenv("PHASE4_ATR_THRESH", "4.0"))
 PHASE2_BUFFER_ATR = float(os.getenv("PHASE2_BUFFER_ATR", "0.15"))
 PHASE3_SL_ATR     = float(os.getenv("PHASE3_SL_ATR",    "1.5"))
 PHASE4_TRAIL_ATR  = float(os.getenv("PHASE4_TRAIL_ATR", "2.0"))
+# Floor for ATR used in phase-trail math, as a % of price. Thinly-traded stocks
+# can print near-flat candles (near-zero true range), which without a floor
+# lets phase thresholds/trail distance shrink to a few paise — position hits
+# "phase 4" almost immediately and the trailing stop clamps to noise-width,
+# giving back most of a real move for a token profit. See ORICONENT 2026-09-23.
+ATR_MIN_PCT       = float(os.getenv("ATR_MIN_PCT",      "0.0015"))  # 0.15% of price
 
 # ── Risk management ───────────────────────────────────────────────────────────
 RISK_PER_TRADE_PCT      = float(os.getenv("RISK_PER_TRADE_PCT",   "0.015"))  # 1.5%
@@ -75,7 +81,7 @@ MIN_QTY                 = int(os.getenv("MIN_QTY",                  "1"))
 # ── Screener / universe ───────────────────────────────────────────────────────
 SCAN_TOP_N      = int(os.getenv("SCAN_TOP_N",   "50"))
 MIN_PRICE       = float(os.getenv("MIN_PRICE",  "50"))    # Rs 50 min price
-MIN_ADTV_CR     = float(os.getenv("MIN_ADTV_CR","10"))    # Rs 10 Crore ADTV
+MIN_ADTV_CR     = float(os.getenv("MIN_ADTV_CR","15"))    # Rs 15 Crore ADTV (screener.py computes real turnover)
 MAX_INSTRUMENTS = int(os.getenv("MAX_INSTRUMENTS","200"))  # universe size cap
 
 # ── Timing (IST) ─────────────────────────────────────────────────────────────
@@ -100,6 +106,14 @@ _screener_cache = _SCREENER / "cache"
 _default_cache  = str(_screener_cache) if _screener_cache.exists() else str(_HERE / "cache")
 CACHE_DIR  = os.getenv("CACHE_DIR", _default_cache)
 OHLCV_DIR  = os.path.join(CACHE_DIR, "ohlcv")
+
+# ── Paper trading ─────────────────────────────────────────────────────────────
+# Real Dhan quotes/bars/account are used either way; only order placement is
+# simulated when paper mode is on (see paper_broker.py). Default True while the
+# Dhan IP whitelist is wrong (4-day re-whitelist cooldown) — set
+# PAPER_MODE_DEFAULT=false once real orders work again.
+PAPER_MODE_DEFAULT     = os.getenv("PAPER_MODE_DEFAULT", "true").lower() == "true"
+PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE", "500000"))
 
 # ── Server ────────────────────────────────────────────────────────────────────
 PORT = int(os.getenv("PORT", os.getenv("ALGO_PORT", "5051")))  # Railway uses PORT

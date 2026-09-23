@@ -133,21 +133,23 @@ class DhanBroker(BrokerInterface):
         try:
             int_id = int(security_id)
             resp = self._dhan.quote_data({DhanHQ.NSE: [int_id]})
-            if resp.get("status") != "success":
+            if not isinstance(resp, dict) or resp.get("status") != "success":
                 # Fall back to OHLC
                 resp2 = self._dhan.ohlc_data({DhanHQ.NSE: [int_id]})
-                data = resp2.get("data", {})
-                seg  = data.get(DhanHQ.NSE, data)
-                info = seg.get(str(int_id), seg.get(security_id, {}))
+                info = _extract_instrument(resp2, int_id, security_id)
+                if info is None:
+                    raise BrokerError(f"no quote/ohlc data for {security_id}: {resp}")
                 price = float(info.get("last_price", info.get("close", 0)) or 0)
                 return {"bid": price, "ask": price, "price": price}
-            data = resp.get("data", {})
-            seg  = data.get(DhanHQ.NSE, data)
-            info = seg.get(str(int_id), seg.get(security_id, {}))
+            info = _extract_instrument(resp, int_id, security_id)
+            if info is None:
+                raise BrokerError(f"quote_data returned no entry for {security_id}: {resp}")
             ltp  = float(info.get("last_price", info.get("ltp", 0)) or 0)
             bid  = float(info.get("best_bid_price", ltp) or ltp)
             ask  = float(info.get("best_ask_price", ltp) or ltp)
             return {"bid": bid, "ask": ask, "price": ltp}
+        except BrokerError:
+            raise
         except Exception as exc:
             raise BrokerError(f"get_latest_quote({security_id}) error: {exc}") from exc
 
@@ -311,6 +313,29 @@ class DhanBroker(BrokerInterface):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_instrument(resp: dict, int_id: int, security_id: str) -> dict | None:
+    """
+    Dig a single instrument's dict out of a quote_data/ohlc_data response.
+
+    Real shape is double-nested: resp["data"]["data"][exchange_segment][sec_id].
+    Tolerates the single-nested shape too, and returns None (instead of
+    raising) if any level is missing or comes back as a non-dict (Dhan
+    sometimes returns a plain error string in "data" under rate limiting).
+    """
+    node = resp.get("data") if isinstance(resp, dict) else None
+    for _ in range(2):  # unwrap up to one extra "data" level
+        if not isinstance(node, dict):
+            return None
+        seg = node.get(DhanHQ.NSE)
+        if isinstance(seg, dict):
+            info = seg.get(str(int_id), seg.get(security_id))
+            if isinstance(info, dict):
+                return info
+            return None
+        node = node.get("data")
+    return None
+
 
 def _parse_intraday(data: dict) -> list[dict]:
     """Parse Dhan column-oriented intraday response into OHLCV dicts."""

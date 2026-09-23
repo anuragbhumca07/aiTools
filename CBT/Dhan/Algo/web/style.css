@@ -145,7 +145,7 @@ body {
 /* ── Main grid ───────────────────────────────────────────────────────────────── */
 .main-grid {
   display: grid;
-  grid-template-columns: 1fr 280px 320px;
+  grid-template-columns: 1fr 280px;
   grid-template-rows: auto;
   gap: 12px;
   padding: 12px 18px;
@@ -182,6 +182,18 @@ body {
   padding: 1px 7px;
   font-size: 11px;
 }
+
+.pos-tabs { padding: 0 12px 0 0; gap: 0; }
+.tab-bar  { display: flex; }
+.tab-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border: none; background: transparent;
+  color: var(--fg3); font-family: inherit; font-size: 11px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  cursor: pointer; border-bottom: 2px solid transparent;
+}
+.tab-btn:hover  { color: var(--fg2); }
+.tab-btn.active { color: var(--fg); border-bottom-color: var(--blue); }
 
 /* ── Positions table ─────────────────────────────────────────────────────────── */
 .pos-table-wrap {

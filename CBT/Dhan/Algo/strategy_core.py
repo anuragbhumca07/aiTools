@@ -243,6 +243,11 @@ def check_exit(position: dict, candles: list[dict]) -> dict:
     if cur_t != last_t: held += 1
     cur_mae = min(mae, profit)
 
+    # Floor ATR so thin/flat-candle stocks can't shrink phase thresholds and
+    # trail distance to near-zero (see ATR_MIN_PCT).
+    if atr is not None:
+        atr = max(atr, price * cfg.ATR_MIN_PCT)
+
     nph = phase; nsl = sl
     if atr is not None:
         if side == "long":

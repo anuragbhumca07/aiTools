@@ -61,14 +61,20 @@ async def api_state():
 
 
 @app.post("/api/start")
-async def api_start(candle_interval: int = Body(default=5, embed=True)):
+async def api_start(
+    candle_interval: int = Body(default=5, embed=True),
+    paper: bool = Body(default=cfg.PAPER_MODE_DEFAULT, embed=True),
+):
     from dhan_broker import DhanBroker
     try:
         broker = DhanBroker()
+        if paper:
+            from paper_broker import PaperBroker
+            broker = PaperBroker(broker, cfg.PAPER_STARTING_BALANCE)
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
     engine.start(broker, candle_interval=candle_interval)
-    return {"status": "started", "candle_interval": candle_interval}
+    return {"status": "started", "candle_interval": candle_interval, "paper": paper}
 
 
 @app.post("/api/update_token")
@@ -100,6 +106,8 @@ async def api_config():
     return {
         "broker":            cfg.BROKER,
         "mode":              cfg.MODE,
+        "paper_mode_default": cfg.PAPER_MODE_DEFAULT,
+        "paper_starting_balance": cfg.PAPER_STARTING_BALANCE,
         "capital_cap_inr":   cfg.CAPITAL_CAP_INR,
         "risk_per_trade_pct": cfg.RISK_PER_TRADE_PCT,
         "max_concurrent":    cfg.MAX_CONCURRENT,

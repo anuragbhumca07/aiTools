@@ -51,6 +51,7 @@ _state: dict[str, Any] = {
     "portfolio_risk_pct": 0.0,
     "eod_phase":        None,
     "positions":        {},
+    "closed_trades":    [],
     "screener":         [],
     "log":              [],
     "error":            None,
@@ -68,9 +69,10 @@ _sym_map: dict[str, str] = {}
 def get_state() -> dict:
     with _state_lock:
         s = dict(_state)
-        s["positions"] = {k: dict(v) for k, v in _state["positions"].items()}
-        s["screener"]  = list(_state["screener"])
-        s["log"]       = list(_state["log"][-100:])
+        s["positions"]     = {k: dict(v) for k, v in _state["positions"].items()}
+        s["closed_trades"] = list(_state["closed_trades"])
+        s["screener"]      = list(_state["screener"])
+        s["log"]           = list(_state["log"][-100:])
     return s
 
 
@@ -83,8 +85,10 @@ def start(broker: BrokerInterface, candle_interval: int | None = None):
         _state.update(
             status="running", error=None,
             session_pnl=0.0, total_trades=0, wins=0,
-            positions={}, eod_phase=None,
+            positions={}, closed_trades=[], eod_phase=None,
             candle_interval=interval,
+            mode="paper" if getattr(broker, "is_paper", False) else "live",
+            broker=broker.name,
         )
     _broker_ref = broker
     _stop_event.clear()
@@ -201,11 +205,22 @@ def _close_position(security_id: str, reason: str, price: float | None = None):
     entry = pos["entry_price"]
     pnl   = (price - entry) * qty if side == "long" else (entry - price) * qty
 
+    closed = {
+        **pos,
+        "exit_price":  price,
+        "pnl":         pnl,
+        "close_reason": reason,
+        "closed_at":   datetime.now(IST).strftime("%H:%M:%S"),
+    }
+
     with _state_lock:
         _state["session_pnl"] += pnl
         _state["total_trades"] += 1
         if pnl > 0:
             _state["wins"] += 1
+        _state["closed_trades"].append(closed)
+        if len(_state["closed_trades"]) > 200:
+            _state["closed_trades"] = _state["closed_trades"][-200:]
 
     _log(f"CLOSED {sym} {side.upper()} qty={qty} @ {price:.2f}  pnl=Rs{pnl:+.2f}  [{reason}]")
 
@@ -233,6 +248,7 @@ def _enter_position(
         "side":            side,
         "qty":             qty,
         "entry_price":     price,
+        "entry_time":      _now_ist().strftime("%H:%M:%S"),
         "stop_loss":       stop_loss,
         "take_profit":     take_profit,
         "phase":           1,
@@ -360,7 +376,8 @@ def _engine_loop():
         return
 
     _set("status", "running")
-    _log(f"Engine running - {len(security_ids)} candidates | broker=dhan | mode=live")
+    mode = "paper" if getattr(broker, "is_paper", False) else "live"
+    _log(f"Engine running - {len(security_ids)} candidates | broker={broker.name} | mode={mode}")
 
     last_account_refresh = 0.0
     rsi_exit_cooldown: dict[str, dict] = {}

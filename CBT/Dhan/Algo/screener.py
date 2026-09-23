@@ -61,10 +61,12 @@ def run_screener(broker: BrokerInterface, sym_map: dict[str, str] | None = None)
         if price < cfg.MIN_PRICE:
             continue
 
-        # 20-bar average volume
+        # 20-bar average volume, filtered on real ADTV in Rs Crore (not raw share
+        # count — avg_vol is shares/day, MIN_ADTV_CR is a rupee-turnover floor)
         vol_window = volumes[-21:-1] if len(volumes) >= 21 else volumes[:-1]
         avg_vol = sum(vol_window) / len(vol_window) if vol_window else 0
-        if avg_vol < cfg.MIN_ADTV_CR:
+        adtv_cr = avg_vol * price / 1e7
+        if adtv_cr < cfg.MIN_ADTV_CR:
             continue
 
         today_vol = volumes[-1]

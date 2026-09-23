@@ -64,6 +64,10 @@
       <option value="30">30 min</option>
       <option value="60">1 hour</option>
     </select>
+    <label class="toggle-label" title="When on, real Dhan quotes/bars/account are used but orders are simulated locally — no real order is sent">
+      <input type="checkbox" id="paperChk" checked/>
+      Paper trade
+    </label>
     <button id="btnStart"    class="btn btn-green" onclick="apiStart()">Start engine</button>
     <button id="btnStop"     class="btn btn-red"   onclick="apiStop()">Stop</button>
     <button id="btnCloseAll" class="btn btn-amber"  onclick="apiCloseAll()">Close all</button>
@@ -72,15 +76,32 @@
 
   <!-- Main grid -->
   <div class="main-grid">
-    <!-- Positions panel -->
+    <!-- Positions panel (Open / Closed / Engine Log tabs) -->
     <section class="panel panel-pos">
-      <div class="panel-hdr">
-        <span>Open positions</span>
-        <span id="posCount" class="count-badge">0</span>
+      <div class="panel-hdr pos-tabs">
+        <div class="tab-bar">
+          <button id="tabOpen" class="tab-btn active" onclick="switchPosTab('open')">
+            Open positions <span id="posCount" class="count-badge">0</span>
+          </button>
+          <button id="tabClosed" class="tab-btn" onclick="switchPosTab('closed')">
+            Closed positions <span id="closedCount" class="count-badge">0</span>
+          </button>
+          <button id="tabLog" class="tab-btn" onclick="switchPosTab('log')">
+            Engine Log
+          </button>
+        </div>
+        <label id="autoScrollWrap" class="toggle-label" style="display:none">
+          <input type="checkbox" id="autoScrollChk" checked/>
+          auto-scroll
+        </label>
       </div>
       <div id="posTable" class="pos-table-wrap">
         <div class="empty-msg">No open positions</div>
       </div>
+      <div id="closedTable" class="pos-table-wrap" style="display:none">
+        <div class="empty-msg">No closed positions yet</div>
+      </div>
+      <div id="logFeed" class="log-feed" style="display:none"></div>
     </section>
 
     <!-- Screener panel -->
@@ -92,18 +113,6 @@
       <div id="screenerList" class="screener-list">
         <div class="empty-msg">Run engine to populate screener</div>
       </div>
-    </section>
-
-    <!-- Log panel -->
-    <section class="panel panel-log">
-      <div class="panel-hdr">
-        <span>Engine log</span>
-        <label class="toggle-label">
-          <input type="checkbox" id="autoScrollChk" checked/>
-          auto-scroll
-        </label>
-      </div>
-      <div id="logFeed" class="log-feed"></div>
     </section>
   </div>
 </div>
