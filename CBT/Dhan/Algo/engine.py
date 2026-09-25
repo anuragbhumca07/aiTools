@@ -255,6 +255,8 @@ def _enter_position(
         "candles_held":    0,
         "last_candle_time": None,
         "mae":             0.0,
+        "atr":             None,
+        "current_price":   price,
         "unrealized_pnl":  0.0,
         "open_risk_inr":   abs(price - stop_loss) * qty,
     }
@@ -452,6 +454,8 @@ def _engine_loop():
                             "phase":          ex["new_phase"],
                             "candles_held":   pos["candles_held"],
                             "mae":            pos["mae"],
+                            "atr":            ex["indicators"].get("atr"),
+                            "current_price":  price,
                             "unrealized_pnl": (
                                 (price - pos["entry_price"]) * pos["qty"]
                                 if pos["side"] == "long"

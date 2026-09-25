@@ -130,6 +130,9 @@ function renderPositions(positions) {
     const pnlStr = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
     const risk   = p.open_risk_inr || 0;
     const sym    = p.symbol || sid;
+    const curPrice  = p.current_price != null ? p.current_price : p.entry_price;
+    // round-trip estimate: entry leg already incurred, exit leg priced at current mark
+    const brokerage = estBrokerage(p.entry_price, p.qty) + estBrokerage(curPrice, p.qty);
 
     return `<tr>
       <td><strong>${esc(sym)}</strong></td>
@@ -137,9 +140,12 @@ function renderPositions(positions) {
       <td>${p.qty || 0}</td>
       <td>${esc(p.entry_time || '—')}</td>
       <td>Rs${fmtINR(p.entry_price || 0)}</td>
+      <td>Rs${fmtINR(curPrice || 0)}</td>
       <td>Rs${fmtINR(p.stop_loss || 0)}</td>
+      <td>${p.atr != null ? p.atr.toFixed(3) : '—'}</td>
       <td class="${pnlCls}">${pnlStr}</td>
       <td>Rs${fmtINR(risk)}</td>
+      <td>Rs${fmtINR(brokerage)}</td>
       <td><span class="phase-badge ${phaseCls}">P${phase}</span></td>
       <td>${p.candles_held || 0}</td>
     </tr>`;
@@ -149,8 +155,8 @@ function renderPositions(positions) {
     <table class="pos-table">
       <thead><tr>
         <th>Symbol</th><th>Side</th><th>Qty</th><th>Entry Time</th>
-        <th>Entry</th><th>Stop</th>
-        <th>P&amp;L</th><th>Risk Rs</th><th>Phase</th><th>Bars</th>
+        <th>Entry</th><th>Current</th><th>Stop</th><th>ATR</th>
+        <th>P&amp;L</th><th>Risk Rs</th><th>Brokerage (Est.)</th><th>Phase</th><th>Bars</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -196,6 +202,7 @@ function renderClosedTrades(trades) {
     const pnlCls = pnl > 0.01 ? 'pnl-pos' : pnl < -0.01 ? 'pnl-neg' : 'pnl-zero';
     const pnlStr = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
     const sym    = t.symbol || t.security_id;
+    const brokerage = estBrokerage(t.entry_price, t.qty) + estBrokerage(t.exit_price, t.qty);
 
     return `<tr>
       <td><strong>${esc(sym)}</strong></td>
@@ -204,7 +211,9 @@ function renderClosedTrades(trades) {
       <td>${esc(t.entry_time || '—')}</td>
       <td>Rs${fmtINR(t.entry_price || 0)}</td>
       <td>Rs${fmtINR(t.exit_price || 0)}</td>
+      <td>${t.atr != null ? t.atr.toFixed(3) : '—'}</td>
       <td class="${pnlCls}">${pnlStr}</td>
+      <td>Rs${fmtINR(brokerage)}</td>
       <td><span class="phase-badge ${phaseCls}">P${phase}</span></td>
       <td>${t.candles_held || 0}</td>
       <td>${esc(t.closed_at || '')}</td>
@@ -216,8 +225,8 @@ function renderClosedTrades(trades) {
     <table class="pos-table">
       <thead><tr>
         <th>Symbol</th><th>Side</th><th>Qty</th><th>Entry Time</th>
-        <th>Entry</th><th>Exit</th>
-        <th>P&amp;L</th><th>Phase</th><th>Bars</th><th>Closed</th><th>Reason</th>
+        <th>Entry</th><th>Exit</th><th>ATR</th>
+        <th>P&amp;L</th><th>Brokerage</th><th>Phase</th><th>Bars</th><th>Closed</th><th>Reason</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -324,6 +333,11 @@ async function reloadScreener() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// Dhan intraday equity brokerage: min(0.03% of turnover, Rs 20) per executed order.
+function estBrokerage(price, qty) {
+  const turnover = Math.abs(price || 0) * Math.abs(qty || 0);
+  return Math.min(turnover * 0.0003, 20);
+}
 function fmtINR(v) {
   return Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
