@@ -68,6 +68,14 @@
       <input type="checkbox" id="paperChk" checked/>
       Paper trade
     </label>
+    <label class="tf-label" title="Add stocks not chosen by the screener — the engine trades them the same way, marked with an amber dot">
+      <span class="origin-dot origin-manual"></span>Manual stocks
+    </label>
+    <input type="text" id="manualSymbols" class="manual-input"
+           placeholder="e.g. TCS, INFY, RELIANCE"
+           title="Comma or newline separated NSE symbols to run alongside the screener"/>
+    <input type="file" id="manualFile" accept=".txt" class="manual-file" onchange="handleManualFile(event)"
+           title="Upload a .txt file of NSE symbols (one per line or comma-separated)"/>
     <button id="btnStart"    class="btn btn-green" onclick="apiStart()">Start engine</button>
     <button id="btnStop"     class="btn btn-red"   onclick="apiStop()">Stop</button>
     <button id="btnCloseAll" class="btn btn-amber"  onclick="apiCloseAll()">Close all</button>

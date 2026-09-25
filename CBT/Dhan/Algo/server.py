@@ -64,6 +64,7 @@ async def api_state():
 async def api_start(
     candle_interval: int = Body(default=5, embed=True),
     paper: bool = Body(default=cfg.PAPER_MODE_DEFAULT, embed=True),
+    manual_symbols: list[str] = Body(default=[], embed=True),
 ):
     from dhan_broker import DhanBroker
     try:
@@ -73,7 +74,7 @@ async def api_start(
             broker = PaperBroker(broker, cfg.PAPER_STARTING_BALANCE)
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
-    engine.start(broker, candle_interval=candle_interval)
+    engine.start(broker, candle_interval=candle_interval, manual_symbols=manual_symbols)
     return {"status": "started", "candle_interval": candle_interval, "paper": paper}
 
 

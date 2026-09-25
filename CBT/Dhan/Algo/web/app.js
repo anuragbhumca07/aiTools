@@ -61,11 +61,11 @@ function renderState(s) {
   setBadge('modeBadge', s.mode || 'live', s.mode === 'paper' ? 'badge-amber' : 'badge-red');
 
   // Account strip (INR)
-  setText('acctEquity', s.equity != null ? 'Rs' + fmtINR(s.equity) : '—');
+  setText('acctEquity', s.equity != null ? fmtINR(s.equity) : '—');
   const pnlEl = document.getElementById('acctPnl');
   if (pnlEl) {
     const pnl = s.session_pnl || 0;
-    pnlEl.textContent = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
+    pnlEl.textContent = (pnl >= 0 ? '+' : '-') + fmtINR(Math.abs(pnl));
     pnlEl.className = 'acct-val pnl ' + (pnl > 0 ? 'pos' : pnl < 0 ? 'neg' : '');
   }
   const trades = s.total_trades || 0;
@@ -107,6 +107,40 @@ function renderState(s) {
   if (tfSel) tfSel.disabled = running;
   const paperChk = document.getElementById('paperChk');
   if (paperChk) paperChk.disabled = running;
+  const manualInput = document.getElementById('manualSymbols');
+  if (manualInput) manualInput.disabled = running;
+  const manualFile = document.getElementById('manualFile');
+  if (manualFile) manualFile.disabled = running;
+}
+
+// ── Manual stocks ────────────────────────────────────────────────────────────
+function handleManualFile(evt) {
+  const file = evt.target.files && evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const parsed = parseSymbols(String(reader.result || ''));
+    const box = document.getElementById('manualSymbols');
+    if (!box) return;
+    const existing = parseSymbols(box.value);
+    const merged = Array.from(new Set([...existing, ...parsed]));
+    box.value = merged.join(', ');
+  };
+  reader.onerror = () => alert('Could not read file: ' + file.name);
+  reader.readAsText(file);
+  evt.target.value = ''; // allow re-uploading the same file later
+}
+
+function parseSymbols(text) {
+  return text
+    .split(/[\s,]+/)
+    .map(s => s.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function getManualSymbols() {
+  const box = document.getElementById('manualSymbols');
+  return box ? parseSymbols(box.value) : [];
 }
 
 // ── Positions table ───────────────────────────────────────────────────────────
@@ -127,7 +161,7 @@ function renderPositions(positions) {
     const phase = p.phase || 1;
     const phaseCls = phase >= 4 ? 'p4' : phase >= 3 ? 'p3' : phase >= 2 ? 'p2' : '';
     const pnlCls = pnl > 0.01 ? 'pnl-pos' : pnl < -0.01 ? 'pnl-neg' : 'pnl-zero';
-    const pnlStr = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
+    const pnlStr = (pnl >= 0 ? '+' : '-') + fmtINR(Math.abs(pnl));
     const risk   = p.open_risk_inr || 0;
     const sym    = p.symbol || sid;
     const curPrice  = p.current_price != null ? p.current_price : p.entry_price;
@@ -135,17 +169,17 @@ function renderPositions(positions) {
     const brokerage = estBrokerage(p.entry_price, p.qty) + estBrokerage(curPrice, p.qty);
 
     return `<tr>
-      <td><strong>${esc(sym)}</strong></td>
+      <td>${originDot(p.origin)}<strong>${esc(sym)}</strong></td>
       <td><span class="side-badge ${p.side}">${p.side.toUpperCase()}</span></td>
       <td>${p.qty || 0}</td>
       <td>${esc(p.entry_time || '—')}</td>
-      <td>Rs${fmtINR(p.entry_price || 0)}</td>
-      <td>Rs${fmtINR(curPrice || 0)}</td>
-      <td>Rs${fmtINR(p.stop_loss || 0)}</td>
+      <td>${fmtINR(p.entry_price || 0)}</td>
+      <td>${fmtINR(curPrice || 0)}</td>
+      <td>${fmtINR(p.stop_loss || 0)}</td>
       <td>${p.atr != null ? p.atr.toFixed(3) : '—'}</td>
       <td class="${pnlCls}">${pnlStr}</td>
-      <td>Rs${fmtINR(risk)}</td>
-      <td>Rs${fmtINR(brokerage)}</td>
+      <td>${fmtINR(risk)}</td>
+      <td>${fmtINR(brokerage)}</td>
       <td><span class="phase-badge ${phaseCls}">P${phase}</span></td>
       <td>${p.candles_held || 0}</td>
     </tr>`;
@@ -156,10 +190,16 @@ function renderPositions(positions) {
       <thead><tr>
         <th>Symbol</th><th>Side</th><th>Qty</th><th>Entry Time</th>
         <th>Entry</th><th>Current</th><th>Stop</th><th>ATR</th>
-        <th>P&amp;L</th><th>Risk Rs</th><th>Brokerage (Est.)</th><th>Phase</th><th>Bars</th>
+        <th>P&amp;L</th><th>Risk</th><th>Brokerage (Est.)</th><th>Phase</th><th>Bars</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+// small colored dot marking a manually-added stock vs a screener-sourced one
+function originDot(origin) {
+  if (origin !== 'manual') return '';
+  return '<span class="origin-dot origin-manual" title="Manually added"></span>';
 }
 
 // ── Position / Closed / Log tabs ────────────────────────────────────────────────
@@ -200,20 +240,20 @@ function renderClosedTrades(trades) {
     const phase  = t.phase || 1;
     const phaseCls = phase >= 4 ? 'p4' : phase >= 3 ? 'p3' : phase >= 2 ? 'p2' : '';
     const pnlCls = pnl > 0.01 ? 'pnl-pos' : pnl < -0.01 ? 'pnl-neg' : 'pnl-zero';
-    const pnlStr = (pnl >= 0 ? '+Rs' : '-Rs') + fmtINR(Math.abs(pnl));
+    const pnlStr = (pnl >= 0 ? '+' : '-') + fmtINR(Math.abs(pnl));
     const sym    = t.symbol || t.security_id;
     const brokerage = estBrokerage(t.entry_price, t.qty) + estBrokerage(t.exit_price, t.qty);
 
     return `<tr>
-      <td><strong>${esc(sym)}</strong></td>
+      <td>${originDot(t.origin)}<strong>${esc(sym)}</strong></td>
       <td><span class="side-badge ${t.side}">${(t.side || '').toUpperCase()}</span></td>
       <td>${t.qty || 0}</td>
       <td>${esc(t.entry_time || '—')}</td>
-      <td>Rs${fmtINR(t.entry_price || 0)}</td>
-      <td>Rs${fmtINR(t.exit_price || 0)}</td>
+      <td>${fmtINR(t.entry_price || 0)}</td>
+      <td>${fmtINR(t.exit_price || 0)}</td>
       <td>${t.atr != null ? t.atr.toFixed(3) : '—'}</td>
       <td class="${pnlCls}">${pnlStr}</td>
-      <td>Rs${fmtINR(brokerage)}</td>
+      <td>${fmtINR(brokerage)}</td>
       <td><span class="phase-badge ${phaseCls}">P${phase}</span></td>
       <td>${t.candles_held || 0}</td>
       <td>${esc(t.closed_at || '')}</td>
@@ -240,6 +280,15 @@ function renderScreener(items) {
     return;
   }
   el.innerHTML = items.map((c, i) => {
+    const isManual = c.origin === 'manual';
+    if (isManual) {
+      return `<div class="screener-row">
+        <span class="screener-rank">${i + 1}</span>
+        ${originDot(c.origin)}
+        <span class="screener-sym">${esc(c.symbol || c.security_id)}</span>
+        <span class="screener-atr" style="margin-left:auto">manual</span>
+      </div>`;
+    }
     const gapCls = (c.gap_pct || 0) >= 0 ? 'pos' : 'neg';
     const gapStr = ((c.gap_pct || 0) >= 0 ? '+' : '') + (c.gap_pct || 0).toFixed(2) + '%';
     return `<div class="screener-row">
@@ -290,12 +339,13 @@ function renderLog(entries) {
 async function apiStart() {
   const tf = parseInt(document.getElementById('tfSelect')?.value || '5');
   const paper = document.getElementById('paperChk')?.checked !== false;
+  const manual_symbols = getManualSymbols();
   updateTfBadge(tf);
   try {
     const r = await fetch('/api/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candle_interval: tf, paper }),
+      body: JSON.stringify({ candle_interval: tf, paper, manual_symbols }),
     });
     const d = await r.json();
     if (d.error) alert('Start error: ' + d.error);

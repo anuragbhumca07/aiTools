@@ -63,6 +63,13 @@ _broker_ref: BrokerInterface | None = None
 # symbol map: security_id -> display symbol
 _sym_map: dict[str, str] = {}
 
+# symbols the user added manually (uppercased) and each traded security's origin
+_manual_symbols: list[str] = []
+_stock_origin: dict[str, str] = {}  # security_id -> "screener" | "manual"
+
+# shared between the slow (entry) and fast (trailing-SL) loops
+_rsi_exit_cooldown: dict[str, dict] = {}
+
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
@@ -76,8 +83,8 @@ def get_state() -> dict:
     return s
 
 
-def start(broker: BrokerInterface, candle_interval: int | None = None):
-    global _broker_ref
+def start(broker: BrokerInterface, candle_interval: int | None = None, manual_symbols: list[str] | None = None):
+    global _broker_ref, _manual_symbols, _rsi_exit_cooldown
     with _state_lock:
         if _state["status"] == "running":
             return
@@ -91,10 +98,14 @@ def start(broker: BrokerInterface, candle_interval: int | None = None):
             broker=broker.name,
         )
     _broker_ref = broker
+    _manual_symbols = [s.strip().upper() for s in (manual_symbols or []) if s and s.strip()]
+    _rsi_exit_cooldown = {}
     _stop_event.clear()
     t = threading.Thread(target=_engine_loop, daemon=True)
     t.start()
-    _log(f"Engine started (Dhan NSE | {interval}-min bars)")
+    t2 = threading.Thread(target=_fast_trail_loop, args=(broker,), daemon=True)
+    t2.start()
+    _log(f"Engine started (Dhan NSE | {interval}-min bars, 10s trailing-stop checks)")
 
 
 def stop():
@@ -259,6 +270,7 @@ def _enter_position(
         "current_price":   price,
         "unrealized_pnl":  0.0,
         "open_risk_inr":   abs(price - stop_loss) * qty,
+        "origin":          _stock_origin.get(security_id, "screener"),
     }
     with _state_lock:
         _state["positions"][security_id] = pos
@@ -346,10 +358,115 @@ def _update_bars(broker: BrokerInterface, security_ids: list[str]) -> set[str]:
     return new_bar_sids
 
 
+def _diagnose_missing_symbols(symbols: list[str]) -> list[str]:
+    """
+    A manual symbol missing from _sym_map could mean it genuinely doesn't
+    exist, OR it exists but was filtered out of the EQ-only tradable universe
+    (e.g. trades in "BE"/T2T-surveillance or "SM"/SME series — segments
+    that don't support normal same-day intraday netting). Distinguishing
+    these avoids a confusing "not found" for a real, spelled-correctly stock.
+    """
+    try:
+        from universe import fetch_instrument_master
+        df = fetch_instrument_master()
+    except Exception:
+        return [f"Manual symbols not found in NSE EQ universe: {', '.join(symbols)}"]
+
+    notes = []
+    for sym in symbols:
+        rows = df[
+            (df["SEM_EXM_EXCH_ID"].astype(str) == "NSE")
+            & (df["SEM_TRADING_SYMBOL"].astype(str).str.upper() == sym)
+        ]
+        if len(rows):
+            series = ", ".join(sorted(set(rows["SEM_SERIES"].astype(str))))
+            notes.append(
+                f"{sym}: exists on NSE but in series [{series}], not EQ — "
+                f"excluded (likely T2T/SME segment, no standard intraday netting)"
+            )
+        else:
+            notes.append(f"{sym}: no NSE listing under this exact symbol — check for a rename or typo")
+    return notes
+
+
+# ── Fast trail loop (10s) ────────────────────────────────────────────────────
+# Trailing-SL is computed locally from the live quote, not pushed by the broker,
+# so it must be re-checked far more often than the entry-signal candle timeframe
+# or a fast intrabar move against an open position could be missed. Entry
+# scanning for symbols with no position stays on the slower candle-close
+# cadence in _engine_loop — there's no benefit to scanning for new entries
+# faster than a new candle can actually form.
+
+_FAST_TRAIL_INTERVAL = 10.0
+
+
+def _fast_trail_loop(broker: BrokerInterface):
+    while not _stop_event.is_set():
+        tick_start = time.monotonic()
+
+        eod = _state.get("eod_phase")
+        if eod != "fallback":  # fallback's bulk close is handled by the main loop
+            with _state_lock:
+                sids = list(_state["positions"].keys())
+
+            for sid in sids:
+                if _stop_event.is_set():
+                    break
+                candles = _candle_cache.get(sid)
+                if not candles:
+                    continue
+                with _state_lock:
+                    pos = _state["positions"].get(sid)
+                if pos is None:
+                    continue
+
+                try:
+                    quote = broker.get_latest_quote(sid)
+                    price = quote["price"]
+                except Exception:
+                    price = candles[-1]["close"]
+
+                if eod == "closing":
+                    _close_position(sid, "EOD closing", price=price)
+                    continue
+
+                check_candles = candles[:-1] + [{**candles[-1], "close": price}]
+                ex = check_exit(pos, check_candles)
+
+                with _state_lock:
+                    if sid in _state["positions"]:
+                        _state["positions"][sid].update({
+                            "stop_loss":      ex["new_stop"],
+                            "phase":          ex["new_phase"],
+                            "candles_held":   pos["candles_held"],
+                            "mae":            pos["mae"],
+                            "atr":            ex["indicators"].get("atr"),
+                            "current_price":  price,
+                            "unrealized_pnl": (
+                                (price - pos["entry_price"]) * pos["qty"]
+                                if pos["side"] == "long"
+                                else (pos["entry_price"] - price) * pos["qty"]
+                            ),
+                            "open_risk_inr": abs(pos["entry_price"] - ex["new_stop"]) * pos["qty"],
+                        })
+
+                if ex["exit"]:
+                    _close_position(sid, " | ".join(ex["reasons"]), price=price)
+                    reason_str = " ".join(ex["reasons"])
+                    if "RSI overbought" in reason_str or "RSI oversold" in reason_str:
+                        _rsi_exit_cooldown[sid] = {
+                            "side":     pos["side"],
+                            "bar_time": candles[-1]["time"],
+                        }
+
+        elapsed = time.monotonic() - tick_start
+        _stop_event.wait(max(0.0, _FAST_TRAIL_INTERVAL - elapsed))
+
+
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 def _engine_loop():
-    global _sym_map
+    global _sym_map, _stock_origin
     broker = _broker_ref
 
     # ── 1. Build symbol map ───────────────────────────────────────────────────
@@ -360,12 +477,40 @@ def _engine_loop():
     # ── 2. Screener ───────────────────────────────────────────────────────────
     _log("Running screener...")
     candidates = run_screener(broker, sym_map=_sym_map)
+    for c in candidates:
+        c["origin"] = "screener"
+    _stock_origin = {c["security_id"]: "screener" for c in candidates}
+
+    # ── 2b. Manual stocks — added regardless of screener filters ─────────────
+    if _manual_symbols:
+        sym_to_sid = {sym.upper(): sid for sid, sym in _sym_map.items()}
+        added, missing = [], []
+        for sym in _manual_symbols:
+            sid = sym_to_sid.get(sym)
+            if sid is None:
+                missing.append(sym)
+                continue
+            if sid in _stock_origin:
+                continue  # already present via screener
+            candidates.append({
+                "security_id": sid, "symbol": sym,
+                "price": None, "rvol": None, "gap_pct": None, "atr_pct": None,
+                "avg_vol": None, "score": None, "origin": "manual",
+            })
+            _stock_origin[sid] = "manual"
+            added.append(sym)
+        if added:
+            _log(f"Manual stocks added: {', '.join(added)}")
+        if missing:
+            for note in _diagnose_missing_symbols(missing):
+                _log(note, "WARN")
+
     with _state_lock:
         _state["screener"] = candidates
     security_ids = [c["security_id"] for c in candidates]
 
     if not security_ids:
-        _log("Screener returned 0 candidates - check universe and market hours", "WARN")
+        _log("Screener returned 0 candidates and no manual stocks resolved - check universe/market hours", "WARN")
         _set("status", "error")
         return
 
@@ -382,7 +527,6 @@ def _engine_loop():
     _log(f"Engine running - {len(security_ids)} candidates | broker={broker.name} | mode={mode}")
 
     last_account_refresh = 0.0
-    rsi_exit_cooldown: dict[str, dict] = {}
 
     while not _stop_event.is_set():
         tick_start = time.monotonic()
@@ -413,6 +557,7 @@ def _engine_loop():
                     _close_position(sid, "EOD market fallback")
             _set("status", "stopped")
             _log("EOD done - engine stopped")
+            _stop_event.set()  # also stop the fast trail loop
             return
 
         if not _is_market_hours():
@@ -433,50 +578,10 @@ def _engine_loop():
 
             with _state_lock:
                 pos = _state["positions"].get(sid)
+            if pos is not None:
+                continue  # trailing-SL/exit for open positions is owned by the fast 10s loop
 
             sym = _display(sid)
-
-            # ── Exit management ───────────────────────────────────────────────
-            if pos is not None:
-                try:
-                    quote = broker.get_latest_quote(sid)
-                    price = quote["price"]
-                except Exception:
-                    price = candles[-1]["close"]
-
-                check_candles = candles[:-1] + [{**candles[-1], "close": price}]
-                ex = check_exit(pos, check_candles)
-
-                with _state_lock:
-                    if sid in _state["positions"]:
-                        _state["positions"][sid].update({
-                            "stop_loss":      ex["new_stop"],
-                            "phase":          ex["new_phase"],
-                            "candles_held":   pos["candles_held"],
-                            "mae":            pos["mae"],
-                            "atr":            ex["indicators"].get("atr"),
-                            "current_price":  price,
-                            "unrealized_pnl": (
-                                (price - pos["entry_price"]) * pos["qty"]
-                                if pos["side"] == "long"
-                                else (pos["entry_price"] - price) * pos["qty"]
-                            ),
-                            "open_risk_inr": abs(pos["entry_price"] - ex["new_stop"]) * pos["qty"],
-                        })
-
-                if eod == "closing":
-                    _close_position(sid, "EOD closing", price=price)
-                    continue
-
-                if ex["exit"]:
-                    _close_position(sid, " | ".join(ex["reasons"]), price=price)
-                    reason_str = " ".join(ex["reasons"])
-                    if "RSI overbought" in reason_str or "RSI oversold" in reason_str:
-                        rsi_exit_cooldown[sid] = {
-                            "side":     pos["side"],
-                            "bar_time": candles[-1]["time"],
-                        }
-                continue
 
             # ── Entry logic ───────────────────────────────────────────────────
             if eod in ("closing", "fallback", "stop_entries"):
@@ -491,14 +596,14 @@ def _engine_loop():
 
             side = "long" if signal == "BUY" else "short"
 
-            # RSI cooldown
-            cd = rsi_exit_cooldown.get(sid)
+            # RSI cooldown (set by the fast trail loop on an RSI-triggered exit)
+            cd = _rsi_exit_cooldown.get(sid)
             if cd and cd["side"] == side:
                 bars_since = sum(1 for b in candles if b["time"] > cd["bar_time"])
                 if bars_since < cfg.RSI_COOLDOWN_BARS:
                     continue
                 else:
-                    del rsi_exit_cooldown[sid]
+                    del _rsi_exit_cooldown[sid]
 
             ind   = result["indicators"]
             price = ind.get("price", candles[-1]["close"])

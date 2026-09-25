@@ -114,6 +114,17 @@ body {
 }
 .tf-select:focus { border-color: var(--blue); }
 .tf-select:disabled { opacity: 0.4; cursor: not-allowed; }
+.manual-input {
+  padding: 5px 10px; border-radius: var(--radius); width: 200px;
+  border: 1px solid var(--border); background: var(--bg3);
+  color: var(--fg); font-family: inherit; font-size: 12px; outline: none;
+}
+.manual-input:focus { border-color: var(--amber); }
+.manual-input:disabled { opacity: 0.4; cursor: not-allowed; }
+.manual-file {
+  font-size: 11px; color: var(--fg2); max-width: 140px;
+}
+.manual-file:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn {
   padding: 6px 14px; border-radius: var(--radius);
   border: none; cursor: pointer; font-family: inherit;
@@ -230,6 +241,13 @@ body {
 }
 .side-badge.long  { background: var(--green-dim); color: var(--green); }
 .side-badge.short { background: var(--red-dim);   color: var(--red);   }
+
+.origin-dot {
+  display: inline-block;
+  width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
+.origin-dot.origin-manual { background: var(--amber); box-shadow: 0 0 4px var(--amber); }
 
 .phase-badge {
   display: inline-block;
